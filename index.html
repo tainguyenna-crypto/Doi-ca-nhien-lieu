@@ -381,7 +381,7 @@ function caLabel(k){return CA[k]?CA[k].label:k;}
 function badge(s){ return {pending_partner:'<span class="badge bp">Chờ xác nhận</span>',pending_ld:'<span class="badge bld">Chờ LD duyệt</span>',approved:'<span class="badge bok">Đã duyệt</span>',rejected:'<span class="badge bno">Từ chối</span>'}[s]||''; }
 function flowBar(s){ const steps=[['pending_partner','Xác nhận'],['pending_ld','Duyệt PX'],['approved','Xong']]; const cur={pending_partner:0,pending_ld:1,approved:2}[s]??0; return`<div class="flow">${steps.map(([,l],i)=>`<div class="fs${s!=='rejected'&&i<cur?' done':s!=='rejected'&&i===cur?' active':''}">${l}</div>`).join('')}</div>`; }
 function reqCard(r,a=''){
-  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đi thay ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả thay ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
+  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
 }
 
 function renderDongY(){ 
@@ -508,7 +508,7 @@ function renderDayTable(){
     const [y3,m3,d3]=r.ngayTra.split('-').map(Number); if(y3===yr&&m3===mo)dm[d3].tra.push(r.name+' ('+r.caTra+')');
   });
   const rows=Object.entries(dm).filter(([,v])=>v.doi.length||v.tra.length);
-  wrap.innerHTML=`<div class="table-wrapper"><table class="dt" id="table-day"><thead><tr><th>Ngày</th><th>Đi thay</th><th>Trả thay</th></tr></thead><tbody>${rows.map(([d,v])=>`<tr><td>${d}/${mo}</td><td>${v.doi.map(n=>`<span class="dp">${n}</span>`).join('')}</td><td>${v.tra.map(n=>`<span class="dp t">${n}</span>`).join('')}</td></tr>`).join('')}</tbody></table></div>`;
+  wrap.innerHTML=`<div class="table-wrapper"><table class="dt" id="table-day"><thead><tr><th>Ngày</th><th>Người đi thay</th><th>Người đổi</th></tr></thead><tbody>${rows.map(([d,v])=>`<tr><td>${d}/${mo}</td><td>${v.doi.map(n=>`<span class="dp">${n}</span>`).join('')}</td><td>${v.tra.map(n=>`<span class="dp t">${n}</span>`).join('')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderWarn() {
