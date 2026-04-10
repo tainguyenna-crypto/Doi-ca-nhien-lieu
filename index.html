@@ -284,7 +284,25 @@ function buildSS(id,q){
 function filterSS(id,q){buildSS(id,q);}
 document.addEventListener('click',e=>{
   const b=e.target.closest('.ss-btn'); if(b){ const d=b.nextElementSibling; d.classList.toggle('open'); return; }
-  const o=e.target.closest('.ss-opt'); if(o){ const ss=o.closest('.ss'); document.getElementById(SS_HIDDEN[ss.id]).value=o.dataset.val; document.getElementById(ss.id+'-lbl').textContent=o.dataset.val; ss.querySelector('.ss-btn').classList.remove('ph'); o.closest('.ss-drop').classList.remove('open'); return; }
+  const o=e.target.closest('.ss-opt'); 
+  if(o){ 
+    const ss=o.closest('.ss'); 
+    const val = o.dataset.val;
+    document.getElementById(SS_HIDDEN[ss.id]).value = val; 
+    document.getElementById(ss.id+'-lbl').textContent = val; 
+    ss.querySelector('.ss-btn').classList.remove('ph'); 
+    o.closest('.ss-drop').classList.remove('open'); 
+    
+    // TỰ ĐỘNG ĐIỀN KÍP VÀ CHỨC DANH NGƯỜI ĐI THAY
+    if(ss.id === 'ss-partner') {
+      const pInfo = NV_LIST.find(u => u.name === val);
+      if(pInfo) {
+        if(pInfo.kip) document.getElementById('f-partner-kip').value = pInfo.kip;
+        if(pInfo.chucDanh) document.getElementById('f-partner-role').value = pInfo.chucDanh;
+      }
+    }
+    return; 
+  }
   if(!e.target.closest('.ss-drop')) document.querySelectorAll('.ss-drop').forEach(d=>d.classList.remove('open'));
 });
 function initSS(){Object.keys(SS_SOURCES).forEach(id=>buildSS(id,''));}
@@ -305,7 +323,12 @@ async function doLogin(){
     document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none'; 
     document.getElementById('btn-admin').style.display = CU.admin?'':'none'; 
     document.getElementById('f-name').value = CU.name; 
-    
+    // TỰ ĐỘNG ĐIỀN KÍP NGƯỜI XIN NGHỈ (KHI VỪA ĐĂNG NHẬP)
+    const myInfo = NV_LIST.find(u => u.name === CU.name);
+    if(myInfo && myInfo.kip) {
+      document.getElementById('f-kip').value = myInfo.kip;
+    }
+
     // Nút tải file Excel
     let isLd = CU.role === 'ld' ? 'inline-flex' : 'none';
     document.getElementById('btn-export-excel').style.display = isLd;
