@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Quản lý đổi ca – PX Nhiên liệu</title>
+<title id="page-title">Quản lý đổi ca</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6fb;color:#1a1a2e;font-size:14px; -webkit-tap-highlight-color: transparent;}
@@ -84,11 +84,14 @@ textarea{resize:none;height:80px}
 <body>
 
 <div class="topbar">
-  <div><div style="font-size:16px;font-weight:700;">Quản lý đổi ca</div><div class="topbar-sub">Phân xưởng Nhiên liệu – Nghi Sơn 1</div></div>
+  <div><div style="font-size:16px;font-weight:700;">Quản lý đổi ca</div><div class="topbar-sub" id="tb-ten-px">Đang tải cấu hình...</div></div>
 </div>
 
 <div class="overlay" id="overlay">
-  <div class="pbox" id="login-loading"><div class="spin" style="margin-bottom:12px;"></div><div>Đang tải nhân sự...</div></div>
+  <div class="pbox" id="login-loading" style="text-align:center;">
+    <div class="spin" style="margin-bottom:12px;" id="spin-icon"></div>
+    <div id="loading-text" style="font-weight:500;">Đang tải dữ liệu...</div>
+  </div>
   <div class="pbox" id="login-box" style="display:none">
     <div class="plogo">🔑 Đăng nhập</div>
     <div class="psub">Chọn tên và nhập mã PIN cá nhân</div>
@@ -126,14 +129,14 @@ textarea{resize:none;height:80px}
         <div class="sec-title" style="margin-bottom:16px;">Tạo yêu cầu đổi ca</div>
         <div class="form-row three">
           <div><label>Người xin nghỉ</label><input type="text" id="f-name" readonly style="background:#f1f5f9; color:#475569; font-weight:600;"></div>
-          <div><label>Kíp</label><select id="f-kip"><option value="">-- Kíp --</option><option>Kíp 1</option><option>Kíp 2</option><option>Kíp 3</option><option>Kíp 4</option><option>Kíp 5</option></select></div>
+          <div><label>Kíp</label><select id="f-kip"><option value="">-- Kíp --</option></select></div>
         </div>
         <div class="form-row">
-          <div><label>Ca đổi</label><select id="f-ca-doi"><option value="">-- Chọn ca --</option><option value="K">Ca K</option><option value="N">Ca N</option><option value="C">Ca C</option></select></div>
-          <div><label>Ngày đổi</label><input type="date" id="f-ngay-doi"></div>
+          <div><label>Ca đi thay</label><select id="f-ca-doi"><option value="">-- Chọn ca --</option></select></div>
+          <div><label>Ngày đi thay</label><input type="date" id="f-ngay-doi"></div>
         </div>
         <div class="form-row">
-          <div><label>Ca trả lại</label><select id="f-ca-tra"><option value="">-- Chọn ca --</option><option value="K">Ca K</option><option value="N">Ca N</option><option value="C">Ca C</option></select></div>
+          <div><label>Ca trả lại</label><select id="f-ca-tra"><option value="">-- Chọn ca --</option></select></div>
           <div><label>Ngày trả lại</label><input type="date" id="f-ngay-tra"></div>
         </div>
         <div class="form-row three">
@@ -141,9 +144,9 @@ textarea{resize:none;height:80px}
             <div class="ss" id="ss-partner"><button class="ss-btn ph"><span id="ss-partner-lbl">-- Chọn --</span><span>▾</span></button><div class="ss-drop" id="ss-partner-drop"><input class="ss-inp" oninput="filterSS('ss-partner',this.value)" placeholder="Tìm..."><div class="ss-list" id="ss-partner-list"></div></div></div>
             <input type="hidden" id="f-partner">
           </div>
-          <div><label>Kíp</label><select id="f-partner-kip"><option value="">-- Kíp --</option><option>Kíp 1</option><option>Kíp 2</option><option>Kíp 3</option><option>Kíp 4</option><option>Kíp 5</option></select></div>
+          <div><label>Kíp</label><select id="f-partner-kip"><option value="">-- Kíp --</option></select></div>
         </div>
-        <div class="form-row full"><label>Chức danh người đi thay</label><select id="f-partner-role"><option value="">-- Chọn --</option><option>Trưởng kíp</option><option>Trực chính</option><option>Vận hành Băng tải</option><option>Vận hành Máy đánh phá</option><option>Vận hành Cẩu trục</option><option>Tiếp nhận nhiên liệu</option></select></div>
+        <div class="form-row full"><label>Chức danh người đi thay</label><select id="f-partner-role"><option value="">-- Chọn --</option></select></div>
         <div class="form-row full"><label>Lý do</label><textarea id="f-reason" placeholder="Lý do đổi ca..."></textarea></div>
         <button class="btn btn-primary" id="btn-submit" style="width:100%; padding:12px;" onclick="submitRequest()">Gửi yêu cầu</button>
       </div>
@@ -165,14 +168,7 @@ textarea{resize:none;height:80px}
             <option value="approved">Đã duyệt</option>
             <option value="rejected">Từ chối</option>
           </select>
-          <select id="f-fkp" onchange="renderHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
-            <option value="">Tất cả kíp</option>
-            <option>Kíp 1</option>
-            <option>Kíp 2</option>
-            <option>Kíp 3</option>
-            <option>Kíp 4</option>
-            <option>Kíp 5</option>
-          </select>
+          <select id="f-fkp" onchange="renderHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;"><option value="">Tất cả kíp</option></select>
         </div>
         <div id="list-lich-su"></div>
       </div>
@@ -239,41 +235,81 @@ textarea{resize:none;height:80px}
 
 <script>
 // =============================================
-// BẮT BUỘC DÁN LINK WEB APP CỦA BẠN VÀO ĐÂY:
+// DÁN LINK WEB APP CỦA BẠN VÀO ĐÂY:
 // =============================================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-ZLpHzKWOZRRwuOlhxDPs1fFrFphIw_0Mk4Pm6q6mdPWOchDMiiP7sdM0nt6RvzROrQ/exec";
 
+// CẤU HÌNH BIẾN ĐỘNG TRÊN GIAO DIỆN
+let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 3 };
+
 let NV_LIST=[]; 
-const CA={K:{label:"Ca K (23:00-07:00)",h:23},N:{label:"Ca N (07:00-15:00)",h:7},C:{label:"Ca C (15:00-23:00)",h:15}}; 
+let CA = {}; 
 let CU=null, allReqs=[];
 
-window.onload=async()=>{
-  try{ 
-    const res = await api({action:"getUsers"}); 
-    if(res.users && res.users.length){ 
-      NV_LIST=res.users; initSS(); 
-      document.getElementById('login-loading').style.display='none'; 
-      document.getElementById('login-box').style.display='block'; 
+async function api(p) {
+  return new Promise((resolve, reject) => {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).apiRun(p);
     } else {
-      document.getElementById('login-loading').innerHTML='Dữ liệu trống. Vui lòng tải lại.'; 
+      const u = SCRIPT_URL + "?" + new URLSearchParams(p);
+      fetch(u).then(r => r.json()).then(resolve).catch(reject);
     }
-  } catch(e){ 
-    document.getElementById('login-loading').innerHTML='Lỗi kết nối. Vui lòng tải lại trang.'; 
+  });
+}
+
+function setupDynamicFields(settings) {
+  // Áp dụng Cấu hình từ Excel
+  if(settings.configs) {
+    APP_CONFIG.tenPX = settings.configs.TEN_PHAN_XUONG || "Phân xưởng";
+    APP_CONFIG.lechMax = parseInt(settings.configs.SO_CA_LECH_MAX) || 3;
+    
+    document.getElementById('page-title').textContent = "Quản lý đổi ca – " + APP_CONFIG.tenPX;
+    document.getElementById('tb-ten-px').textContent = APP_CONFIG.tenPX;
+  }
+
+  let kipHtml = '<option value="">-- Kíp --</option>' + settings.kips.map(k => `<option>${k}</option>`).join('');
+  document.getElementById('f-kip').innerHTML = kipHtml;
+  document.getElementById('f-partner-kip').innerHTML = kipHtml;
+  document.getElementById('f-fkp').innerHTML = '<option value="">Tất cả kíp</option>' + settings.kips.map(k => `<option>${k}</option>`).join('');
+
+  document.getElementById('f-partner-role').innerHTML = '<option value="">-- Chọn --</option>' + settings.chucDanhs.map(c => `<option>${c}</option>`).join('');
+
+  let caHtml = '<option value="">-- Chọn ca --</option>' + settings.cas.map(c => `<option value="${c.ma}">${c.ten}</option>`).join('');
+  document.getElementById('f-ca-doi').innerHTML = caHtml;
+  document.getElementById('f-ca-tra').innerHTML = caHtml;
+
+  CA = {};
+  settings.cas.forEach(c => {
+     CA[c.ma] = { label: c.thoiGian ? `${c.ten} (${c.thoiGian})` : c.ten };
+  });
+}
+
+window.onload = async () => {
+  try { 
+    const res = await api({action: "getUsers"}); 
+    if (res && res.users && res.users.length > 0) { 
+      NV_LIST = res.users; 
+      initSS(); 
+
+      if (res.settings) setupDynamicFields(res.settings);
+
+      document.getElementById('login-loading').style.display = 'none'; 
+      document.getElementById('login-box').style.display = 'block'; 
+    } else {
+      document.getElementById('spin-icon').style.display = 'none';
+      document.getElementById('loading-text').innerHTML = '<span style="color:#dc2626;">Dữ liệu nhân sự trống. Vui lòng thêm người vào tab "users".</span>'; 
+    }
+  } catch(e) { 
+    document.getElementById('spin-icon').style.display = 'none';
+    document.getElementById('loading-text').innerHTML = '<span style="color:#dc2626;">Lỗi tải dữ liệu. Nhớ ấn <b>Triển khai bản mới</b> trên Apps Script!</span>'; 
   }
 };
-
-async function api(p){ 
-  const u = SCRIPT_URL + "?" + new URLSearchParams(p); 
-  const r = await fetch(u); 
-  return r.json(); 
-}
 
 async function loadAll(){ 
   const d = await api({action:"getAll"}); 
   allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()})); 
 }
 
-// BỘ CHỌN AUTOCOMPLETE
 const SS_SOURCES={'ss-login':()=>NV_LIST.map(u=>u.name),'ss-partner':()=>NV_LIST.filter(u=>u.role==='nv').map(u=>u.name),'ss-reset':()=>NV_LIST.map(u=>u.name)};
 const SS_HIDDEN={'ss-login':'f-login-name','ss-partner':'f-partner','ss-reset':'f-reset-name'};
 function buildSS(id,q){
@@ -282,6 +318,7 @@ function buildSS(id,q){
   el.innerHTML=f.map(n=>`<div class="ss-opt" data-val="${n}">${n}</div>`).join('');
 }
 function filterSS(id,q){buildSS(id,q);}
+
 document.addEventListener('click',e=>{
   const b=e.target.closest('.ss-btn'); if(b){ const d=b.nextElementSibling; d.classList.toggle('open'); return; }
   const o=e.target.closest('.ss-opt'); 
@@ -293,7 +330,6 @@ document.addEventListener('click',e=>{
     ss.querySelector('.ss-btn').classList.remove('ph'); 
     o.closest('.ss-drop').classList.remove('open'); 
     
-    // TỰ ĐỘNG ĐIỀN KÍP VÀ CHỨC DANH NGƯỜI ĐI THAY
     if(ss.id === 'ss-partner') {
       const pInfo = NV_LIST.find(u => u.name === val);
       if(pInfo) {
@@ -307,7 +343,6 @@ document.addEventListener('click',e=>{
 });
 function initSS(){Object.keys(SS_SOURCES).forEach(id=>buildSS(id,''));}
 
-// ĐĂNG NHẬP
 async function doLogin(){
   const n=document.getElementById('f-login-name').value, p=document.getElementById('pin-inp').value, e=document.getElementById('pin-err');
   if(!n||!p){e.textContent='Chọn tên và PIN';return;} e.textContent='Đang vào...';
@@ -323,19 +358,17 @@ async function doLogin(){
     document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none'; 
     document.getElementById('btn-admin').style.display = CU.admin?'':'none'; 
     document.getElementById('f-name').value = CU.name; 
-    // TỰ ĐỘNG ĐIỀN KÍP NGƯỜI XIN NGHỈ (KHI VỪA ĐĂNG NHẬP)
+    
     const myInfo = NV_LIST.find(u => u.name === CU.name);
     if(myInfo && myInfo.kip) {
       document.getElementById('f-kip').value = myInfo.kip;
     }
 
-    // Nút tải file Excel
     let isLd = CU.role === 'ld' ? 'inline-flex' : 'none';
     document.getElementById('btn-export-excel').style.display = isLd;
     document.getElementById('btn-export-day').style.display = isLd;
     document.getElementById('btn-export-warn').style.display = isLd;
     
-    // Gán mốc thời gian mặc định
     const now = new Date(); 
     const curYear = now.getFullYear();
     const curMonthStr = curYear + '-' + String(now.getMonth()+1).padStart(2,'0'); 
@@ -404,7 +437,7 @@ function caLabel(k){return CA[k]?CA[k].label:k;}
 function badge(s){ return {pending_partner:'<span class="badge bp">Chờ xác nhận</span>',pending_ld:'<span class="badge bld">Chờ LD duyệt</span>',approved:'<span class="badge bok">Đã duyệt</span>',rejected:'<span class="badge bno">Từ chối</span>'}[s]||''; }
 function flowBar(s){ const steps=[['pending_partner','Xác nhận'],['pending_ld','Duyệt PX'],['approved','Xong']]; const cur={pending_partner:0,pending_ld:1,approved:2}[s]??0; return`<div class="flow">${steps.map(([,l],i)=>`<div class="fs${s!=='rejected'&&i<cur?' done':s!=='rejected'&&i===cur?' active':''}">${l}</div>`).join('')}</div>`; }
 function reqCard(r,a=''){
-  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
+  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đi thay ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả thay ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
 }
 
 function renderDongY(){ 
@@ -491,7 +524,7 @@ function renderHistory(){
   const hm = document.getElementById('f-hist-month').value;
   
   let yr = 0, mo = 0;
-  if(hm) { [yr, mo] = hm.split('-').map(Number); }
+  if(hm) { const p = hm.split('-'); yr = parseInt(p[0]); mo = parseInt(p[1]); }
 
   const items = allReqs.filter(r => {
     if (CU.role !== 'ld' && r.name !== CU.name && r.partner !== CU.name) return false;
@@ -531,7 +564,7 @@ function renderDayTable(){
     const [y3,m3,d3]=r.ngayTra.split('-').map(Number); if(y3===yr&&m3===mo)dm[d3].tra.push(r.name+' ('+r.caTra+')');
   });
   const rows=Object.entries(dm).filter(([,v])=>v.doi.length||v.tra.length);
-  wrap.innerHTML=`<div class="table-wrapper"><table class="dt" id="table-day"><thead><tr><th>Ngày</th><th>Người đi thay</th><th>Người đổi</th></tr></thead><tbody>${rows.map(([d,v])=>`<tr><td>${d}/${mo}</td><td>${v.doi.map(n=>`<span class="dp">${n}</span>`).join('')}</td><td>${v.tra.map(n=>`<span class="dp t">${n}</span>`).join('')}</td></tr>`).join('')}</tbody></table></div>`;
+  wrap.innerHTML=`<div class="table-wrapper"><table class="dt" id="table-day"><thead><tr><th>Ngày</th><th>Đi thay</th><th>Trả thay</th></tr></thead><tbody>${rows.map(([d,v])=>`<tr><td>${d}/${mo}</td><td>${v.doi.map(n=>`<span class="dp">${n}</span>`).join('')}</td><td>${v.tra.map(n=>`<span class="dp t">${n}</span>`).join('')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderWarn() {
@@ -559,18 +592,18 @@ function renderWarn() {
       const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0];
       const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
       
-      let inMonthDoi = (yDoi === yr && mDoi === mo);
-      let inMonthTra = (yTra === yr && mTra === mo);
-      
-      // LOGIC CHUẨN LỆCH CA: Ngày đổi thì Partner bị cộng lệch. Ngày trả thì Name bị cộng lệch.
-      if(inMonthDoi) {
-        staffMap[r.partner].lech += 1;
-        staffMap[r.partner].hist.push('Đi thay ' + caLabel(r.caDoi) + ' ' + fmtDate(r.ngayDoi));
+      if(yDoi === yr && mDoi === mo) {
+        if(staffMap[r.partner]) {
+          staffMap[r.partner].lech += 1;
+          staffMap[r.partner].hist.push('Đi thay ' + caLabel(r.caDoi) + ' ' + fmtDate(r.ngayDoi));
+        }
       }
 
-      if(inMonthTra) {
-        staffMap[r.name].lech += 1;
-        staffMap[r.name].hist.push('Trả ca ' + caLabel(r.caTra) + ' ' + fmtDate(r.ngayTra));
+      if(yTra === yr && mTra === mo) {
+        if(staffMap[r.name]) {
+          staffMap[r.name].lech += 1;
+          staffMap[r.name].hist.push('Trả ca ' + caLabel(r.caTra) + ' ' + fmtDate(r.ngayTra));
+        }
       }
     }
   });
@@ -581,12 +614,14 @@ function renderWarn() {
   }
   sortedWarn.sort((a,b)=>b[1].lech - a[1].lech);
   
-  const warn = sortedWarn.filter(([,v])=>v.lech > 3);
-  const mon = sortedWarn.filter(([,v])=>v.lech > 0 && v.lech <= 3); 
+  // KIỂM TRA NGƯỠNG ĐỘNG TỪ EXCEL
+  let lMax = APP_CONFIG.lechMax;
+  const warn = sortedWarn.filter(([,v])=>v.lech > lMax);
+  const mon = sortedWarn.filter(([,v])=>v.lech > 0 && v.lech <= lMax); 
   
   let wHtml='';
   if(warn.length){ 
-    wHtml+=`<p style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:8px">⚠ Vượt ngưỡng > 3 ca (Tháng ${mo}/${yr})</p>`; 
+    wHtml+=`<p style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:8px">⚠ Vượt ngưỡng > ${lMax} ca (Tháng ${mo}/${yr})</p>`; 
     wHtml+=warn.map(([n,v])=>`<div class="wcard crit"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small style="font-weight:400;color:#888">(${v.kip})</small></span><span style="font-weight:700;color:#dc2626">+${v.lech} lần lệch</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
   }
   if(mon.length){ 
@@ -625,7 +660,6 @@ function renderStaffStats() {
         if(staffMap[r.partner]) staffMap[r.partner].dongY += 1;
       }
       
-      // LOGIC CHUẨN LỆCH CA THEO NĂM: Ngày đổi thì Partner bị cộng lệch. Ngày trả thì Name bị cộng lệch.
       if(yDoi === yr) {
         if(staffMap[r.partner]) staffMap[r.partner].lech += 1; 
       }
@@ -642,8 +676,9 @@ function renderStaffStats() {
   }
   entries.sort((a,b)=>b[1].tao-a[1].tao);
 
+  let lMax = APP_CONFIG.lechMax;
   const tableHtml = entries.map(([n,v])=> {
-    let clr = v.lech > 3 ? '#dc2626' : (v.lech > 0 ? '#d97706' : '#4b5563'); 
+    let clr = v.lech > lMax ? '#dc2626' : (v.lech > 0 ? '#d97706' : '#4b5563'); 
     return `<tr><td>${n}</td><td>${v.kip}</td><td>${v.tao}</td><td>${v.dongY}</td><td style="font-weight:600; color:${clr}">+${v.lech}</td></tr>`;
   }).join('');
   
@@ -699,18 +734,14 @@ function exportExcelWarn() {
       const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0];
       const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
       
-      let inMonthDoi = (yDoi === yr && mDoi === mo);
-      let inMonthTra = (yTra === yr && mTra === mo);
-      
-      // LOGIC CHUẨN LỆCH CA: Ngày đổi thì Partner bị cộng lệch. Ngày trả thì Name bị cộng lệch.
-      if(inMonthDoi) {
+      if(yDoi === yr && mDoi === mo) {
         if(staffMap[r.partner]) {
             staffMap[r.partner].lech += 1;
             staffMap[r.partner].hist.push('Đi thay ' + caLabel(r.caDoi) + ' ' + fmtDate(r.ngayDoi));
         }
       }
 
-      if(inMonthTra) {
+      if(yTra === yr && mTra === mo) {
         if(staffMap[r.name]) {
             staffMap[r.name].lech += 1;
             staffMap[r.name].hist.push('Trả ca ' + caLabel(r.caTra) + ' ' + fmtDate(r.ngayTra));
