@@ -437,7 +437,7 @@ function caLabel(k){return CA[k]?CA[k].label:k;}
 function badge(s){ return {pending_partner:'<span class="badge bp">Chờ xác nhận</span>',pending_ld:'<span class="badge bld">Chờ LD duyệt</span>',approved:'<span class="badge bok">Đã duyệt</span>',rejected:'<span class="badge bno">Từ chối</span>'}[s]||''; }
 function flowBar(s){ const steps=[['pending_partner','Xác nhận'],['pending_ld','Duyệt PX'],['approved','Xong']]; const cur={pending_partner:0,pending_ld:1,approved:2}[s]??0; return`<div class="flow">${steps.map(([,l],i)=>`<div class="fs${s!=='rejected'&&i<cur?' done':s!=='rejected'&&i===cur?' active':''}">${l}</div>`).join('')}</div>`; }
 function reqCard(r,a=''){
-  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đi thay ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả thay ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
+  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
 }
 
 function renderDongY(){ 
