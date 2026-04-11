@@ -328,13 +328,23 @@ document.addEventListener('click',e=>{
 function initSS(){Object.keys(SS_SOURCES).forEach(id=>buildSS(id,''));}
 
 async function doForgotPin() {
-  const n = document.getElementById('f-login-name').value; const err = document.getElementById('pin-err');
-  if(!n) { err.style.color = '#dc2626'; err.textContent = 'Vui lòng chọn Tên của bạn trước khi bấm Quên PIN.'; return; }
-  err.style.color = '#1a56a0'; err.textContent = 'Đang gửi Email...';
+  const n = document.getElementById('f-login-name').value;
+  const err = document.getElementById('pin-err');
+  if(!n) { err.style.color = '#dc2626'; err.textContent = 'Vui lòng chọn Tên của bạn trước.'; return; }
+  
+  err.style.color = '#1a56a0'; 
+  err.textContent = 'Đang kiểm tra và gửi mã PIN...';
   try {
     const r = await api({action: "forgotPin", name: n});
-    if(r.error) { err.style.color = '#dc2626'; err.textContent = r.error; } else { err.style.color = '#166534'; err.textContent = r.message; }
-  } catch(ex) { err.style.color = '#dc2626'; err.textContent = 'Lỗi mạng!'; }
+    if(r.error) { 
+      err.style.color = '#dc2626'; err.textContent = r.error; 
+    } else { 
+      // Thông báo rõ ràng là gửi về email nào
+      err.style.color = '#166534'; err.textContent = r.message; 
+    }
+  } catch(ex) { 
+    err.style.color = '#dc2626'; err.textContent = 'Lỗi hệ thống!'; 
+  }
 }
 
 async function doLogin(){
