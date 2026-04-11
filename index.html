@@ -101,6 +101,11 @@ textarea{resize:none;height:80px}
       <input type="hidden" id="f-login-name">
     </div>
     <div class="pfield"><label>Mã PIN (4 số)</label><input type="password" id="pin-inp" maxlength="4" placeholder="••••" inputmode="numeric" oninput="this.value=this.value.replace(/\D/g,'')" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    
+    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-top: 4px;">
+      <a href="javascript:void(0)" onclick="doForgotPin()" style="font-size: 13px; color: #1a56a0; text-decoration: none; font-weight: 500;">Quên mã PIN?</a>
+    </div>
+    
     <div class="perr" id="pin-err"></div>
     <button class="btn btn-primary" style="width:100%; padding: 12px;" onclick="doLogin()">Đăng nhập</button>
   </div>
@@ -132,8 +137,8 @@ textarea{resize:none;height:80px}
           <div><label>Kíp</label><select id="f-kip"><option value="">-- Kíp --</option></select></div>
         </div>
         <div class="form-row">
-          <div><label>Ca đổi</label><select id="f-ca-doi"><option value="">-- Chọn ca --</option></select></div>
-          <div><label>Ngày đổi</label><input type="date" id="f-ngay-doi"></div>
+          <div><label>Ca đi thay</label><select id="f-ca-doi"><option value="">-- Chọn ca --</option></select></div>
+          <div><label>Ngày đi thay</label><input type="date" id="f-ngay-doi"></div>
         </div>
         <div class="form-row">
           <div><label>Ca trả lại</label><select id="f-ca-tra"><option value="">-- Chọn ca --</option></select></div>
@@ -258,7 +263,6 @@ async function api(p) {
 }
 
 function setupDynamicFields(settings) {
-  // Áp dụng Cấu hình từ Excel
   if(settings.configs) {
     APP_CONFIG.tenPX = settings.configs.TEN_PHAN_XUONG || "Phân xưởng";
     APP_CONFIG.lechMax = parseInt(settings.configs.SO_CA_LECH_MAX) || 3;
@@ -310,7 +314,7 @@ async function loadAll(){
   allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()})); 
 }
 
-const SS_SOURCES={'ss-login':()=>NV_LIST.map(u=>u.name),'ss-partner':()=>NV_LIST.filter(u=>u.role==='nv').map(u=>u.name),'ss-reset':()=>NV_LIST.map(u=>u.name)};
+const SS_SOURCES={'ss-login':()=>NV_LIST.map(u=>u.name),'ss-partner':()=>NV_LIST.map(u=>u.name),'ss-reset':()=>NV_LIST.map(u=>u.name)};
 const SS_HIDDEN={'ss-login':'f-login-name','ss-partner':'f-partner','ss-reset':'f-reset-name'};
 function buildSS(id,q){
   const items=SS_SOURCES[id](); const el=document.getElementById(id+'-list');
@@ -343,12 +347,32 @@ document.addEventListener('click',e=>{
 });
 function initSS(){Object.keys(SS_SOURCES).forEach(id=>buildSS(id,''));}
 
+async function doForgotPin() {
+  const n = document.getElementById('f-login-name').value;
+  const err = document.getElementById('pin-err');
+  if(!n) { err.style.color = '#dc2626'; err.textContent = 'Vui lòng chọn Tên của bạn trước khi bấm Quên PIN.'; return; }
+  
+  err.style.color = '#1a56a0'; 
+  err.textContent = 'Đang gửi Email...';
+  try {
+    const r = await api({action: "forgotPin", name: n});
+    if(r.error) { 
+      err.style.color = '#dc2626'; err.textContent = r.error; 
+    } else { 
+      err.style.color = '#166534'; err.textContent = r.message; 
+    }
+  } catch(ex) { 
+    err.style.color = '#dc2626'; err.textContent = 'Lỗi mạng!'; 
+  }
+}
+
 async function doLogin(){
   const n=document.getElementById('f-login-name').value, p=document.getElementById('pin-inp').value, e=document.getElementById('pin-err');
-  if(!n||!p){e.textContent='Chọn tên và PIN';return;} e.textContent='Đang vào...';
+  if(!n||!p){e.style.color='#dc2626'; e.textContent='Chọn tên và PIN';return;} 
+  e.style.color='#1a56a0'; e.textContent='Đang vào...';
   try{ 
     const r=await api({action:"login",name:n,pin:p}); 
-    if(r.error){e.textContent=r.error;return;} 
+    if(r.error){e.style.color='#dc2626'; e.textContent=r.error;return;} 
     CU=r.user; 
     document.getElementById('overlay').style.display='none'; 
     document.getElementById('app').style.display='block'; 
@@ -385,7 +409,7 @@ async function doLogin(){
     
     await loadAll(); 
   }
-  catch(ex){e.textContent='Lỗi kết nối mạng';}
+  catch(ex){e.style.color='#dc2626'; e.textContent='Lỗi kết nối mạng';}
 }
 
 function doLogout() {
@@ -437,7 +461,7 @@ function caLabel(k){return CA[k]?CA[k].label:k;}
 function badge(s){ return {pending_partner:'<span class="badge bp">Chờ xác nhận</span>',pending_ld:'<span class="badge bld">Chờ LD duyệt</span>',approved:'<span class="badge bok">Đã duyệt</span>',rejected:'<span class="badge bno">Từ chối</span>'}[s]||''; }
 function flowBar(s){ const steps=[['pending_partner','Xác nhận'],['pending_ld','Duyệt PX'],['approved','Xong']]; const cur={pending_partner:0,pending_ld:1,approved:2}[s]??0; return`<div class="flow">${steps.map(([,l],i)=>`<div class="fs${s!=='rejected'&&i<cur?' done':s!=='rejected'&&i===cur?' active':''}">${l}</div>`).join('')}</div>`; }
 function reqCard(r,a=''){
-  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
+  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đi thay ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả thay ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
 }
 
 function renderDongY(){ 
@@ -502,6 +526,22 @@ async function submitRequest(){
     showAlert('app','Thiếu thông tin bắt buộc. Vui lòng kiểm tra lại.','ae'); return;
   }
   if(name === partner){ showAlert('app','Người đổi và người đi thay không được trùng nhau.','ae'); return; }
+  
+  // --- BỘ LỌC CHỐNG TRÙNG LỊCH TRỰC ---
+  const isKetLich = allReqs.some(r => {
+    if (r.status === 'rejected') return false; 
+    const trungDiThay = (r.partner === partner && r.ngayDoi === ngayDoi && r.caDoi === caDoi);
+    const trungTraCa = (r.name === partner && r.ngayTra === ngayDoi && r.caTra === caDoi);
+    return trungDiThay || trungTraCa;
+  });
+
+  if (isKetLich) { 
+    let tenCaHienThi = CA[caDoi] ? CA[caDoi].label : caDoi;
+    showAlert('app', `Đồng chí ${partner} đã vướng lịch trực/đổi ca vào ${tenCaHienThi} ngày ${fmtDate(ngayDoi)}. Vui lòng chọn người khác!`, 'ae'); 
+    return; 
+  }
+  // ------------------------------------
+
   if(!confirm("Xác nhận GỬI yêu cầu?\nHãy kiểm tra kỹ Ngày và Ca đổi/trả!")) return;
   
   const btn = document.getElementById('btn-submit');
@@ -564,7 +604,7 @@ function renderDayTable(){
     const [y3,m3,d3]=r.ngayTra.split('-').map(Number); if(y3===yr&&m3===mo)dm[d3].tra.push(r.name+' ('+r.caTra+')');
   });
   const rows=Object.entries(dm).filter(([,v])=>v.doi.length||v.tra.length);
-  wrap.innerHTML=`<div class="table-wrapper"><table class="dt" id="table-day"><thead><tr><th>Ngày</th><th>Người đi thay</th><th>Người đổi ca</th></tr></thead><tbody>${rows.map(([d,v])=>`<tr><td>${d}/${mo}</td><td>${v.doi.map(n=>`<span class="dp">${n}</span>`).join('')}</td><td>${v.tra.map(n=>`<span class="dp t">${n}</span>`).join('')}</td></tr>`).join('')}</tbody></table></div>`;
+  wrap.innerHTML=`<div class="table-wrapper"><table class="dt" id="table-day"><thead><tr><th>Ngày</th><th>Đi thay</th><th>Trả thay</th></tr></thead><tbody>${rows.map(([d,v])=>`<tr><td>${d}/${mo}</td><td>${v.doi.map(n=>`<span class="dp">${n}</span>`).join('')}</td><td>${v.tra.map(n=>`<span class="dp t">${n}</span>`).join('')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderWarn() {
@@ -592,18 +632,15 @@ function renderWarn() {
       const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0];
       const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
       
+      // LOGIC LỆCH CA: Ngày đổi -> Partner lệch. Ngày trả -> Name lệch.
       if(yDoi === yr && mDoi === mo) {
-        if(staffMap[r.partner]) {
-          staffMap[r.partner].lech += 1;
-          staffMap[r.partner].hist.push('Đi thay ' + caLabel(r.caDoi) + ' ' + fmtDate(r.ngayDoi));
-        }
+        staffMap[r.partner].lech += 1; 
+        staffMap[r.partner].hist.push('Đi thay '+caLabel(r.caDoi)+' '+fmtDate(r.ngayDoi));
       }
-
+      
       if(yTra === yr && mTra === mo) {
-        if(staffMap[r.name]) {
-          staffMap[r.name].lech += 1;
-          staffMap[r.name].hist.push('Trả ca ' + caLabel(r.caTra) + ' ' + fmtDate(r.ngayTra));
-        }
+        staffMap[r.name].lech += 1; 
+        staffMap[r.name].hist.push('Trả ca '+caLabel(r.caTra)+' '+fmtDate(r.ngayTra));
       }
     }
   });
@@ -614,7 +651,6 @@ function renderWarn() {
   }
   sortedWarn.sort((a,b)=>b[1].lech - a[1].lech);
   
-  // KIỂM TRA NGƯỠNG ĐỘNG TỪ EXCEL
   let lMax = APP_CONFIG.lechMax;
   const warn = sortedWarn.filter(([,v])=>v.lech > lMax);
   const mon = sortedWarn.filter(([,v])=>v.lech > 0 && v.lech <= lMax); 
@@ -656,16 +692,15 @@ function renderStaffStats() {
       const yTra = r.ngayTra ? parseInt(r.ngayTra.toString().substring(0,4)) : 0;
       
       if(yDoi === yr || yTra === yr) {
-        if(staffMap[r.name]) staffMap[r.name].tao += 1; 
-        if(staffMap[r.partner]) staffMap[r.partner].dongY += 1;
+        staffMap[r.name].tao++; 
+        staffMap[r.partner].dongY++;
       }
       
       if(yDoi === yr) {
-        if(staffMap[r.partner]) staffMap[r.partner].lech += 1; 
+        staffMap[r.partner].lech++; 
       }
-      
       if(yTra === yr) {
-        if(staffMap[r.name]) staffMap[r.name].lech += 1; 
+        staffMap[r.name].lech++; 
       }
     }
   });
@@ -735,17 +770,12 @@ function exportExcelWarn() {
       const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
       
       if(yDoi === yr && mDoi === mo) {
-        if(staffMap[r.partner]) {
-            staffMap[r.partner].lech += 1;
-            staffMap[r.partner].hist.push('Đi thay ' + caLabel(r.caDoi) + ' ' + fmtDate(r.ngayDoi));
-        }
+        staffMap[r.partner].lech += 1; 
+        staffMap[r.partner].hist.push('Đi thay '+caLabel(r.caDoi)+' '+fmtDate(r.ngayDoi));
       }
-
       if(yTra === yr && mTra === mo) {
-        if(staffMap[r.name]) {
-            staffMap[r.name].lech += 1;
-            staffMap[r.name].hist.push('Trả ca ' + caLabel(r.caTra) + ' ' + fmtDate(r.ngayTra));
-        }
+        staffMap[r.name].lech += 1; 
+        staffMap[r.name].hist.push('Trả ca '+caLabel(r.caTra)+' '+fmtDate(r.ngayTra));
       }
     }
   });
