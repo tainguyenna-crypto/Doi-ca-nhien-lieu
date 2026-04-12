@@ -14,7 +14,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sec-title{font-size:16px;font-weight:600;color:#0f172a}
 .ubar{background:#ebf3ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px; flex-wrap: wrap;}
 .ubar-name{font-weight:600;color:#1a56a0;font-size:15px}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-botfunction renderDongYtom:16px}
 .tab{padding:10px 16px;border:1px solid #d1d5db;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;color:#4b5563;white-space:nowrap; flex-grow: 1; text-align: center; font-weight: 500;}
 .tab.active{background:#1a56a0;color:#fff;border-color:#1a56a0;}
 .section{display:none}.section.active{display:block}
@@ -415,31 +415,13 @@ function reqCard(r,a=''){
   return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
 }
 
-function renderDongY(){ 
-  const el=document.getElementById('list-dong-y'); const its=allReqs.filter(r=>r.status==='pending_partner'&&r.partner===CU.name); 
-  el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="partnerOk('${r.id}')">Đồng ý</button> <button class="btn btn-danger" onclick="partnerNo('${r.id}')">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn</div>'; 
-}
-async function partnerOk(id){ 
-  if(!confirm("Xác nhận ĐỒNG Ý đi thay ca?")) return; showAlert('app', 'Đang xử lý...', 'ai');
-  try{ await api({action:"updateStatus",id,status:"pending_ld",by:CU.name}); await loadAll(); renderDongY(); showAlert('app', 'Đã đồng ý!', 'as'); }catch(e){} 
-}
-async function partnerNo(id){ 
-  const rs=prompt("Lý do từ chối (Bắt buộc):"); if(!rs)return; showAlert('app', 'Đang xử lý...', 'ai');
-  try{ await api({action:"updateStatus",id,status:"rejected",by:CU.name+' (Người đi thay)',rejectReason:rs}); await loadAll(); renderDongY(); showAlert('app', 'Đã từ chối.', 'ae'); }catch(e){} 
-}
+function renderDongY(){ const el=document.getElementById('list-dong-y'); const its=allReqs.filter(r=>r.status==='pending_partner'&&r.partner===CU.name); el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="partnerOk('${r.id}', this)">Đồng ý</button> <button class="btn btn-danger" onclick="partnerNo('${r.id}', this)">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn</div>'; }
+async function partnerOk(id, btn){ if(!confirm("Xác nhận ĐỒNG Ý đi thay ca?")) return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"pending_ld",by:CU.name}); await loadAll(); renderDongY(); showAlert('app', 'Đã đồng ý!', 'as'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Đồng ý'; } } }
+async function partnerNo(id, btn){ const rs=prompt("Lý do từ chối (Bắt buộc):"); if(!rs)return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"rejected",by:CU.name,rejectReason:rs}); await loadAll(); renderDongY(); showAlert('app', 'Đã từ chối.', 'ae'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Từ chối'; } } }
 
-function renderPheDuyet(){ 
-  const el=document.getElementById('list-phe-duyet'); if(!CU||CU.role!=='ld'){el.innerHTML='<div class="empty">Bạn không có quyền.</div>';return;}
-  const its=allReqs.filter(r=>r.status==='pending_ld'); el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="ldOk('${r.id}')">Phê duyệt</button> <button class="btn btn-danger" onclick="ldNo('${r.id}')">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn chờ</div>'; 
-}
-async function ldOk(id){ 
-  if(!confirm("Xác nhận DUYỆT PX?")) return; showAlert('app', 'Đang xử lý...', 'ai');
-  try{ await api({action:"updateStatus",id,status:"approved",by:CU.name}); await loadAll(); renderPheDuyet(); showAlert('app', 'Đã phê duyệt!', 'as'); }catch(e){} 
-}
-async function ldNo(id){ 
-  const rs=prompt("Lý do từ chối (Bắt buộc):"); if(!rs)return; showAlert('app', 'Đang xử lý...', 'ai');
-  try{ await api({action:"updateStatus",id,status:"rejected",by:CU.name+' (Lãnh đạo PX)',rejectReason:rs}); await loadAll(); renderPheDuyet(); showAlert('app', 'Đã từ chối.', 'ae'); }catch(e){} 
-}
+function renderPheDuyet(){ const el=document.getElementById('list-phe-duyet'); if(!CU||CU.role!=='ld'){el.innerHTML='<div class="empty">Chỉ Lãnh đạo mới có quyền duyệt</div>';return;} const its=allReqs.filter(r=>r.status==='pending_ld'); el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="ldOk('${r.id}', this)">Duyệt</button> <button class="btn btn-danger" onclick="ldNo('${r.id}', this)">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn chờ</div>'; }
+async function ldOk(id, btn){ if(!confirm("Xác nhận DUYỆT PX?")) return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"approved",by:CU.name}); await loadAll(); renderPheDuyet(); showAlert('app', 'Đã phê duyệt!', 'as'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Duyệt'; } } }
+async function ldNo(id, btn){ const rs=prompt("Lý do từ chối (Bắt buộc):"); if(!rs)return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"rejected",by:CU.name,rejectReason:rs}); await loadAll(); renderPheDuyet(); showAlert('app', 'Đã từ chối.', 'ae'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Từ chối'; } } }
 
 async function submitRequest(){
   const name = CU.name, kip = document.getElementById('f-kip').value, caDoi = document.getElementById('f-ca-doi').value, ngayDoi = document.getElementById('f-ngay-doi').value;
