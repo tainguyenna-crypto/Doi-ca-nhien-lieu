@@ -469,16 +469,34 @@ async function submitRequest(){
   if(!name || !kip || !caDoi || !ngayDoi || !caTra || !ngayTra || !partner || !partnerKip || !partnerRole){ showAlert('app','Thiếu thông tin bắt buộc. Vui lòng kiểm tra lại.','ae'); return; }
   if(name === partner){ showAlert('app','Người đổi và người đi thay không được trùng nhau.','ae'); return; }
   
-  const isKetLich = allReqs.some(r => {
+ // ===============================================================
+  // 1. KIỂM TRA NGƯỜI ĐI THAY: Có bị vướng lịch vào "Ngày đổi" không?
+  // ===============================================================
+  const isKetLichPartner = allReqs.some(r => {
     if (r.status === 'rejected') return false; 
-    const trungDiThay = (r.partner === partner && r.ngayDoi === ngayDoi && r.caDoi === caDoi);
-    const trungTraCa = (r.name === partner && r.ngayTra === ngayDoi && r.caTra === caDoi);
-    return trungDiThay || trungTraCa;
+    const banDiThay = (r.partner === partner && r.ngayDoi === ngayDoi); // Đã nhận đi thay người khác
+    const banTraCa = (r.name === partner && r.ngayTra === ngayDoi);     // Phải đi làm để trả nợ ca cho người khác
+    return banDiThay || banTraCa;
   });
 
-  if (isKetLich) { 
-    let tenCaHienThi = CA[caDoi] ? CA[caDoi].label : caDoi;
-    showAlert('app', `Đồng chí ${partner} đã vướng lịch trực/đổi ca vào ${tenCaHienThi} ngày ${fmtDate(ngayDoi)}. Vui lòng chọn người khác!`, 'ae'); return; 
+  if (isKetLichPartner) { 
+    showAlert('app', `Đồng chí ${partner} đã có lịch trực vào ngày ${fmtDate(ngayDoi)} (Quy định 1 ngày chỉ đi 1 ca). Vui lòng chọn người khác!`, 'ae'); 
+    return; 
+  }
+
+  // ===============================================================
+  // 2. KIỂM TRA BẢN THÂN: Có bị vướng lịch vào "Ngày trả" không?
+  // ===============================================================
+  const isKetLichRequester = allReqs.some(r => {
+    if (r.status === 'rejected') return false; 
+    const banDiThay = (r.partner === name && r.ngayDoi === ngayTra); // Đã hứa đi thay cho người khác
+    const banTraCa = (r.name === name && r.ngayTra === ngayTra);     // Đã có lịch trả nợ ca cho 1 đơn khác
+    return banDiThay || banTraCa;
+  });
+
+  if (isKetLichRequester) { 
+    showAlert('app', `Bản thân đồng chí đã vướng lịch trực vào ngày trả ca ${fmtDate(ngayTra)}. Vui lòng chọn ngày trả ca khác!`, 'ae'); 
+    return; 
   }
 
   if(!confirm("Xác nhận GỬI yêu cầu?\nHãy kiểm tra kỹ Ngày và Ca đổi/trả!")) return;
