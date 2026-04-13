@@ -116,8 +116,15 @@ textarea{resize:none;height:80px}
   <div id="app" style="display:none">
     <div id="alert-app" class="alert"></div>
     <div class="ubar">
-      <div><div class="ubar-name" id="ub-name"></div><div style="font-size:12px;color:#64748b" id="ub-role"></div></div>
-      <div style="display:flex;gap:8px;"><button class="btn btn-sm" onclick="openChangePin()">Đổi PIN</button><button class="btn btn-sm" onclick="doLogout()">Thoát</button></div>
+      <div>
+        <div class="ubar-name" id="ub-name"></div>
+        <div style="font-size:12px;color:#64748b" id="ub-role"></div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="btn" style="padding: 6px 10px; font-size: 13px;" onclick="openChangePin()">Đổi PIN</button>
+        <button class="btn" style="padding: 6px 10px; font-size: 13px;" onclick="doRefresh(this)">🔄 Làm mới</button>
+        <button class="btn" style="padding: 6px 10px; font-size: 13px;" onclick="doLogout()">Thoát</button>
+      </div>
     </div>
 
     <div class="tabs">
@@ -364,6 +371,18 @@ async function doLogin(){
     for(let y = curYear - 2; y <= curYear + 2; y++) { yrSelect.innerHTML += `<option value="${y}" ${y===curYear ? 'selected':''}>Năm ${y}</option>`; }
     await loadAll(); 
   } catch(ex){e.style.color='#dc2626'; e.textContent='Lỗi kết nối mạng';}
+// TỰ ĐỘNG CẬP NHẬT SAU MỖI 60 GIÂY
+  setInterval(async () => {
+    if (CU) {
+      await loadAll(); // Tải dữ liệu mới ngầm
+      const activeBtn = document.querySelector('.tab.active');
+      if (activeBtn) {
+        const t = activeBtn.getAttribute('onclick').match(/'([^']+)'/)[1];
+        // Chỉ tự động vẽ lại các tab cần theo dõi đơn mới
+        if (['dong-y', 'phe-duyet', 'lich-su'].includes(t)) switchTab(t);
+      }
+    }
+  }, 60000);
 }
 
 function doLogout() {
@@ -372,7 +391,26 @@ function doLogout() {
   document.getElementById('f-login-name').value = ''; document.getElementById('pin-inp').value = ''; document.getElementById('pin-err').textContent = ''; document.getElementById('ss-login-lbl').textContent = '-- Chọn tên của bạn --';
   document.querySelector('#ss-login .ss-btn').classList.add('ph'); document.getElementById('f-name').value = ''; buildSS('ss-login', '');
 }
+ async function doRefresh(btn) {
+  // 1. Đổi nút sang màu xanh, hiện chữ đang tải và khóa nút
+  btn.classList.add('btn-success'); 
+  btn.textContent = '⏳ Đang tải...'; 
+  btn.disabled = true; 
 
+  // 2. Chạy ngầm lệnh lấy dữ liệu mới từ máy chủ
+  await loadAll(); 
+  const activeBtn = document.querySelector('.tab.active'); 
+  if(activeBtn){ 
+    const t = activeBtn.getAttribute('onclick').match(/'([^']+)'/)[1]; 
+    switchTab(t); 
+  } 
+  showAlert('app','Đã cập nhật dữ liệu mới','as');
+
+  // 3. Xong xuôi thì xóa màu xanh đi, trả lại nút màu trắng
+  btn.classList.remove('btn-success'); 
+  btn.textContent = '🔄 Làm mới'; 
+  btn.disabled = false; 
+}
 function openChangePin(){document.getElementById('pin-modal').style.display='flex';} function closePinModal(){document.getElementById('pin-modal').style.display='none';}
 async function doChangePin(){
   const o=document.getElementById('cp-old').value, n=document.getElementById('cp-new').value, n2=document.getElementById('cp-new2').value, err=document.getElementById('cp-err');
