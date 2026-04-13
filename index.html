@@ -453,13 +453,96 @@ function reqCard(r,a=''){
   return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
 }
 
-function renderDongY(){ const el=document.getElementById('list-dong-y'); const its=allReqs.filter(r=>r.status==='pending_partner'&&r.partner===CU.name); el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="partnerOk('${r.id}', this)">Đồng ý</button> <button class="btn btn-danger" onclick="partnerNo('${r.id}', this)">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn</div>'; }
-async function partnerOk(id, btn){ if(!confirm("Xác nhận ĐỒNG Ý đi thay ca?")) return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"pending_ld",by:CU.name}); await loadAll(); renderDongY(); showAlert('app', 'Đã đồng ý!', 'as'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Đồng ý'; } } }
-async function partnerNo(id, btn){ const rs=prompt("Lý do từ chối (Bắt buộc):"); if(!rs)return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"rejected",by:CU.name,rejectReason:rs}); await loadAll(); renderDongY(); showAlert('app', 'Đã từ chối.', 'ae'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Từ chối'; } } }
+function renderDongY(){ 
+  const el=document.getElementById('list-dong-y'); 
+  const its=allReqs.filter(r=>r.status==='pending_partner'&&r.partner===CU.name); 
+  el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="partnerOk('${r.id}', this)">Đồng ý</button> <button class="btn btn-danger" onclick="partnerNo('${r.id}', this)">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn</div>'; 
+}
 
-function renderPheDuyet(){ const el=document.getElementById('list-phe-duyet'); if(!CU||CU.role!=='ld'){el.innerHTML='<div class="empty">Chỉ Lãnh đạo mới có quyền duyệt</div>';return;} const its=allReqs.filter(r=>r.status==='pending_ld'); el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="ldOk('${r.id}', this)">Duyệt</button> <button class="btn btn-danger" onclick="ldNo('${r.id}', this)">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn chờ</div>'; }
-async function ldOk(id, btn){ if(!confirm("Xác nhận DUYỆT PX?")) return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"approved",by:CU.name}); await loadAll(); renderPheDuyet(); showAlert('app', 'Đã phê duyệt!', 'as'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Duyệt'; } } }
-async function ldNo(id, btn){ const rs=prompt("Lý do từ chối (Bắt buộc):"); if(!rs)return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"rejected",by:CU.name,rejectReason:rs}); await loadAll(); renderPheDuyet(); showAlert('app', 'Đã từ chối.', 'ae'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Từ chối'; } } }
+async function partnerOk(id, btn){ 
+  const req = allReqs.find(r => r.id === id); 
+  if(req) { 
+    const err = validateExistingReq(req); 
+    if(err) { showAlert('app', `Hệ thống chặn: ${err}`, 'ae'); return; } 
+  } 
+  if(!confirm("Xác nhận ĐỒNG Ý đi thay ca?")) return; 
+  
+  // KHÓA VÀ LÀM MỜ NÚT NGAY LẬP TỨC
+  if(btn){ 
+    btn.disabled=true; 
+    btn.innerHTML='⏳ Đang xử lý...'; 
+    btn.style.opacity='0.6'; 
+    btn.style.cursor='not-allowed';
+  } 
+  showAlert('app', 'Đang xử lý...', 'ai'); 
+  
+  try{ 
+    await api({action:"updateStatus",id,status:"pending_ld",by:CU.name}); 
+    await loadAll(); 
+    renderDongY(); 
+    showAlert('app', 'Đã đồng ý!', 'as'); 
+  }catch(e){ 
+    // NHẢ NÚT NẾU MẠNG LỖI
+    if(btn){ btn.disabled=false; btn.innerHTML='Đồng ý'; btn.style.opacity='1'; btn.style.cursor='pointer'; } 
+    showAlert('app', 'Lỗi mạng!', 'ae');
+  } 
+}
+
+async function partnerNo(id, btn){ 
+  const rs=prompt("Lý do từ chối (Bắt buộc):"); 
+  if(!rs)return; 
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ Đang xử lý...'; btn.style.opacity='0.6'; btn.style.cursor='not-allowed'; } 
+  showAlert('app', 'Đang xử lý...', 'ai'); 
+  try{ 
+    await api({action:"updateStatus",id,status:"rejected",by:CU.name,rejectReason:rs}); 
+    await loadAll(); 
+    renderDongY(); 
+    showAlert('app', 'Đã từ chối.', 'ae'); 
+  }catch(e){ 
+    if(btn){ btn.disabled=false; btn.innerHTML='Từ chối'; btn.style.opacity='1'; btn.style.cursor='pointer'; } 
+  } 
+}
+
+function renderPheDuyet(){ 
+  const el=document.getElementById('list-phe-duyet'); 
+  if(!CU||CU.role!=='ld'){el.innerHTML='<div class="empty">Chỉ Lãnh đạo mới có quyền duyệt</div>';return;} 
+  const its=allReqs.filter(r=>r.status==='pending_ld'); 
+  el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="ldOk('${r.id}', this)">Duyệt</button> <button class="btn btn-danger" onclick="ldNo('${r.id}', this)">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn chờ</div>'; 
+}
+
+async function ldOk(id, btn){ 
+  const req = allReqs.find(r => r.id === id); 
+  if(req) { 
+    const err = validateExistingReq(req); 
+    if(err) { showAlert('app', `Hệ thống chặn: ${err}`, 'ae'); return; } 
+  } 
+  if(!confirm("Xác nhận DUYỆT PX?")) return; 
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ Đang xử lý...'; btn.style.opacity='0.6'; btn.style.cursor='not-allowed'; } 
+  showAlert('app', 'Đang xử lý...', 'ai'); 
+  try{ 
+    await api({action:"updateStatus",id,status:"approved",by:CU.name}); 
+    await loadAll(); 
+    renderPheDuyet(); 
+    showAlert('app', 'Đã phê duyệt!', 'as'); 
+  }catch(e){ 
+    if(btn){ btn.disabled=false; btn.innerHTML='Duyệt'; btn.style.opacity='1'; btn.style.cursor='pointer'; } 
+  } 
+}
+
+async function ldNo(id, btn){ 
+  const rs=prompt("Lý do từ chối (Bắt buộc):"); 
+  if(!rs)return; 
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ Đang xử lý...'; btn.style.opacity='0.6'; btn.style.cursor='not-allowed'; } 
+  showAlert('app', 'Đang xử lý...', 'ai'); 
+  try{ 
+    await api({action:"updateStatus",id,status:"rejected",by:CU.name,rejectReason:rs}); 
+    await loadAll(); 
+    renderPheDuyet(); 
+    showAlert('app', 'Đã từ chối.', 'ae'); 
+  }catch(e){ 
+    if(btn){ btn.disabled=false; btn.innerHTML='Từ chối'; btn.style.opacity='1'; btn.style.cursor='pointer'; } 
+  } 
+}
 
 // =====================================================================
 // BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (CHU KỲ 3 CA 5 KÍP - 10 NGÀY)
@@ -505,35 +588,64 @@ function addDays(dateStr, days) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
+// =====================================================================
 // LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
-function checkViPhamAnToan(kipName, dateStr, caMuonDi) {
+// =====================================================================
+// 1. Hàm tính lịch THỰC TẾ (Bao gồm lịch gốc + lịch đã nhận đi thay)
+function getCaThucTe(userName, kipName, dateStr) {
+   let ca = getCaTrucGoc(kipName, dateStr);
+   // CHỈ ĐẾM LỊCH ĐÃ CHỐT: Không đếm các đơn "Chờ xác nhận" hoặc "Từ chối"
+   const reqs = allReqs.filter(r => r.status === 'pending_ld' || r.status === 'approved');
+   
+   for (let r of reqs) {
+      if (r.name === userName && r.ngayDoi === dateStr) ca = 'OFF';
+      if (r.name === userName && r.ngayTra === dateStr) ca = r.caTra;
+      if (r.partner === userName && r.ngayDoi === dateStr) ca = r.caDoi;
+      if (r.partner === userName && r.ngayTra === dateStr) ca = 'OFF';
+   }
+   return ca;
+}
+
+// 2. Hàm kiểm tra vi phạm (Đã nâng cấp)
+function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi) {
   const ngayTruoc = addDays(dateStr, -1);
   const ngaySau = addDays(dateStr, 1);
-  const caGocNgayTruoc = getCaTrucGoc(kipName, ngayTruoc);
-  const caGocNgaySau = getCaTrucGoc(kipName, ngaySau);
+  
+  // Dùng lịch THỰC TẾ để kiểm tra
+  const caNgayTruoc = getCaThucTe(userName, kipName, ngayTruoc);
+  const caNgaySau = getCaThucTe(userName, kipName, ngaySau);
 
-  // LUẬT 1: CHỐNG 2 CA LIÊN TIẾP (Dính Ca C và Ca K)
-  if (caMuonDi === 'K' && caGocNgayTruoc === 'C') {
-    return "Đi ca K nhưng ngày hôm trước đang có lịch ca C (Vi phạm làm 2 ca liên tiếp từ 15h đến 7h sáng).";
-  }
-  if (caMuonDi === 'C' && caGocNgaySau === 'K') {
-    return "Đi ca C nhưng ngày hôm sau đang có lịch ca K (Vi phạm làm 2 ca liên tiếp từ 15h đến 7h sáng hôm sau).";
-  }
+  if (caMuonDi === 'K' && caNgayTruoc === 'C') return "Đi ca K nhưng ngày trước có ca C (Vi phạm 2 ca liên tiếp).";
+  if (caMuonDi === 'C' && caNgaySau === 'K') return "Đi ca C nhưng ngày sau có ca K (Vi phạm 2 ca liên tiếp).";
 
-  // LUẬT 2: CHỐNG 4 CA K LIÊN TIẾP
   if (caMuonDi === 'K') {
-    let countK = 1; // Tính luôn ca đang định nhận
+    let countK = 1;
     let d = dateStr;
-    // Đếm lùi về trước xem có mấy ca K rồi
-    while(getCaTrucGoc(kipName, addDays(d, -1)) === 'K') { countK++; d = addDays(d, -1); }
+    while(getCaThucTe(userName, kipName, addDays(d, -1)) === 'K') { countK++; d = addDays(d, -1); }
     d = dateStr;
-    // Đếm tiến về sau xem có mấy ca K nữa
-    while(getCaTrucGoc(kipName, addDays(d, 1)) === 'K') { countK++; d = addDays(d, 1); }
+    while(getCaThucTe(userName, kipName, addDays(d, 1)) === 'K') { countK++; d = addDays(d, 1); }
     
-    if (countK >= 4) return "Vi phạm quy định không được đi 4 ca K liên tiếp.";
+    if (countK >= 4) return "Vi phạm quy định: Đi 4 ca K liên tiếp.";
   }
+  return false;
+}
 
-  return false; // An toàn, cho qua!
+// 3. Phép thử dùng để Khóa nút Đồng Ý / Phê Duyệt
+function validateExistingReq(req) {
+  const pKip = req.partnerKip || "";
+  const rKip = req.kip || "";
+
+  // Quét lại Lớp 2 (Có trùng lịch vào ngày đó không?)
+  if (getCaThucTe(req.partner, pKip, req.ngayDoi) !== 'OFF') return `Người đi thay đã vướng lịch làm ca khác vào ngày đi thay.`;
+  if (getCaThucTe(req.name, rKip, req.ngayTra) !== 'OFF') return `Người trả ca đã vướng lịch làm ca khác vào ngày trả ca.`;
+
+  // Quét lại Lớp 3 (Có vi phạm 4 ca K hoặc 2 ca liên tiếp không?)
+  const l1 = checkViPhamAnToan(req.partner, pKip, req.ngayDoi, req.caDoi);
+  if(l1) return `Người đi thay - ${l1}`;
+  const l2 = checkViPhamAnToan(req.name, rKip, req.ngayTra, req.caTra);
+  if(l2) return `Người trả ca - ${l2}`;
+  
+  return null;
 }
 async function submitRequest(){
   const name = CU.name, kip = document.getElementById('f-kip').value, caDoi = document.getElementById('f-ca-doi').value, ngayDoi = document.getElementById('f-ngay-doi').value;
@@ -580,13 +692,10 @@ async function submitRequest(){
   // LỚP 2: KIỂM TRA LỊCH ĐỘNG (ĐÃ NHẬN LỜI ĐI THAY ĐƠN KHÁC CHƯA?)
   // ===============================================================
   const isVuongLichPhatSinh = allReqs.some(r => {
-    if (r.status === 'rejected') return false; 
-    
-    // Kiểm tra người đi thay: Ngày đó đã hứa đi thay ai chưa? Hoặc phải đi trả nợ ca chưa?
+    // Thả lỏng: Không xét các đơn đang chờ Xác nhận hoặc Đã bị hủy
+    if (r.status !== 'pending_ld' && r.status !== 'approved') return false; 
     const thayVuong = (r.partner === partner && r.ngayDoi === ngayDoi) || (r.name === partner && r.ngayTra === ngayDoi);
-    // Kiểm tra người đổi: Ngày hứa trả ca đã vướng lịch hứa trả ca cho một đơn khác chưa?
     const doiVuong = (r.name === name && r.ngayTra === ngayTra) || (r.partner === name && r.ngayDoi === ngayTra);
-    
     return thayVuong || doiVuong;
   });
 
@@ -599,18 +708,12 @@ async function submitRequest(){
   // ===============================================================
   
   // 3.1. Kiểm tra Người đi thay lúc nhận ca
-  const loiNguoiThay = checkViPhamAnToan(partnerKip, ngayDoi, caDoi);
-  if (loiNguoiThay) {
-    showAlert('app', `LỖI NGƯỜI ĐI THAY: ${loiNguoiThay}`, 'ae');
-    return;
-  }
+  const loiNguoiThay = checkViPhamAnToan(partner, partnerKip, ngayDoi, caDoi);
+  if (loiNguoiThay) { showAlert('app', `LỖI NGƯỜI ĐI THAY: ${loiNguoiThay}`, 'ae'); return; }
 
   // 3.2. Kiểm tra Người xin nghỉ lúc trả ca
-  const loiNguoiDoi = checkViPhamAnToan(kip, ngayTra, caTra);
-  if (loiNguoiDoi) {
-    showAlert('app', `LỖI NGƯỜI TRẢ CA: ${loiNguoiDoi}`, 'ae');
-    return;
-  }
+  const loiNguoiDoi = checkViPhamAnToan(name, kip, ngayTra, caTra);
+  if (loiNguoiDoi) { showAlert('app', `LỖI NGƯỜI TRẢ CA: ${loiNguoiDoi}`, 'ae'); return; }
 
   if(!confirm("Xác nhận GỬI yêu cầu?\nHãy kiểm tra kỹ Ngày và Ca đổi/trả!")) return;
   const btn = document.getElementById('btn-submit'); btn.disabled = true; btn.textContent = 'Đang gửi...';
@@ -623,24 +726,52 @@ async function submitRequest(){
 }
 
 function renderHistory(){ 
-  const fs = document.getElementById('f-fst').value; const fk = document.getElementById('f-fkp').value; const hm = document.getElementById('f-hist-month').value;
+  const fs = document.getElementById('f-fst').value; const hm = document.getElementById('f-hist-month').value;
   let yr = 0, mo = 0; if(hm) { const p = hm.split('-'); yr = parseInt(p[0]); mo = parseInt(p[1]); }
-
   const items = allReqs.filter(r => {
+    if (r.status === 'cancelled') return false; // ẨN TẤT CẢ CÁC ĐƠN ĐÃ HỦY
     if (CU.role !== 'ld' && r.name !== CU.name && r.partner !== CU.name) return false;
-    if (fs && r.status !== fs) return false; if (fk && r.kip !== fk) return false;
+    if (fs && r.status !== fs) return false;
     if (hm) {
       const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0];
       const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
-      let inMonth = (yDoi === yr && mDoi === mo) || (yTra === yr && mTra === mo); if (!inMonth) return false;
+      if (!((yDoi === yr && mDoi === mo) || (yTra === yr && mTra === mo))) return false;
     } return true;
   });
-  document.getElementById('list-lich-su').innerHTML = items.length ? items.map(r => reqCard(r)).join('') : '<div class="empty">Không có dữ liệu lịch sử</div>'; 
+  
+  document.getElementById('list-lich-su').innerHTML = items.length ? items.map(r => {
+    let action = '';
+    // NẾU LÀ ĐƠN CỦA MÌNH TẠO VÀ CHƯA AI XÁC NHẬN -> HIỆN NÚT HỦY ĐƠN
+    if (r.status === 'pending_partner' && r.name === CU.name) {
+      action = `<button class="btn btn-danger" style="width:100%" onclick="deleteReq('${r.id}', this)">🗑️ Hủy & Rút đơn</button>`;
+    }
+    return reqCard(r, action);
+  }).join('') : '<div class="empty">Không có lịch sử</div>'; 
+}
+
+// Hàm Xóa đơn mới tinh
+async function deleteReq(id, btn){
+  if(!confirm("Bạn có chắc chắn muốn HỦY và RÚT LẠI đơn đổi ca này?")) return;
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Đang hủy...'; }
+  showAlert('app', 'Đang xử lý...', 'ai');
+  try{
+    // Đẩy lệnh hủy lên máy chủ
+    await api({action:"updateStatus", id, status:"cancelled", by:CU.name});
+    await loadAll();
+    renderHistory(); renderSummary();
+    showAlert('app', 'Đã hủy đơn thành công!', 'as');
+  }catch(e){
+    if(btn){ btn.disabled=false; btn.textContent='🗑️ Hủy & Rút đơn'; }
+    showAlert('app', 'Lỗi kết nối mạng!', 'ae');
+  }
 }
 
 function renderSummary() {
   const reqs = CU.role === 'ld' ? allReqs : allReqs.filter(r => r.name === CU.name || r.partner === CU.name);
-  document.getElementById('st-total').textContent = reqs.length; document.getElementById('st-approved').textContent = reqs.filter(r=>r.status==='approved').length; document.getElementById('st-pending').textContent = reqs.filter(r=>r.status.includes('pending')).length;
+  const validReqs = reqs.filter(r => r.status !== 'cancelled'); // Lọc sạch đơn rác khỏi thống kê
+  document.getElementById('st-total').textContent = validReqs.length; 
+  document.getElementById('st-approved').textContent = validReqs.filter(r=>r.status==='approved').length; 
+  document.getElementById('st-pending').textContent = validReqs.filter(r=>r.status.includes('pending')).length;
 }
 
 function renderDayTable(){
