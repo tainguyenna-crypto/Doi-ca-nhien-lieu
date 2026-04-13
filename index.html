@@ -141,7 +141,7 @@ textarea{resize:none;height:80px}
         <div class="sec-title" style="margin-bottom:16px;">Tạo yêu cầu đổi ca</div>
         <div class="form-row three">
           <div><label>Người xin nghỉ</label><input type="text" id="f-name" readonly style="background:#f1f5f9; color:#475569; font-weight:600;"></div>
-          <div><label>Kíp</label><select id="f-kip"><option value="">-- Kíp --</option></select></div>
+          <div><label>Kíp</label><select id="f-kip" disabled style="background:#f1f5f9; color:#475569; font-weight:600; appearance:none;"><option value="">-- Kíp --</option></select></div>
         </div>
         <div class="form-row">
           <div><label>Ca đổi</label><select id="f-ca-doi"><option value="">-- Chọn ca --</option></select></div>
@@ -156,7 +156,7 @@ textarea{resize:none;height:80px}
             <div class="ss" id="ss-partner"><button class="ss-btn ph"><span id="ss-partner-lbl">-- Chọn --</span><span>▾</span></button><div class="ss-drop" id="ss-partner-drop"><input class="ss-inp" oninput="filterSS('ss-partner',this.value)" placeholder="Tìm..."><div class="ss-list" id="ss-partner-list"></div></div></div>
             <input type="hidden" id="f-partner">
           </div>
-          <div><label>Kíp</label><select id="f-partner-kip"><option value="">-- Kíp --</option></select></div>
+          <div><label>Kíp</label><select id="f-partner-kip" disabled style="background:#f1f5f9; color:#475569; font-weight:600; appearance:none;"><option value="">-- Kíp --</option></select></div>
         </div>
         <div class="form-row full"><label>Chức danh người đi thay</label><select id="f-partner-role"><option value="">-- Chọn --</option></select></div>
         <div class="form-row full"><label>Lý do</label><textarea id="f-reason" placeholder="Lý do đổi ca..."></textarea></div>
@@ -461,6 +461,80 @@ function renderPheDuyet(){ const el=document.getElementById('list-phe-duyet'); i
 async function ldOk(id, btn){ if(!confirm("Xác nhận DUYỆT PX?")) return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"approved",by:CU.name}); await loadAll(); renderPheDuyet(); showAlert('app', 'Đã phê duyệt!', 'as'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Duyệt'; } } }
 async function ldNo(id, btn){ const rs=prompt("Lý do từ chối (Bắt buộc):"); if(!rs)return; if(btn){ btn.disabled=true; btn.textContent='⏳ Đang xử lý...'; } showAlert('app', 'Đang xử lý...', 'ai'); try{ await api({action:"updateStatus",id,status:"rejected",by:CU.name,rejectReason:rs}); await loadAll(); renderPheDuyet(); showAlert('app', 'Đã từ chối.', 'ae'); }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Từ chối'; } } }
 
+// =====================================================================
+// BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (CHU KỲ 3 CA 5 KÍP - 10 NGÀY)
+// =====================================================================
+function getCaTrucGoc(kipName, dateStr) {
+  if (!kipName || !dateStr) return 'OFF';
+  
+  // 1. Vòng lặp 10 ngày chuẩn: C, C, OFF, N, N, OFF, K, K, OFF, OFF
+  const chuKy = ['C', 'C', 'OFF', 'N', 'N', 'OFF', 'K', 'K', 'OFF', 'OFF'];
+
+  // 2. NGÀY MỐC (Anchor Date): Chọn 1 ngày bất kỳ làm chuẩn để tính toán
+  // Đồng chí hãy sửa ngày này thành một ngày thực tế mà đồng chí nhớ rõ lịch
+  const ngayMoc = new Date('2026-04-01');
+  const ngayCanTim = new Date(dateStr);
+
+  const diffTime = ngayCanTim - ngayMoc;
+  let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  // 3. VỊ TRÍ CỦA CÁC KÍP VÀO ĐÚNG NGÀY MỐC (01/04/2026)
+  // Quy ước số từ 0 đến 9 tương ứng với:
+  // 0: Ca C(1) | 1: Ca C(2) | 2: Nghỉ 1 | 3: Ca N(1) | 4: Ca N(2) | 5: Nghỉ 2 | 6: Ca K(1) | 7: Ca K(2) | 8: Nghỉ 3 | 9: Nghỉ 4
+  // ĐỒNG CHÍ CẦN CHỈNH LẠI CÁC SỐ (0-9) DƯỚI ĐÂY CHO KHỚP VỚI THỰC TẾ NGÀY MỐC:
+  const viTriMoc = {
+    'Kíp 1': 4, // 01/04 Kíp 1 đi Ca Ngày thứ 2
+    'Kíp 2': 2, // Kíp 2 đang Nghỉ ngày thứ 1
+    'Kíp 3': 0, // Kíp 3 đi Ca Chiều ngày đầu tiên
+    'Kíp 4': 8, // Kíp 4 đang Nghỉ ngày thứ 3
+    'Kíp 5': 6  // Kíp 5 đang đi ca Khuya thứ 1
+  };
+
+  const viTriHienTai = viTriMoc[kipName];
+  if (viTriHienTai === undefined) return 'OFF'; 
+
+  // Tính toán vị trí tịnh tiến theo vòng tròn 10 ngày
+  let viTriMoi = (viTriHienTai + (diffDays % 10)) % 10;
+  if (viTriMoi < 0) viTriMoi += 10;
+
+  return chuKy[viTriMoi];
+}
+// Hàm cộng/trừ ngày để kiểm tra lịch ngày hôm trước/hôm sau
+function addDays(dateStr, days) {
+  let d = new Date(dateStr); d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
+function checkViPhamAnToan(kipName, dateStr, caMuonDi) {
+  const ngayTruoc = addDays(dateStr, -1);
+  const ngaySau = addDays(dateStr, 1);
+  const caGocNgayTruoc = getCaTrucGoc(kipName, ngayTruoc);
+  const caGocNgaySau = getCaTrucGoc(kipName, ngaySau);
+
+  // LUẬT 1: CHỐNG 2 CA LIÊN TIẾP (Dính Ca C và Ca K)
+  if (caMuonDi === 'K' && caGocNgayTruoc === 'C') {
+    return "Đi ca K nhưng ngày hôm trước đang có lịch ca C (Vi phạm làm 2 ca liên tiếp từ 15h đến 7h sáng).";
+  }
+  if (caMuonDi === 'C' && caGocNgaySau === 'K') {
+    return "Đi ca C nhưng ngày hôm sau đang có lịch ca K (Vi phạm làm 2 ca liên tiếp từ 15h đến 7h sáng hôm sau).";
+  }
+
+  // LUẬT 2: CHỐNG 4 CA K LIÊN TIẾP
+  if (caMuonDi === 'K') {
+    let countK = 1; // Tính luôn ca đang định nhận
+    let d = dateStr;
+    // Đếm lùi về trước xem có mấy ca K rồi
+    while(getCaTrucGoc(kipName, addDays(d, -1)) === 'K') { countK++; d = addDays(d, -1); }
+    d = dateStr;
+    // Đếm tiến về sau xem có mấy ca K nữa
+    while(getCaTrucGoc(kipName, addDays(d, 1)) === 'K') { countK++; d = addDays(d, 1); }
+    
+    if (countK >= 4) return "Vi phạm quy định không được đi 4 ca K liên tiếp.";
+  }
+
+  return false; // An toàn, cho qua!
+}
 async function submitRequest(){
   const name = CU.name, kip = document.getElementById('f-kip').value, caDoi = document.getElementById('f-ca-doi').value, ngayDoi = document.getElementById('f-ngay-doi').value;
   const caTra = document.getElementById('f-ca-tra').value, ngayTra = document.getElementById('f-ngay-tra').value, partner = document.getElementById('f-partner').value.trim();
@@ -470,33 +544,72 @@ async function submitRequest(){
   if(name === partner){ showAlert('app','Người đổi và người đi thay không được trùng nhau.','ae'); return; }
   
  // ===============================================================
-  // 1. KIỂM TRA NGƯỜI ĐI THAY: Có bị vướng lịch vào "Ngày đổi" không?
+  // LỚP 1: ĐỐI CHIẾU VỚI LỊCH CA GỐC CỦA NHÀ MÁY
   // ===============================================================
-  const isKetLichPartner = allReqs.some(r => {
-    if (r.status === 'rejected') return false; 
-    const banDiThay = (r.partner === partner && r.ngayDoi === ngayDoi); // Đã nhận đi thay người khác
-    const banTraCa = (r.name === partner && r.ngayTra === ngayDoi);     // Phải đi làm để trả nợ ca cho người khác
-    return banDiThay || banTraCa;
-  });
+  const caGocNguoiDoi_NgayDoi = getCaTrucGoc(kip, ngayDoi);
+  const caGocNguoiThay_NgayDoi = getCaTrucGoc(partnerKip, ngayDoi);
+  const caGocNguoiDoi_NgayTra = getCaTrucGoc(kip, ngayTra);
+  const caGocNguoiThay_NgayTra = getCaTrucGoc(partnerKip, ngayTra); // Bổ sung lấy lịch người đi thay ngày trả ca
 
-  if (isKetLichPartner) { 
-    showAlert('app', `Đồng chí ${partner} đã có lịch trực vào ngày ${fmtDate(ngayDoi)} (Quy định 1 ngày chỉ đi 1 ca). Vui lòng chọn người khác!`, 'ae'); 
-    return; 
+  // Quy tắc 1: Người đổi chỉ được xin nghỉ cái ca mà hôm đó họ CÓ LỊCH ĐI LÀM
+  if (caGocNguoiDoi_NgayDoi !== caDoi) {
+    showAlert('app', `Theo lịch gốc, ngày ${fmtDate(ngayDoi)} Kíp của đồng chí đi ca ${caGocNguoiDoi_NgayDoi}. Không thể xin nghỉ ${CA[caDoi]?CA[caDoi].label:caDoi}!`, 'ae');
+    return;
+  }
+
+  // Quy tắc 2: Người đi thay chỉ được đi thay khi hôm đó họ ĐANG ĐƯỢC NGHỈ
+  if (caGocNguoiThay_NgayDoi !== 'OFF') {
+    showAlert('app', `Đồng chí ${partner} (${partnerKip}) đã có lịch trực ca ${caGocNguoiThay_NgayDoi} vào ngày ${fmtDate(ngayDoi)}. Người đi thay phải rảnh!`, 'ae');
+    return;
+  }
+
+  // Quy tắc 3: Người đổi chỉ được đi trả nợ ca khi hôm đó họ ĐANG ĐƯỢC NGHỈ
+  if (caGocNguoiDoi_NgayTra !== 'OFF') {
+    showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí đã có lịch trực ca ${caGocNguoiDoi_NgayTra}. Không thể xếp lịch trả nợ ca vào ngày mình đi làm!`, 'ae');
+    return;
+  }
+
+  // Quy tắc 4: Người đổi chỉ được trả ca nếu hôm đó người đi hộ CÓ LỊCH ĐI LÀM CA ĐÓ
+  if (caGocNguoiThay_NgayTra !== caTra) {
+    let textHienTai = caGocNguoiThay_NgayTra !== 'OFF' ? `ca ${caGocNguoiThay_NgayTra}` : 'được nghỉ';
+    showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí ${partner} ${textHienTai}. Đồng chí không thể đi trả thay ${CA[caTra]?CA[caTra].label:caTra}!`, 'ae');
+    return;
   }
 
   // ===============================================================
-  // 2. KIỂM TRA BẢN THÂN: Có bị vướng lịch vào "Ngày trả" không?
+  // LỚP 2: KIỂM TRA LỊCH ĐỘNG (ĐÃ NHẬN LỜI ĐI THAY ĐƠN KHÁC CHƯA?)
   // ===============================================================
-  const isKetLichRequester = allReqs.some(r => {
+  const isVuongLichPhatSinh = allReqs.some(r => {
     if (r.status === 'rejected') return false; 
-    const banDiThay = (r.partner === name && r.ngayDoi === ngayTra); // Đã hứa đi thay cho người khác
-    const banTraCa = (r.name === name && r.ngayTra === ngayTra);     // Đã có lịch trả nợ ca cho 1 đơn khác
-    return banDiThay || banTraCa;
+    
+    // Kiểm tra người đi thay: Ngày đó đã hứa đi thay ai chưa? Hoặc phải đi trả nợ ca chưa?
+    const thayVuong = (r.partner === partner && r.ngayDoi === ngayDoi) || (r.name === partner && r.ngayTra === ngayDoi);
+    // Kiểm tra người đổi: Ngày hứa trả ca đã vướng lịch hứa trả ca cho một đơn khác chưa?
+    const doiVuong = (r.name === name && r.ngayTra === ngayTra) || (r.partner === name && r.ngayDoi === ngayTra);
+    
+    return thayVuong || doiVuong;
   });
 
-  if (isKetLichRequester) { 
-    showAlert('app', `Bản thân đồng chí đã vướng lịch trực vào ngày trả ca ${fmtDate(ngayTra)}. Vui lòng chọn ngày trả ca khác!`, 'ae'); 
+  if (isVuongLichPhatSinh) { 
+    showAlert('app', `Một trong hai đồng chí đã vướng lịch đổi/trả ca phát sinh vào các ngày này trên phần mềm. Vui lòng kiểm tra lại!`, 'ae'); 
     return; 
+  }
+// ===============================================================
+  // LỚP 3: KIỂM TRA QUY ĐỊNH AN TOÀN VẬN HÀNH TẠI NHÀ MÁY
+  // ===============================================================
+  
+  // 3.1. Kiểm tra Người đi thay lúc nhận ca
+  const loiNguoiThay = checkViPhamAnToan(partnerKip, ngayDoi, caDoi);
+  if (loiNguoiThay) {
+    showAlert('app', `LỖI NGƯỜI ĐI THAY: ${loiNguoiThay}`, 'ae');
+    return;
+  }
+
+  // 3.2. Kiểm tra Người xin nghỉ lúc trả ca
+  const loiNguoiDoi = checkViPhamAnToan(kip, ngayTra, caTra);
+  if (loiNguoiDoi) {
+    showAlert('app', `LỖI NGƯỜI TRẢ CA: ${loiNguoiDoi}`, 'ae');
+    return;
   }
 
   if(!confirm("Xác nhận GỬI yêu cầu?\nHãy kiểm tra kỹ Ngày và Ca đổi/trả!")) return;
