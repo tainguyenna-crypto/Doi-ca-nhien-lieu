@@ -634,12 +634,24 @@ function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi) {
 function validateExistingReq(req) {
   const pKip = req.partnerKip || "";
   const rKip = req.kip || "";
+  const isDoiCungNgay = (req.ngayDoi === req.ngayTra);
 
-  // Quét lại Lớp 2 (Có trùng lịch vào ngày đó không?)
-  if (getCaThucTe(req.partner, pKip, req.ngayDoi) !== 'OFF') return `Người đi thay đã vướng lịch làm ca khác vào ngày đi thay.`;
-  if (getCaThucTe(req.name, rKip, req.ngayTra) !== 'OFF') return `Người trả ca đã vướng lịch làm ca khác vào ngày trả ca.`;
+  const caA_Doi = getCaThucTe(req.name, rKip, req.ngayDoi);
+  const caB_Doi = getCaThucTe(req.partner, pKip, req.ngayDoi);
+  const caA_Tra = getCaThucTe(req.name, rKip, req.ngayTra);
+  const caB_Tra = getCaThucTe(req.partner, pKip, req.ngayTra);
 
-  // Quét lại Lớp 3 (Có vi phạm 4 ca K hoặc 2 ca liên tiếp không?)
+  // Quét điều kiện sở hữu ca
+  if (caA_Doi !== req.caDoi) return `Người xin nghỉ không còn lịch ca ${req.caDoi} ngày ${fmtDate(req.ngayDoi)}.`;
+  if (caB_Tra !== req.caTra) return `Người đi thay không còn lịch ca ${req.caTra} ngày ${fmtDate(req.ngayTra)}.`;
+
+  // Quét điều kiện rảnh rỗi (Nếu là khác ngày)
+  if (!isDoiCungNgay) {
+      if (caB_Doi !== 'OFF') return `Người đi thay đã vướng ca ${caB_Doi} vào ngày đi thay.`;
+      if (caA_Tra !== 'OFF') return `Người trả ca đã vướng ca ${caA_Tra} vào ngày trả ca.`;
+  }
+
+  // Quét An toàn vận hành (Lớp 3)
   const l1 = checkViPhamAnToan(req.partner, pKip, req.ngayDoi, req.caDoi);
   if(l1) return `Người đi thay - ${l1}`;
   const l2 = checkViPhamAnToan(req.name, rKip, req.ngayTra, req.caTra);
@@ -656,62 +668,44 @@ async function submitRequest(){
   if(name === partner){ showAlert('app','Người đổi và người đi thay không được trùng nhau.','ae'); return; }
   
  // ===============================================================
-  // LỚP 1: ĐỐI CHIẾU VỚI LỊCH CA GỐC CỦA NHÀ MÁY
+  // LỚP 1 & 2: KIỂM TRA TÍNH HỢP LỆ CỦA CA TRỰC (Hỗ trợ Đổi Cùng Ngày)
   // ===============================================================
-  const caGocNguoiDoi_NgayDoi = getCaTrucGoc(kip, ngayDoi);
-  const caGocNguoiThay_NgayDoi = getCaTrucGoc(partnerKip, ngayDoi);
-  const caGocNguoiDoi_NgayTra = getCaTrucGoc(kip, ngayTra);
-  const caGocNguoiThay_NgayTra = getCaTrucGoc(partnerKip, ngayTra); // Bổ sung lấy lịch người đi thay ngày trả ca
+  // Lấy lịch THỰC TẾ của cả 2 người (Đã bao gồm cả các đơn đã duyệt trước đó)
+  const caThucTeA_NgayDoi = getCaThucTe(name, kip, ngayDoi);
+  const caThucTeB_NgayDoi = getCaThucTe(partner, partnerKip, ngayDoi);
+  const caThucTeA_NgayTra = getCaThucTe(name, kip, ngayTra);
+  const caThucTeB_NgayTra = getCaThucTe(partner, partnerKip, ngayTra);
 
-  // Quy tắc 1: Người đổi chỉ được xin nghỉ cái ca mà hôm đó họ CÓ LỊCH ĐI LÀM
-  if (caGocNguoiDoi_NgayDoi !== caDoi) {
-    showAlert('app', `Theo lịch gốc, ngày ${fmtDate(ngayDoi)} Kíp của đồng chí đi ca ${caGocNguoiDoi_NgayDoi}. Không thể xin nghỉ ${CA[caDoi]?CA[caDoi].label:caDoi}!`, 'ae');
-    return;
+  const isDoiCungNgay = (ngayDoi === ngayTra);
+
+  // Quy tắc 1: Kiểm tra ĐIỀU KIỆN SỞ HỮU CA (Phải có ca thì mới đem đi đổi được)
+  if (caThucTeA_NgayDoi !== caDoi) {
+    showAlert('app', `Ngày ${fmtDate(ngayDoi)} đồng chí không có lịch ca ${caDoi} để xin nghỉ!`, 'ae'); return;
+  }
+  if (caThucTeB_NgayTra !== caTra) {
+    showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí ${partner} không có lịch ca ${caTra} để trả lại!`, 'ae'); return;
   }
 
-  // Quy tắc 2: Người đi thay chỉ được đi thay khi hôm đó họ ĐANG ĐƯỢC NGHỈ
-  if (caGocNguoiThay_NgayDoi !== 'OFF') {
-    showAlert('app', `Đồng chí ${partner} (${partnerKip}) đã có lịch trực ca ${caGocNguoiThay_NgayDoi} vào ngày ${fmtDate(ngayDoi)}. Người đi thay phải rảnh!`, 'ae');
-    return;
-  }
-
-  // Quy tắc 3: Người đổi chỉ được đi trả nợ ca khi hôm đó họ ĐANG ĐƯỢC NGHỈ
-  if (caGocNguoiDoi_NgayTra !== 'OFF') {
-    showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí đã có lịch trực ca ${caGocNguoiDoi_NgayTra}. Không thể xếp lịch trả nợ ca vào ngày mình đi làm!`, 'ae');
-    return;
-  }
-
-  // Quy tắc 4: Người đổi chỉ được trả ca nếu hôm đó người đi hộ CÓ LỊCH ĐI LÀM CA ĐÓ
-  if (caGocNguoiThay_NgayTra !== caTra) {
-    let textHienTai = caGocNguoiThay_NgayTra !== 'OFF' ? `ca ${caGocNguoiThay_NgayTra}` : 'được nghỉ';
-    showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí ${partner} ${textHienTai}. Đồng chí không thể đi trả thay ${CA[caTra]?CA[caTra].label:caTra}!`, 'ae');
-    return;
+  // Quy tắc 2: Kiểm tra ĐIỀU KIỆN RẢNH RỖI (Phân nhánh theo Cùng ngày / Khác ngày)
+  if (isDoiCungNgay) {
+    if (caDoi === caTra) {
+      showAlert('app', `Đổi ca trong cùng 1 ngày thì 2 ca phải khác nhau!`, 'ae'); return;
+    }
+  } else {
+    if (caThucTeB_NgayDoi !== 'OFF') {
+      showAlert('app', `Ngày ${fmtDate(ngayDoi)} đồng chí ${partner} đang có lịch ca ${caThucTeB_NgayDoi}. Người đi thay phải rảnh!`, 'ae'); return;
+    }
+    if (caThucTeA_NgayTra !== 'OFF') {
+      showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí đang có lịch ca ${caThucTeA_NgayTra}. Chỉ được trả ca vào ngày nghỉ!`, 'ae'); return;
+    }
   }
 
   // ===============================================================
-  // LỚP 2: KIỂM TRA LỊCH ĐỘNG (ĐÃ NHẬN LỜI ĐI THAY ĐƠN KHÁC CHƯA?)
+  // LỚP 3: KIỂM TRA QUY ĐỊNH AN TOÀN VẬN HÀNH 
   // ===============================================================
-  const isVuongLichPhatSinh = allReqs.some(r => {
-    // Thả lỏng: Không xét các đơn đang chờ Xác nhận hoặc Đã bị hủy
-    if (r.status !== 'pending_ld' && r.status !== 'approved') return false; 
-    const thayVuong = (r.partner === partner && r.ngayDoi === ngayDoi) || (r.name === partner && r.ngayTra === ngayDoi);
-    const doiVuong = (r.name === name && r.ngayTra === ngayTra) || (r.partner === name && r.ngayDoi === ngayTra);
-    return thayVuong || doiVuong;
-  });
-
-  if (isVuongLichPhatSinh) { 
-    showAlert('app', `Một trong hai đồng chí đã vướng lịch đổi/trả ca phát sinh vào các ngày này trên phần mềm. Vui lòng kiểm tra lại!`, 'ae'); 
-    return; 
-  }
-// ===============================================================
-  // LỚP 3: KIỂM TRA QUY ĐỊNH AN TOÀN VẬN HÀNH TẠI NHÀ MÁY
-  // ===============================================================
-  
-  // 3.1. Kiểm tra Người đi thay lúc nhận ca
   const loiNguoiThay = checkViPhamAnToan(partner, partnerKip, ngayDoi, caDoi);
   if (loiNguoiThay) { showAlert('app', `LỖI NGƯỜI ĐI THAY: ${loiNguoiThay}`, 'ae'); return; }
 
-  // 3.2. Kiểm tra Người xin nghỉ lúc trả ca
   const loiNguoiDoi = checkViPhamAnToan(name, kip, ngayTra, caTra);
   if (loiNguoiDoi) { showAlert('app', `LỖI NGƯỜI TRẢ CA: ${loiNguoiDoi}`, 'ae'); return; }
 
