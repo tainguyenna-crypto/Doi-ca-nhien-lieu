@@ -601,17 +601,24 @@ function addDays(dateStr, days) {
 // =====================================================================
 // Hàm tính lịch THỰC TẾ (Bỏ qua đơn đang xét duyệt)
 function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null) {
-   let ca = getCaTrucGoc(userName, kipName, dateStr); // Đã truyền userName vào để soi ngoại lệ
+   let ca = getCaTrucGoc(userName, kipName, dateStr); 
    
    const reqs = allReqs.filter(r => 
        (r.status === 'pending_ld' || r.status === 'approved') && r.id !== ignoreReqId
    );
    
-   for (let r of reqs) {
+   // BÍ QUYẾT 1: Duyệt mảng ngược từ dưới lên (từ Đơn CŨ NHẤT -> Đơn MỚI NHẤT)
+   // Để đảm bảo lịch sử diễn ra đúng trật tự thời gian, cái mới sẽ đè cái cũ.
+   for (let i = reqs.length - 1; i >= 0; i--) {
+      let r = reqs[i];
+      
+      // BÍ QUYẾT 2: Trừ ca cũ (OFF) trước, sau đó mới cộng ca mới vào
+      // Rất quan trọng đối với các ca đổi và trả diễn ra trong CÙNG 1 NGÀY
       if (r.name === userName && r.ngayDoi === dateStr) ca = 'OFF';
+      if (r.partner === userName && r.ngayTra === dateStr) ca = 'OFF';
+      
       if (r.name === userName && r.ngayTra === dateStr) ca = r.caTra;
       if (r.partner === userName && r.ngayDoi === dateStr) ca = r.caDoi;
-      if (r.partner === userName && r.ngayTra === dateStr) ca = 'OFF';
    }
    return ca;
 }
@@ -779,10 +786,24 @@ function renderDayTable(){
   const wrap=document.getElementById('day-wrap'), mv=document.getElementById('f-month').value; if(!mv)return; const [yr,mo]=mv.split('-').map(Number);
   let approved=allReqs.filter(r=>r.status==='approved'); if (CU.role !== 'ld') { approved = approved.filter(r => r.name === CU.name || r.partner === CU.name); }
   const dm={}; for(let d=1;d<=new Date(yr,mo,0).getDate();d++)dm[d]={doi:[],tra:[]};
+  
   approved.forEach(r=>{
-    const [y2,m2,d2]=r.ngayDoi.split('-').map(Number); if(y2===yr&&m2===mo)dm[d2].doi.push(r.partner+' ('+r.caDoi+')');
-    const [y3,m3,d3]=r.ngayTra.split('-').map(Number); if(y3===yr&&m3===mo)dm[d3].tra.push(r.name+' ('+r.caTra+')');
+    const [y2,m2,d2]=r.ngayDoi.split('-').map(Number); 
+    if(y2===yr&&m2===mo) {
+      // BỘ LỌC: Chỉ hiển thị nếu ca thực sự làm cuối cùng đúng là ca này
+      if (getCaThucTe(r.partner, r.partnerKip, r.ngayDoi) === r.caDoi) {
+          dm[d2].doi.push(r.partner+' ('+r.caDoi+')');
+      }
+    }
+    const [y3,m3,d3]=r.ngayTra.split('-').map(Number); 
+    if(y3===yr&&m3===mo) {
+      // BỘ LỌC: Chỉ hiển thị nếu ca thực sự làm cuối cùng đúng là ca này
+      if (getCaThucTe(r.name, r.kip, r.ngayTra) === r.caTra) {
+          dm[d3].tra.push(r.name+' ('+r.caTra+')');
+      }
+    }
   });
+  
   const rows=Object.entries(dm).filter(([,v])=>v.doi.length||v.tra.length);
   wrap.innerHTML=`<div class="table-wrapper"><table class="dt" id="table-day"><thead><tr><th>Ngày</th><th>Người đi thay</th><th>Người trả ca</th></tr></thead><tbody>${rows.map(([d,v])=>`<tr><td>${d}/${mo}</td><td>${v.doi.map(n=>`<span class="dp">${n}</span>`).join('')}</td><td>${v.tra.map(n=>`<span class="dp t">${n}</span>`).join('')}</td></tr>`).join('')}</tbody></table></div>`;
 }
@@ -799,8 +820,14 @@ function renderWarn() {
     if(r.status==='approved'){
       const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0];
       const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
-      if(yDoi === yr && mDoi === mo) { staffMap[r.partner].lech += 1; staffMap[r.partner].hist.push('Đi thay '+caLabel(r.caDoi)+' '+fmtDate(r.ngayDoi)); }
-      if(yTra === yr && mTra === mo) { staffMap[r.name].lech += 1; staffMap[r.name].hist.push('Trả ca '+caLabel(r.caTra)+' '+fmtDate(r.ngayTra)); }
+      
+      // CHỐT LỌC LỆCH CA CHÍNH XÁC
+      if(yDoi === yr && mDoi === mo && getCaThucTe(r.partner, r.partnerKip, r.ngayDoi) === r.caDoi) { 
+        staffMap[r.partner].lech += 1; staffMap[r.partner].hist.push('Đi thay '+caLabel(r.caDoi)+' '+fmtDate(r.ngayDoi)); 
+      }
+      if(yTra === yr && mTra === mo && getCaThucTe(r.name, r.kip, r.ngayTra) === r.caTra) { 
+        staffMap[r.name].lech += 1; staffMap[r.name].hist.push('Trả ca '+caLabel(r.caTra)+' '+fmtDate(r.ngayTra)); 
+      }
     }
   });
   
@@ -833,8 +860,10 @@ function renderStaffStats() {
     if(r.status==='approved'){
       const yDoi = r.ngayDoi ? parseInt(r.ngayDoi.toString().substring(0,4)) : 0; const yTra = r.ngayTra ? parseInt(r.ngayTra.toString().substring(0,4)) : 0;
       if(yDoi === yr || yTra === yr) { staffMap[r.name].tao++; staffMap[r.partner].dongY++; }
-      if(yDoi === yr) { staffMap[r.partner].lech++; }
-      if(yTra === yr) { staffMap[r.name].lech++; }
+      
+      // BỘ LỌC TÍNH SỐ LỆCH CA NĂM
+      if(yDoi === yr && getCaThucTe(r.partner, r.partnerKip, r.ngayDoi) === r.caDoi) { staffMap[r.partner].lech++; }
+      if(yTra === yr && getCaThucTe(r.name, r.kip, r.ngayTra) === r.caTra) { staffMap[r.name].lech++; }
     }
   });
 
@@ -858,11 +887,18 @@ function exportExcelWarn() {
   if (!CU || CU.role !== 'ld') return; const mv = document.getElementById('f-warn-month').value; if(!mv) return; const [yr, mo] = mv.split('-').map(Number);
   const staffMap={}; NV_LIST.forEach(u => { staffMap[u.name] = {kip: '', lech:0, hist:[]}; });
   function ensure(name,kip){ if(!staffMap[name]) staffMap[name]={kip:kip||'',lech:0,hist:[]}; if(kip && !staffMap[name].kip) staffMap[name].kip = kip; }
+  
   allReqs.forEach(r=>{ ensure(r.name, r.kip); ensure(r.partner, r.partnerKip||'');
     if(r.status==='approved'){
       const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0]; const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
-      if(yDoi === yr && mDoi === mo) { staffMap[r.partner].lech += 1; staffMap[r.partner].hist.push('Đi thay '+caLabel(r.caDoi)+' '+fmtDate(r.ngayDoi)); }
-      if(yTra === yr && mTra === mo) { staffMap[r.name].lech += 1; staffMap[r.name].hist.push('Trả ca '+caLabel(r.caTra)+' '+fmtDate(r.ngayTra)); }
+      
+      // BỘ LỌC XUẤT EXCEL
+      if(yDoi === yr && mDoi === mo && getCaThucTe(r.partner, r.partnerKip, r.ngayDoi) === r.caDoi) { 
+        staffMap[r.partner].lech += 1; staffMap[r.partner].hist.push('Đi thay '+caLabel(r.caDoi)+' '+fmtDate(r.ngayDoi)); 
+      }
+      if(yTra === yr && mTra === mo && getCaThucTe(r.name, r.kip, r.ngayTra) === r.caTra) { 
+        staffMap[r.name].lech += 1; staffMap[r.name].hist.push('Trả ca '+caLabel(r.caTra)+' '+fmtDate(r.ngayTra)); 
+      }
     }
   });
   const sortedWarn = Object.entries(staffMap).filter(([,v])=>v.lech > 0).sort((a,b)=>b[1].lech - a[1].lech);
