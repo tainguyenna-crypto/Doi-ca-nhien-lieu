@@ -591,11 +591,14 @@ function addDays(dateStr, days) {
 // =====================================================================
 // LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
 // =====================================================================
-// 1. Hàm tính lịch THỰC TẾ (Bao gồm lịch gốc + lịch đã nhận đi thay)
-function getCaThucTe(userName, kipName, dateStr) {
-   let ca = getCaTrucGoc(kipName, dateStr);
-   // CHỈ ĐẾM LỊCH ĐÃ CHỐT: Không đếm các đơn "Chờ xác nhận" hoặc "Từ chối"
-   const reqs = allReqs.filter(r => r.status === 'pending_ld' || r.status === 'approved');
+// 1. Hàm tính lịch THỰC TẾ (Bỏ qua đơn đang xét duyệt)
+function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null) {
+   let ca = getCaTrucGoc(kipName, dateStr); // (Nếu đồng chí dùng bản lấy từ Excel thì là getCaTrucGoc(userName, kipName, dateStr))
+   
+   // CHÚ Ý: Lọc bỏ đơn có ID đang bị xét duyệt để không tự trừ ca của chính mình
+   const reqs = allReqs.filter(r => 
+       (r.status === 'pending_ld' || r.status === 'approved') && r.id !== ignoreReqId
+   );
    
    for (let r of reqs) {
       if (r.name === userName && r.ngayDoi === dateStr) ca = 'OFF';
@@ -606,14 +609,13 @@ function getCaThucTe(userName, kipName, dateStr) {
    return ca;
 }
 
-// 2. Hàm kiểm tra vi phạm (Đã nâng cấp)
-function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi) {
+// 2. LÍNH GÁC AN TOÀN (Cũng phải truyền ID bỏ qua vào để nó không đếm nhầm)
+function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi, ignoreReqId = null) {
   const ngayTruoc = addDays(dateStr, -1);
   const ngaySau = addDays(dateStr, 1);
   
-  // Dùng lịch THỰC TẾ để kiểm tra
-  const caNgayTruoc = getCaThucTe(userName, kipName, ngayTruoc);
-  const caNgaySau = getCaThucTe(userName, kipName, ngaySau);
+  const caNgayTruoc = getCaThucTe(userName, kipName, ngayTruoc, ignoreReqId);
+  const caNgaySau = getCaThucTe(userName, kipName, ngaySau, ignoreReqId);
 
   if (caMuonDi === 'K' && caNgayTruoc === 'C') return "Đi ca K nhưng ngày trước có ca C (Vi phạm 2 ca liên tiếp).";
   if (caMuonDi === 'C' && caNgaySau === 'K') return "Đi ca C nhưng ngày sau có ca K (Vi phạm 2 ca liên tiếp).";
@@ -621,40 +623,38 @@ function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi) {
   if (caMuonDi === 'K') {
     let countK = 1;
     let d = dateStr;
-    while(getCaThucTe(userName, kipName, addDays(d, -1)) === 'K') { countK++; d = addDays(d, -1); }
+    while(getCaThucTe(userName, kipName, addDays(d, -1), ignoreReqId) === 'K') { countK++; d = addDays(d, -1); }
     d = dateStr;
-    while(getCaThucTe(userName, kipName, addDays(d, 1)) === 'K') { countK++; d = addDays(d, 1); }
+    while(getCaThucTe(userName, kipName, addDays(d, 1), ignoreReqId) === 'K') { countK++; d = addDays(d, 1); }
     
     if (countK >= 4) return "Vi phạm quy định: Đi 4 ca K liên tiếp.";
   }
   return false;
 }
 
-// 3. Phép thử dùng để Khóa nút Đồng Ý / Phê Duyệt
+// 3. KHÓA NÚT DUYỆT (Bơm ID của đơn đang duyệt vào hệ thống)
 function validateExistingReq(req) {
   const pKip = req.partnerKip || "";
   const rKip = req.kip || "";
   const isDoiCungNgay = (req.ngayDoi === req.ngayTra);
 
-  const caA_Doi = getCaThucTe(req.name, rKip, req.ngayDoi);
-  const caB_Doi = getCaThucTe(req.partner, pKip, req.ngayDoi);
-  const caA_Tra = getCaThucTe(req.name, rKip, req.ngayTra);
-  const caB_Tra = getCaThucTe(req.partner, pKip, req.ngayTra);
+  // Thêm req.id vào phía cuối để hệ thống biết mà bỏ qua cái đơn này
+  const caA_Doi = getCaThucTe(req.name, rKip, req.ngayDoi, req.id);
+  const caB_Doi = getCaThucTe(req.partner, pKip, req.ngayDoi, req.id);
+  const caA_Tra = getCaThucTe(req.name, rKip, req.ngayTra, req.id);
+  const caB_Tra = getCaThucTe(req.partner, pKip, req.ngayTra, req.id);
 
-  // Quét điều kiện sở hữu ca
   if (caA_Doi !== req.caDoi) return `Người xin nghỉ không còn lịch ca ${req.caDoi} ngày ${fmtDate(req.ngayDoi)}.`;
   if (caB_Tra !== req.caTra) return `Người đi thay không còn lịch ca ${req.caTra} ngày ${fmtDate(req.ngayTra)}.`;
 
-  // Quét điều kiện rảnh rỗi (Nếu là khác ngày)
   if (!isDoiCungNgay) {
       if (caB_Doi !== 'OFF') return `Người đi thay đã vướng ca ${caB_Doi} vào ngày đi thay.`;
       if (caA_Tra !== 'OFF') return `Người trả ca đã vướng ca ${caA_Tra} vào ngày trả ca.`;
   }
 
-  // Quét An toàn vận hành (Lớp 3)
-  const l1 = checkViPhamAnToan(req.partner, pKip, req.ngayDoi, req.caDoi);
+  const l1 = checkViPhamAnToan(req.partner, pKip, req.ngayDoi, req.caDoi, req.id);
   if(l1) return `Người đi thay - ${l1}`;
-  const l2 = checkViPhamAnToan(req.name, rKip, req.ngayTra, req.caTra);
+  const l2 = checkViPhamAnToan(req.name, rKip, req.ngayTra, req.caTra, req.id);
   if(l2) return `Người trả ca - ${l2}`;
   
   return null;
