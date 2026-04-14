@@ -271,7 +271,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-ZLpHzKWOZRRwuOlhx
 
 // CẤU HÌNH BIẾN ĐỘNG TRÊN GIAO DIỆN
 let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 3 };
-let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[];
+let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
 
 async function api(p) {
   return new Promise((resolve, reject) => {
@@ -297,7 +297,9 @@ window.onload = async () => {
   try { 
     const res = await api({action: "getUsers"}); 
     if (res && res.users && res.users.length > 0) { 
-      NV_LIST = res.users; initSS(); 
+      NV_LIST = res.users; 
+      MAU_LICH = res.mauLich || {}; // <- Dán dòng này vào đây
+      initSS(); 
       if (res.settings) setupDynamicFields(res.settings);
       document.getElementById('login-loading').style.display = 'none'; document.getElementById('login-box').style.display = 'block'; 
     } else {
@@ -545,42 +547,47 @@ async function ldNo(id, btn){
 }
 
 // =====================================================================
-// BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (CHU KỲ 3 CA 5 KÍP - 10 NGÀY)
+// BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (ĐỌC TỪ EXCEL)
 // =====================================================================
-function getCaTrucGoc(kipName, dateStr) {
-  if (!kipName || !dateStr) return 'OFF';
-  
-  // 1. Vòng lặp 10 ngày chuẩn: C, C, OFF, N, N, OFF, K, K, OFF, OFF
-  const chuKy = ['C', 'C', 'OFF', 'N', 'N', 'OFF', 'K', 'K', 'OFF', 'OFF'];
+function getCaTrucGoc(userName, kipName, dateStr) {
+  if (!dateStr) return 'OFF';
 
-  // 2. NGÀY MỐC (Anchor Date): Chọn 1 ngày bất kỳ làm chuẩn để tính toán
-  // Đồng chí hãy sửa ngày này thành một ngày thực tế mà đồng chí nhớ rõ lịch
-  const ngayMoc = new Date('2026-04-01');
+  const uConf = NV_LIST.find(u => u.name === userName);
+  let chuKy = [];
+  let ngayMocStr = "";
+  let viTriMoc = 0;
+
+  // PHÂN LUỒNG: Đi theo lịch ngoại lệ hay lịch Kíp chuẩn?
+  if (uConf && uConf.isNgoaiLe) {
+    // 1. CHẾ ĐỘ NGOẠI LỆ (Nhân sự có đánh dấu X trên Excel)
+    const mau = MAU_LICH[uConf.tenMau];
+    if (!mau) return 'OFF'; // Cảnh báo: Tên mẫu gõ sai so với sheet MauLich
+    chuKy = mau.chuKy;
+    ngayMocStr = mau.ngayMoc;
+    viTriMoc = parseInt(uConf.viTriMoc) || 0;
+  } else {
+    // 2. CHẾ ĐỘ MẶC ĐỊNH (3 ca 5 kíp)
+    const mauChuan = MAU_LICH["3 ca 5 kíp"];
+    if (!mauChuan) return 'OFF';
+    chuKy = mauChuan.chuKy;
+    ngayMocStr = mauChuan.ngayMoc;
+    
+    // Quy định vị trí các kíp chuẩn (Đồng chí có thể chỉnh lại các số này cho đúng thực tế)
+    const viTriKipChuan = { 'Kíp 1': 4, 'Kíp 2': 2, 'Kíp 3': 0, 'Kíp 4': 8, 'Kíp 5': 6 };
+    viTriMoc = viTriKipChuan[kipName] !== undefined ? viTriKipChuan[kipName] : 0;
+  }
+
+  // THUẬT TOÁN TÍNH CA
+  const ngayMoc = new Date(ngayMocStr);
   const ngayCanTim = new Date(dateStr);
-
   const diffTime = ngayCanTim - ngayMoc;
   let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-  // 3. VỊ TRÍ CỦA CÁC KÍP VÀO ĐÚNG NGÀY MỐC (01/04/2026)
-  // Quy ước số từ 0 đến 9 tương ứng với:
-  // 0: Ca C(1) | 1: Ca C(2) | 2: Nghỉ 1 | 3: Ca N(1) | 4: Ca N(2) | 5: Nghỉ 2 | 6: Ca K(1) | 7: Ca K(2) | 8: Nghỉ 3 | 9: Nghỉ 4
-  // ĐỒNG CHÍ CẦN CHỈNH LẠI CÁC SỐ (0-9) DƯỚI ĐÂY CHO KHỚP VỚI THỰC TẾ NGÀY MỐC:
-  const viTriMoc = {
-    'Kíp 1': 4, // 01/04 Kíp 1 đi Ca Ngày thứ 2
-    'Kíp 2': 2, // Kíp 2 đang Nghỉ ngày thứ 1
-    'Kíp 3': 0, // Kíp 3 đi Ca Chiều ngày đầu tiên
-    'Kíp 4': 8, // Kíp 4 đang Nghỉ ngày thứ 3
-    'Kíp 5': 6  // Kíp 5 đang đi ca Khuya thứ 1
-  };
+  const len = chuKy.length;
+  let viTriHienTai = (viTriMoc + (diffDays % len)) % len;
+  if (viTriHienTai < 0) viTriHienTai += len;
 
-  const viTriHienTai = viTriMoc[kipName];
-  if (viTriHienTai === undefined) return 'OFF'; 
-
-  // Tính toán vị trí tịnh tiến theo vòng tròn 10 ngày
-  let viTriMoi = (viTriHienTai + (diffDays % 10)) % 10;
-  if (viTriMoi < 0) viTriMoi += 10;
-
-  return chuKy[viTriMoi];
+  return chuKy[viTriHienTai];
 }
 // Hàm cộng/trừ ngày để kiểm tra lịch ngày hôm trước/hôm sau
 function addDays(dateStr, days) {
@@ -591,11 +598,10 @@ function addDays(dateStr, days) {
 // =====================================================================
 // LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
 // =====================================================================
-// 1. Hàm tính lịch THỰC TẾ (Bỏ qua đơn đang xét duyệt)
+// Hàm tính lịch THỰC TẾ (Bỏ qua đơn đang xét duyệt)
 function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null) {
-   let ca = getCaTrucGoc(kipName, dateStr); // (Nếu đồng chí dùng bản lấy từ Excel thì là getCaTrucGoc(userName, kipName, dateStr))
+   let ca = getCaTrucGoc(userName, kipName, dateStr); // Đã truyền userName vào để soi ngoại lệ
    
-   // CHÚ Ý: Lọc bỏ đơn có ID đang bị xét duyệt để không tự trừ ca của chính mình
    const reqs = allReqs.filter(r => 
        (r.status === 'pending_ld' || r.status === 'approved') && r.id !== ignoreReqId
    );
