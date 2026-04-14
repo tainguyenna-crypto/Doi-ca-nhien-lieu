@@ -14,7 +14,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sec-title{font-size:16px;font-weight:600;color:#0f172a}
 .ubar{background:#ebf3ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px; flex-wrap: wrap;}
 .ubar-name{font-weight:600;color:#1a56a0;font-size:15px}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-botfunction renderDongYtom:16px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
 .tab{padding:10px 16px;border:1px solid #d1d5db;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;color:#4b5563;white-space:nowrap; flex-grow: 1; text-align: center; font-weight: 500;}
 .tab.active{background:#1a56a0;color:#fff;border-color:#1a56a0;}
 .section{display:none}.section.active{display:block}
@@ -272,7 +272,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-ZLpHzKWOZRRwuOlhx
 // CẤU HÌNH BIẾN ĐỘNG TRÊN GIAO DIỆN
 let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 3 };
 let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
-
+let autoRefreshTimer = null;
 async function api(p) {
   return new Promise((resolve, reject) => {
     if (typeof google !== 'undefined' && google.script && google.script.run) { google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).apiRun(p); } 
@@ -374,13 +374,14 @@ async function doLogin(){
     await loadAll(); 
   } catch(ex){e.style.color='#dc2626'; e.textContent='Lỗi kết nối mạng';}
 // TỰ ĐỘNG CẬP NHẬT SAU MỖI 60 GIÂY
-  setInterval(async () => {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer); // Dọn dẹp vòng lặp cũ nếu có
+  
+  autoRefreshTimer = setInterval(async () => {
     if (CU) {
       await loadAll(); // Tải dữ liệu mới ngầm
       const activeBtn = document.querySelector('.tab.active');
       if (activeBtn) {
         const t = activeBtn.getAttribute('onclick').match(/'([^']+)'/)[1];
-        // Chỉ tự động vẽ lại các tab cần theo dõi đơn mới
         if (['dong-y', 'phe-duyet', 'lich-su'].includes(t)) switchTab(t);
       }
     }
@@ -416,7 +417,7 @@ function doLogout() {
 function openChangePin(){document.getElementById('pin-modal').style.display='flex';} function closePinModal(){document.getElementById('pin-modal').style.display='none';}
 async function doChangePin(){
   const o=document.getElementById('cp-old').value, n=document.getElementById('cp-new').value, n2=document.getElementById('cp-new2').value, err=document.getElementById('cp-err');
-  if(!o||!n||!n2){err.textContent='Đủ thông tin!';return;} if(n!==n2){err.textContent='PIN mới không khớp';return;}
+  if(!o||!n||!n2){err.textContent='Vui lòng nhập đủ thông tin!';return;} if(n!==n2){err.textContent='PIN mới không khớp';return;}
   try{ const r=await api({action:"changePin",name:CU.name,oldPin:o,newPin:n}); if(r.error){err.textContent=r.error;return;} closePinModal(); showAlert('app','Đổi thành công','as'); } catch(ex){err.textContent='Lỗi';}
 }
 async function doResetPin(){
