@@ -134,6 +134,7 @@ textarea{resize:none;height:80px}
       <button class="tab" id="btn-admin" style="display:none" onclick="switchTab('admin')">Quản trị</button>
       <button class="tab" onclick="switchTab('lich-su')">Lịch sử</button>
       <button class="tab" onclick="switchTab('thong-ke')">Thống kê</button>
+      <button class="tab" onclick="switchTab('bang-di-ca')">Bảng đi ca</button>
     </div>
 
     <div id="tab-dang-ky" class="section active">
@@ -163,7 +164,26 @@ textarea{resize:none;height:80px}
         <button class="btn btn-primary" id="btn-submit" style="width:100%; padding:12px;" onclick="submitRequest()">Gửi yêu cầu</button>
       </div>
     </div>
-
+<div id="tab-bang-di-ca" class="section">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;margin-bottom:12px;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div class="sec-title" style="margin:0;">Lịch trực tổng hợp</div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button id="btn-export-sched" class="btn btn-success" style="display:none; height:38px; font-size:13px;" onclick="exportExcelSched()">⬇ Tải Excel</button>
+        <input type="month" id="f-sched-month" onchange="renderScheduleTable()" style="width: auto; padding:8px 12px; font-size:15px; border-radius:6px; background:#f8fafc;">
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="dt" id="table-schedule" style="min-width: 1200px;">
+        <thead id="sched-head"></thead>
+        <tbody id="sched-body"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px; font-size:12px; color:#64748b;">
+      * Ghi chú: <span class="dp" style="padding:2px 6px;">C/N/K</span>: Các ca trực, <span style="color:#cbd5e1; font-weight: 600;">-</span>: Nghỉ (OFF).
+    </div>
+  </div>
+</div>
     <div id="tab-dong-y" class="section"><div class="card"><div class="sec-title">Chờ bạn xác nhận</div><div id="list-dong-y"></div></div></div>
     <div id="tab-phe-duyet" class="section"><div class="card"><div class="sec-title">Lãnh đạo PX duyệt</div><div id="list-phe-duyet"></div></div></div>
     
@@ -446,11 +466,14 @@ async function doArchive() {
 }
 
 function switchTab(t){
-  ['dang-ky','dong-y','phe-duyet','admin','lich-su','thong-ke'].forEach(s=>{
+  ['dang-ky','dong-y','phe-duyet','admin','lich-su','thong-ke','bang-di-ca'].forEach(s=>{
     const btn=document.querySelector(`.tab[onclick="switchTab('${s}')"]`); if(btn) btn.classList.toggle('active',s===t);
     const sec=document.getElementById('tab-'+s); if(sec) sec.classList.toggle('active',s===t);
   });
-  if(t==='dong-y') renderDongY(); if(t==='phe-duyet') renderPheDuyet(); if(t==='lich-su') renderHistory(); 
+  if(t==='dong-y') renderDongY(); 
+  if(t==='phe-duyet') renderPheDuyet(); 
+  if(t==='lich-su') renderHistory(); 
+  if(t==='bang-di-ca') renderScheduleTable(); // Dòng mới thêm
   if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); }
 }
 
@@ -981,34 +1004,52 @@ function renderWarn() {
   if (CU.role !== 'ld') { sortedWarn = sortedWarn.filter(([n, v]) => n === CU.name); }
   sortedWarn.sort((a,b)=>b[1].lech - a[1].lech);
   
-  // Lấy cấu hình từ Excel (Mặc định Max=10, Warn=8 nếu lỗi)
-  const lMax = parseInt(APP_CONFIG.lechMax) || 10;
-  const lWarn = parseInt(APP_CONFIG.lechWarn) || 8;
+  // =======================================================
+  // BỘ ĐẾM: TÍNH TỔNG SỐ LỆCH CA TRONG THÁNG
+  // =======================================================
+  let totalLechThang = 0;
+  sortedWarn.forEach(([,v]) => totalLechThang += v.lech);
+
+  // Lấy cấu hình từ Excel 
+  const lMax = parseInt(APP_CONFIG.lechMax) || 3;
+  const lWarn = parseInt(APP_CONFIG.lechWarn) || 1;
 
   // LỌC 3 NHÓM CHUẨN XÁC
-  const critList = sortedWarn.filter(([,v])=>v.lech >= lMax);                  // ĐỎ: >= Max
-  const warnList = sortedWarn.filter(([,v])=>v.lech >= lWarn && v.lech < lMax); // CAM: Từ Warn đến sát Max
-  const monList = sortedWarn.filter(([,v])=>v.lech > 0 && v.lech < lWarn);      // VÀNG: Dưới Warn
+  const critList = sortedWarn.filter(([,v])=>v.lech >= lMax);                  
+  const warnList = sortedWarn.filter(([,v])=>v.lech >= lWarn && v.lech < lMax); 
+  const monList = sortedWarn.filter(([,v])=>v.lech > 0 && v.lech < lWarn);      
   
   let wHtml='';
   
-  // 1. NHÓM ĐỎ (Đã chạm Max - Bị khóa)
+  // 1. NHÓM ĐỎ
   if(critList.length){ 
     wHtml+=`<p style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:8px">❌ Đã chạm/vượt định mức (≥ ${lMax} ca)</p>`; 
     wHtml+=critList.map(([n,v])=>`<div class="wcard crit"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:700;color:#dc2626">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
   }
   
-  // 2. NHÓM CAM (Nằm trong vùng Cảnh báo)
+  // 2. NHÓM CAM
   if(warnList.length){ 
     wHtml+=`<p style="font-size:12px;font-weight:700;color:#c2410c;margin:12px 0 8px">⚠️ Mức Cảnh báo (Từ ${lWarn} đến ${lMax - 1} ca)</p>`; 
     wHtml+=warnList.map(([n,v])=>`<div class="wcard" style="background:#fff7ed; border-color:#fb923c;"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:700;color:#ea580c">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
   }
 
-  // 3. NHÓM VÀNG (Mức an toàn)
+  // 3. NHÓM VÀNG
   if(monList.length){ 
     wHtml+=`<p style="font-size:12px;font-weight:600;color:#64748b;margin:12px 0 8px">📋 Mức an toàn (< ${lWarn} ca)</p>`; 
     wHtml+=monList.map(([n,v])=>`<div class="wcard"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:600;color:#d97706">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
   } 
+
+  // =======================================================
+  // HIỂN THỊ DÒNG TỔNG CỘNG ĐỘC QUYỀN CHO LÃNH ĐẠO
+  // =======================================================
+  if(CU.role === 'ld' && totalLechThang > 0) {
+    wHtml += `
+      <div style="margin-top: 16px; padding: 12px 14px; background: #f8fafc; border: 1px dashed #1a56a0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 700; color: #1a56a0; font-size: 13px;">TỔNG LỆCH CA THÁNG ${mo}/${yr}:</span>
+        <span style="font-weight: 800; color: #1a56a0; font-size: 16px;">${totalLechThang} ca</span>
+      </div>
+    `;
+  }
 
   document.getElementById('warn-wrap').innerHTML=wHtml||`<div class="empty">Không có dữ liệu lệch ca</div>`;
 }
@@ -1037,11 +1078,36 @@ function renderStaffStats() {
 
   let entries = Object.entries(staffMap); if (CU.role !== 'ld') { entries = entries.filter(([n, v]) => n === CU.name); } entries.sort((a,b)=>b[1].tao-a[1].tao);
   let lMax = APP_CONFIG.lechMax;
-  const tableHtml = entries.map(([n,v])=> {
+  
+  // BIẾN ĐỂ TÍNH TỔNG
+  let totalTao = 0, totalDongY = 0, totalLech = 0;
+
+  let tableHtml = entries.map(([n,v])=> {
+    // Cộng dồn vào tổng
+    totalTao += v.tao;
+    totalDongY += v.dongY;
+    totalLech += v.lech;
+
     let clr = v.lech > lMax ? '#dc2626' : (v.lech > 0 ? '#d97706' : '#4b5563'); 
     return `<tr><td>${n}</td><td>${v.kip}</td><td>${v.tao}</td><td>${v.dongY}</td><td style="font-weight:600; color:${clr}">+${v.lech}</td></tr>`;
   }).join('');
-  document.getElementById('staff-body').innerHTML = tableHtml || '<tr><td colspan="5" class="empty">Chưa có dữ liệu</td></tr>';
+  
+  if (!tableHtml) {
+    document.getElementById('staff-body').innerHTML = '<tr><td colspan="5" class="empty">Chưa có dữ liệu</td></tr>';
+  } else {
+    // CHỈ HIỂN THỊ DÒNG TỔNG CỘNG CHO LÃNH ĐẠO
+    if (CU.role === 'ld') {
+      tableHtml += `
+        <tr style="background-color: #ebf3ff; font-weight: 700; color: #1a56a0; border-top: 2px solid #bfdbfe;">
+          <td colspan="2" style="text-align: right;">TỔNG CỘNG TOÀN PX:</td>
+          <td>${totalTao}</td>
+          <td>${totalDongY}</td>
+          <td>+${totalLech}</td>
+        </tr>
+      `;
+    }
+    document.getElementById('staff-body').innerHTML = tableHtml;
+  }
 }
 
 function downloadExcel(htmlTable, filename, worksheetName) {
@@ -1079,6 +1145,83 @@ function exportExcelWarn() {
   let tableHTML = `<thead><tr><th>Họ tên</th><th>Kíp</th><th>Số ca lệch</th><th>Chi tiết lịch sử</th></tr></thead><tbody>`;
   sortedWarn.forEach(([n, v]) => { let histText = v.hist.join(' | '); tableHTML += `<tr><td>${n}</td><td>${v.kip}</td><td>+${v.lech}</td><td>${histText}</td></tr>`; }); tableHTML += `</tbody>`;
   downloadExcel(tableHTML, `Canh_Bao_Lech_Ca_${mv}.xls`, `CanhBao`);
+}
+// ===============================================================
+// HÀM VẼ BẢNG ĐI CA (LỌC HC + TÍNH CÔNG + ĐẾM CA K)
+// ===============================================================
+function renderScheduleTable() {
+  const mv = document.getElementById('f-sched-month').value || document.getElementById('f-month').value;
+  if(!mv) return;
+  document.getElementById('f-sched-month').value = mv;
+  const [yr, mo] = mv.split('-').map(Number);
+  const daysInMonth = new Date(yr, mo, 0).getDate();
+
+  // 1. Phân quyền hiển thị nút Tải Excel
+  const btnExport = document.getElementById('btn-export-sched');
+  if (btnExport) btnExport.style.display = (CU.role === 'ld') ? 'inline-flex' : 'none';
+
+  // 2. Vẽ tiêu đề cột (Ngày + Cột Công ca K + Cột Tổng công)
+  let headHtml = `<tr><th style="position:sticky; left:0; z-index:10; background:#f8fafc; border-right:2px solid #e2e8f0;">Họ tên</th>`;
+  for(let d=1; d<=daysInMonth; d++) { headHtml += `<th style="text-align:center; width:35px;">${d}</th>`; }
+  headHtml += `<th style="text-align:center; width:55px; background:#f0fdf4; color:#166534;">Công ca K</th>`; // Cột mới thêm
+  headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th>`;
+  headHtml += `</tr>`;
+  document.getElementById('sched-head').innerHTML = headHtml;
+
+  // 3. Bộ lọc nhân sự: Loại bỏ khối Hành chính
+  const danhSachVanHanh = NV_LIST.filter(u => {
+    const k = (u.kip || "").toLowerCase();
+    return !(k.includes('hành chính') || k === 'hc');
+  });
+
+  // 4. Phân quyền hiển thị theo chức danh
+  let displayList = [];
+  if (CU.role === 'ld') {
+    displayList = danhSachVanHanh;
+  } else {
+    const myInfo = NV_LIST.find(u => u.name === CU.name);
+    const myChucDanh = myInfo ? myInfo.chucDanh : "";
+    displayList = danhSachVanHanh.filter(u => u.chucDanh === myChucDanh);
+  }
+
+  // 5. Vẽ dữ liệu, Tính công và Đếm ca K
+  let bodyHtml = displayList.map(u => {
+    let row = `<tr><td style="position:sticky; left:0; background:#fff; font-weight:600; border-right:2px solid #e2e8f0;">${u.name} ${u.name === CU.name ? '(Tôi)' : ''}</td>`;
+    let totalHours = 0;
+    let countK = 0; // Biến đếm số ca K
+
+    for(let d=1; d<=daysInMonth; d++) {
+      const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const ca = getCaThucTe(u.name, u.kip, dateStr);
+      const isLech = ca !== getCaTrucGoc(u.name, u.kip, dateStr);
+      
+      // Logic tính giờ làm việc và đếm ca K
+      if(ca === 'K') { 
+        totalHours += 8.75; 
+        countK++; // Tăng biến đếm khi gặp ca K
+      }
+      else if(ca === 'N') totalHours += 8.5;
+      else if(ca === 'C') totalHours += 8.5;
+      else if(ca === 'H') totalHours += 8.0;
+      
+      let style = "";
+      if (ca === 'OFF') style = "color:#cbd5e1;";
+      else if (isLech) style = "background:#fff7ed; color:#ea580c; font-weight:700;"; 
+      
+      row += `<td style="text-align:center; ${style}">${ca === 'OFF' ? '-' : ca}</td>`;
+    }
+
+    // Hiển thị số ca K (Cột màu xanh lá nhạt)
+    row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
+    
+    // Tính tổng công (1 công = 8h)
+    const totalCong = (totalHours / 8).toFixed(2);
+    row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0369a1;">${totalCong}</td>`;
+    row += `</tr>`;
+    return row;
+  }).join('');
+  
+  document.getElementById('sched-body').innerHTML = bodyHtml || '<tr><td colspan="35" class="empty">Không có dữ liệu phù hợp</td></tr>';
 }
 </script>
 </body>
