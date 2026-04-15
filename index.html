@@ -270,7 +270,7 @@ textarea{resize:none;height:80px}
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-ZLpHzKWOZRRwuOlhxDPs1fFrFphIw_0Mk4Pm6q6mdPWOchDMiiP7sdM0nt6RvzROrQ/exec";
 
 // CẤU HÌNH BIẾN ĐỘNG TRÊN GIAO DIỆN
-let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 3 };
+let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 10 };
 let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
 let autoRefreshTimer = null;
 async function api(p) {
@@ -282,8 +282,14 @@ async function api(p) {
 
 function setupDynamicFields(settings) {
   if(settings.configs) {
-    APP_CONFIG.tenPX = settings.configs.TEN_PHAN_XUONG || "Phân xưởng"; APP_CONFIG.lechMax = parseInt(settings.configs.SO_CA_LECH_MAX) || 3;
-    document.getElementById('page-title').textContent = "Quản lý đổi ca – " + APP_CONFIG.tenPX; document.getElementById('tb-ten-px').textContent = APP_CONFIG.tenPX;
+    APP_CONFIG.tenPX = settings.configs.TEN_PHAN_XUONG || "Phân xưởng"; 
+    // Lấy Max từ Excel, mặc định là 10
+    APP_CONFIG.lechMax = parseInt(settings.configs.SO_CA_LECH_MAX) || 10;
+    // Lấy Cảnh báo từ Excel, nếu quên chưa nhập thì tự động lấy mức Max - 2
+    APP_CONFIG.lechWarn = parseInt(settings.configs.SO_CA_LECH_CANH_BAO) || (APP_CONFIG.lechMax - 2); 
+    
+    document.getElementById('page-title').textContent = "Quản lý đổi ca – " + APP_CONFIG.tenPX; 
+    document.getElementById('tb-ten-px').textContent = APP_CONFIG.tenPX;
   }
   let kipHtml = '<option value="">-- Kíp --</option>' + settings.kips.map(k => `<option>${k}</option>`).join('');
   document.getElementById('f-kip').innerHTML = kipHtml; document.getElementById('f-partner-kip').innerHTML = kipHtml; document.getElementById('f-fkp').innerHTML = '<option value="">Tất cả kíp</option>' + settings.kips.map(k => `<option>${k}</option>`).join('');
@@ -673,6 +679,39 @@ function validateExistingReq(req) {
   
   return null;
 }
+// ===============================================================
+// 1. HÀM BỔ TRỢ: ĐẾM SỐ CA LỆCH THỰC TẾ TRONG THÁNG (BẢN CHUẨN)
+// ===============================================================
+function getLechHienTai(userName, monthStr) {
+  if (!monthStr) return 0;
+  const [yr, mo] = monthStr.split('-').map(Number);
+  let count = 0;
+  
+  allReqs.forEach(r => {
+    if (r.status === 'approved') {
+      const ngayDoiStr = r.ngayDoi ? r.ngayDoi.toString().substring(0, 10) : "";
+      const ngayTraStr = r.ngayTra ? r.ngayTra.toString().substring(0, 10) : "";
+      const [yDoi, mDoi] = ngayDoiStr ? ngayDoiStr.split('-').map(Number) : [0,0];
+      const [yTra, mTra] = ngayTraStr ? ngayTraStr.split('-').map(Number) : [0,0];
+
+      if (r.partner === userName && yDoi === yr && mDoi === mo) {
+        let thucTeDoi = getCaThucTe(r.partner, r.partnerKip, r.ngayDoi);
+        let gocDoi = getCaTrucGoc(r.partner, r.partnerKip, r.ngayDoi);
+        if (thucTeDoi === r.caDoi && thucTeDoi !== gocDoi) count++;
+      }
+      if (r.name === userName && yTra === yr && mTra === mo) {
+        let thucTeTra = getCaThucTe(r.name, r.kip, r.ngayTra);
+        let gocTra = getCaTrucGoc(r.name, r.kip, r.ngayTra);
+        if (thucTeTra === r.caTra && thucTeTra !== gocTra) count++;
+      }
+    }
+  });
+  return count;
+}
+
+// ===============================================================
+// HÀM GỬI YÊU CẦU ĐỔI CA (CÓ VÙNG ĐỆM CẢNH BÁO)
+// ===============================================================
 async function submitRequest(){
   const name = CU.name, kip = document.getElementById('f-kip').value, caDoi = document.getElementById('f-ca-doi').value, ngayDoi = document.getElementById('f-ngay-doi').value;
   const caTra = document.getElementById('f-ca-tra').value, ngayTra = document.getElementById('f-ngay-tra').value, partner = document.getElementById('f-partner').value.trim();
@@ -681,10 +720,26 @@ async function submitRequest(){
   if(!name || !kip || !caDoi || !ngayDoi || !caTra || !ngayTra || !partner || !partnerKip || !partnerRole){ showAlert('app','Thiếu thông tin bắt buộc. Vui lòng kiểm tra lại.','ae'); return; }
   if(name === partner){ showAlert('app','Người đổi và người đi thay không được trùng nhau.','ae'); return; }
   
- // ===============================================================
-  // LỚP 1 & 2: KIỂM TRA TÍNH HỢP LỆ CỦA CA TRỰC (Hỗ trợ Đổi Cùng Ngày)
-  // ===============================================================
-  // Lấy lịch THỰC TẾ của cả 2 người (Đã bao gồm cả các đơn đã duyệt trước đó)
+  // --- LẤY THÔNG SỐ VÀ ĐẾM CA LỆCH ---
+  const monthDoi = ngayDoi.substring(0, 7); 
+  const monthTra = ngayTra.substring(0, 7);
+  const lMax = parseInt(APP_CONFIG.lechMax) || 10; 
+  const lWarn = parseInt(APP_CONFIG.lechWarn) || 8; 
+
+  const lechCuaDoiTac = getLechHienTai(partner, monthDoi);
+  const lechCuaToi = getLechHienTai(name, monthTra);
+
+  // 1. CHẶN CỨNG: NẾU VƯỢT MAX THÌ CẤM LUÔN KHÔNG CHO TẠO ĐƠN
+  if (lechCuaDoiTac >= lMax) {
+    showAlert('app', `Đồng chí ${partner} đã đạt giới hạn lệch ca (${lMax} ca) trong tháng ${monthDoi.split('-')[1]}. Vui lòng chọn người khác!`, 'ae'); 
+    return;
+  }
+  if (lechCuaToi >= lMax) {
+    showAlert('app', `Bạn đã đạt giới hạn lệch ca (${lMax} ca) trong tháng ${monthTra.split('-')[1]} (tháng đi trả ca). Không thể tạo đơn!`, 'ae'); 
+    return;
+  }
+
+  // --- KIỂM TRA TÍNH HỢP LỆ (Lớp 1 & 2) ---
   const caThucTeA_NgayDoi = getCaThucTe(name, kip, ngayDoi);
   const caThucTeB_NgayDoi = getCaThucTe(partner, partnerKip, ngayDoi);
   const caThucTeA_NgayTra = getCaThucTe(name, kip, ngayTra);
@@ -692,7 +747,6 @@ async function submitRequest(){
 
   const isDoiCungNgay = (ngayDoi === ngayTra);
 
-  // Quy tắc 1: Kiểm tra ĐIỀU KIỆN SỞ HỮU CA (Phải có ca thì mới đem đi đổi được)
   if (caThucTeA_NgayDoi !== caDoi) {
     showAlert('app', `Ngày ${fmtDate(ngayDoi)} đồng chí không có lịch ca ${caDoi} để xin nghỉ!`, 'ae'); return;
   }
@@ -700,7 +754,6 @@ async function submitRequest(){
     showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí ${partner} không có lịch ca ${caTra} để trả lại!`, 'ae'); return;
   }
 
-  // Quy tắc 2: Kiểm tra ĐIỀU KIỆN RẢNH RỖI (Phân nhánh theo Cùng ngày / Khác ngày)
   if (isDoiCungNgay) {
     if (caDoi === caTra) {
       showAlert('app', `Đổi ca trong cùng 1 ngày thì 2 ca phải khác nhau!`, 'ae'); return;
@@ -714,16 +767,30 @@ async function submitRequest(){
     }
   }
 
-  // ===============================================================
-  // LỚP 3: KIỂM TRA QUY ĐỊNH AN TOÀN VẬN HÀNH 
-  // ===============================================================
+  // --- KIỂM TRA AN TOÀN VẬN HÀNH (Lớp 3) ---
   const loiNguoiThay = checkViPhamAnToan(partner, partnerKip, ngayDoi, caDoi);
   if (loiNguoiThay) { showAlert('app', `LỖI NGƯỜI ĐI THAY: ${loiNguoiThay}`, 'ae'); return; }
 
   const loiNguoiDoi = checkViPhamAnToan(name, kip, ngayTra, caTra);
   if (loiNguoiDoi) { showAlert('app', `LỖI NGƯỜI TRẢ CA: ${loiNguoiDoi}`, 'ae'); return; }
 
-  if(!confirm("Xác nhận GỬI yêu cầu?\nHãy kiểm tra kỹ Ngày và Ca đổi/trả!")) return;
+  // 2. CẢNH BÁO MỀM: NẾU CHẠM MỨC WARN (Chỉ hiện hộp thoại hỏi lại, vẫn cho phép gửi nếu OK)
+  let warningMsg = "";
+  if (lechCuaToi >= lWarn) {
+    warningMsg += `- Bạn đã lệch ${lechCuaToi} ca trong tháng ${monthTra.split('-')[1]}, sắp chạm mức tối đa (${lMax}).\n`;
+  }
+  if (lechCuaDoiTac >= lWarn) {
+    warningMsg += `- Đồng chí ${partner} đã lệch ${lechCuaDoiTac} ca trong tháng ${monthDoi.split('-')[1]}, sắp chạm mức tối đa (${lMax}).\n`;
+  }
+
+  let confirmText = "Xác nhận GỬI yêu cầu?\nHãy kiểm tra kỹ Ngày và Ca đổi/trả!";
+  if (warningMsg !== "") {
+    confirmText = "⚠️ CẢNH BÁO SẮP QUÁ ĐỊNH MỨC:\n" + warningMsg + "\nBạn có chắc chắn VẪN MUỐN TIẾP TỤC gửi đơn không?";
+  }
+
+  if(!confirm(confirmText)) return;
+  
+  // --- TIẾN HÀNH GỬI ĐƠN LÊN MÁY CHỦ ---
   const btn = document.getElementById('btn-submit'); btn.disabled = true; btn.textContent = 'Đang gửi...';
   try{ 
     await api({ action: "add", data: JSON.stringify({name, kip, caDoi, ngayDoi, caTra, ngayTra, partner, partnerKip, partnerRole, reason}) }); 
@@ -871,10 +938,21 @@ function renderDayTable(){
 }
 
 function renderWarn() {
-  const mv = document.getElementById('f-warn-month').value; if(!mv) return; const [yr, mo] = mv.split('-').map(Number);
+  const mv = document.getElementById('f-warn-month').value; 
+  if(!mv) return; 
+  const [yr, mo] = mv.split('-').map(Number);
+  
   const staffMap={}; 
-  if (CU.role === 'ld') { NV_LIST.forEach(u => { staffMap[u.name] = {kip: '', lech:0, hist:[]}; }); } else { staffMap[CU.name] = {kip: '', lech:0, hist:[]}; }
-  function ensure(name,kip){ if(!staffMap[name]) staffMap[name]={kip:kip||'',lech:0,hist:[]}; if(kip && !staffMap[name].kip) staffMap[name].kip = kip; }
+  if (CU.role === 'ld') { 
+    NV_LIST.forEach(u => { staffMap[u.name] = {kip: '', lech:0, hist:[]}; }); 
+  } else { 
+    staffMap[CU.name] = {kip: '', lech:0, hist:[]}; 
+  }
+  
+  function ensure(name,kip){ 
+    if(!staffMap[name]) staffMap[name]={kip:kip||'',lech:0,hist:[]}; 
+    if(kip && !staffMap[name].kip) staffMap[name].kip = kip; 
+  }
   
   allReqs.forEach(r=>{ 
     if (CU.role !== 'ld' && r.name !== CU.name && r.partner !== CU.name) return;
@@ -883,17 +961,18 @@ function renderWarn() {
       const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0];
       const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
       
-      // BỘ LỌC ĐẾM LỆCH CA (Đã thêm: Thực tế phải KHÁC lịch gốc)
       let thucTeDoi = getCaThucTe(r.partner, r.partnerKip, r.ngayDoi);
       let gocDoi = getCaTrucGoc(r.partner, r.partnerKip, r.ngayDoi);
       if(yDoi === yr && mDoi === mo && thucTeDoi === r.caDoi && thucTeDoi !== gocDoi) { 
-        staffMap[r.partner].lech += 1; staffMap[r.partner].hist.push('Đi thay '+caLabel(r.caDoi)+' '+fmtDate(r.ngayDoi)); 
+        staffMap[r.partner].lech += 1; 
+        staffMap[r.partner].hist.push('Đi thay '+caLabel(r.caDoi)+' '+fmtDate(r.ngayDoi)); 
       }
       
       let thucTeTra = getCaThucTe(r.name, r.kip, r.ngayTra);
       let gocTra = getCaTrucGoc(r.name, r.kip, r.ngayTra);
       if(yTra === yr && mTra === mo && thucTeTra === r.caTra && thucTeTra !== gocTra) { 
-        staffMap[r.name].lech += 1; staffMap[r.name].hist.push('Trả ca '+caLabel(r.caTra)+' '+fmtDate(r.ngayTra)); 
+        staffMap[r.name].lech += 1; 
+        staffMap[r.name].hist.push('Trả ca '+caLabel(r.caTra)+' '+fmtDate(r.ngayTra)); 
       }
     }
   });
@@ -902,17 +981,36 @@ function renderWarn() {
   if (CU.role !== 'ld') { sortedWarn = sortedWarn.filter(([n, v]) => n === CU.name); }
   sortedWarn.sort((a,b)=>b[1].lech - a[1].lech);
   
-  let lMax = APP_CONFIG.lechMax;
-  const warn = sortedWarn.filter(([,v])=>v.lech > lMax); const mon = sortedWarn.filter(([,v])=>v.lech > 0 && v.lech <= lMax); 
+  // Lấy cấu hình từ Excel (Mặc định Max=10, Warn=8 nếu lỗi)
+  const lMax = parseInt(APP_CONFIG.lechMax) || 10;
+  const lWarn = parseInt(APP_CONFIG.lechWarn) || 8;
+
+  // LỌC 3 NHÓM CHUẨN XÁC
+  const critList = sortedWarn.filter(([,v])=>v.lech >= lMax);                  // ĐỎ: >= Max
+  const warnList = sortedWarn.filter(([,v])=>v.lech >= lWarn && v.lech < lMax); // CAM: Từ Warn đến sát Max
+  const monList = sortedWarn.filter(([,v])=>v.lech > 0 && v.lech < lWarn);      // VÀNG: Dưới Warn
+  
   let wHtml='';
-  if(warn.length){ 
-    wHtml+=`<p style="font-size:12px;font-weight:600;color:#991b1b;margin-bottom:8px">⚠ Vượt ngưỡng > ${lMax} ca (Tháng ${mo}/${yr})</p>`; 
-    wHtml+=warn.map(([n,v])=>`<div class="wcard crit"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small style="font-weight:400;color:#888">(${v.kip})</small></span><span style="font-weight:700;color:#dc2626">+${v.lech} lần lệch</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
+  
+  // 1. NHÓM ĐỎ (Đã chạm Max - Bị khóa)
+  if(critList.length){ 
+    wHtml+=`<p style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:8px">❌ Đã chạm/vượt định mức (≥ ${lMax} ca)</p>`; 
+    wHtml+=critList.map(([n,v])=>`<div class="wcard crit"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:700;color:#dc2626">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
   }
-  if(mon.length){ 
-    wHtml+=`<p style="font-size:12px;font-weight:600;color:#64748b;margin:12px 0 8px">Đang theo dõi (Tháng ${mo}/${yr})</p>`; 
-    wHtml+=mon.map(([n,v])=>`<div class="wcard"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small style="font-weight:400;color:#888">(${v.kip})</small></span><span style="font-weight:600;color:#d97706">+${v.lech} lần lệch</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
-  } document.getElementById('warn-wrap').innerHTML=wHtml||`<div class="empty">${CU.role === 'ld' ? 'Chưa có ai' : 'Bạn không có'} lệch ca trong Tháng ${mo}/${yr}</div>`;
+  
+  // 2. NHÓM CAM (Nằm trong vùng Cảnh báo)
+  if(warnList.length){ 
+    wHtml+=`<p style="font-size:12px;font-weight:700;color:#c2410c;margin:12px 0 8px">⚠️ Mức Cảnh báo (Từ ${lWarn} đến ${lMax - 1} ca)</p>`; 
+    wHtml+=warnList.map(([n,v])=>`<div class="wcard" style="background:#fff7ed; border-color:#fb923c;"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:700;color:#ea580c">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
+  }
+
+  // 3. NHÓM VÀNG (Mức an toàn)
+  if(monList.length){ 
+    wHtml+=`<p style="font-size:12px;font-weight:600;color:#64748b;margin:12px 0 8px">📋 Mức an toàn (< ${lWarn} ca)</p>`; 
+    wHtml+=monList.map(([n,v])=>`<div class="wcard"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:600;color:#d97706">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
+  } 
+
+  document.getElementById('warn-wrap').innerHTML=wHtml||`<div class="empty">Không có dữ liệu lệch ca</div>`;
 }
 
 function renderStaffStats() {
