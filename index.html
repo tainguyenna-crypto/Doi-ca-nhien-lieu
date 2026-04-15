@@ -1223,6 +1223,23 @@ function renderScheduleTable() {
   
   document.getElementById('sched-body').innerHTML = bodyHtml || '<tr><td colspan="35" class="empty">Không có dữ liệu phù hợp</td></tr>';
 }
+// ===============================================================
+// HÀM XUẤT EXCEL CHO BẢNG ĐI CA (DÀNH CHO LÃNH ĐẠO)
+// ===============================================================
+function exportExcelSched() {
+  if (!CU || CU.role !== 'ld') return; // Chặn an toàn, chỉ Lãnh đạo mới được tải
+  const mv = document.getElementById('f-sched-month').value || document.getElementById('f-month').value || "Thang";
+  const tableEl = document.getElementById('table-schedule');
+  
+  if(!tableEl) { 
+    showAlert('app', 'Không tìm thấy bảng dữ liệu!', 'ae'); 
+    return; 
+  }
+  
+  // Lấy dữ liệu HTML của bảng và đẩy vào hàm tải Excel có sẵn
+  const tableHTML = tableEl.innerHTML;
+  downloadExcel(tableHTML, `Bang_Di_Ca_Chi_Tiet_${mv}.xls`, `BangDiCa`);
+}
 </script>
 </body>
 </html>
