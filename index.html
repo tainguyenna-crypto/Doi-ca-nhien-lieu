@@ -339,9 +339,20 @@ let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 10 };
 let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
 let autoRefreshTimer = null;
 async function api(p) {
+  // SỬA LỖI 2: Tự động đính kèm Token (Thẻ bài) vào mọi gói tin gửi lên máy chủ
+  if (typeof CU !== 'undefined' && CU && CU.token) {
+    p.reqName = CU.name;
+    p.reqToken = CU.token;
+  }
+
   return new Promise((resolve, reject) => {
-    if (typeof google !== 'undefined' && google.script && google.script.run) { google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).apiRun(p); } 
-    else { const u = SCRIPT_URL + "?" + new URLSearchParams(p); fetch(u).then(r => r.json()).then(resolve).catch(reject); }
+    if (typeof google !== 'undefined' && google.script && google.script.run) { 
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).apiRun(p); 
+    } 
+    else { 
+        const u = SCRIPT_URL + "?" + new URLSearchParams(p); 
+        fetch(u).then(r => r.json()).then(resolve).catch(reject); 
+    }
   });
 }
 
@@ -526,8 +537,22 @@ function fmtDate(d){ if(!d) return ''; const p=d.split('-'); return p.length===3
 function caLabel(k){return CA[k]?CA[k].label:k;}
 function badge(s){ return {pending_partner:'<span class="badge bp">Chờ xác nhận</span>',pending_ld:'<span class="badge bld">Chờ LD duyệt</span>',approved:'<span class="badge bok">Đã duyệt</span>',rejected:'<span class="badge bno">Từ chối</span>'}[s]||''; }
 function flowBar(s){ const steps=[['pending_partner','Xác nhận'],['pending_ld','Duyệt PX'],['approved','Xong']]; const cur={pending_partner:0,pending_ld:1,approved:2}[s]??0; return`<div class="flow">${steps.map(([,l],i)=>`<div class="fs${s!=='rejected'&&i<cur?' done':s!=='rejected'&&i===cur?' active':''}">${l}</div>`).join('')}</div>`; }
+// Thêm hàm "khử mã độc" (Sanitize)
+function escapeHTML(str) {
+  if (!str) return '';
+  return str.toString().replace(/[&<>'"]/g, 
+    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+  );
+}
+
+// Hàm render thẻ đổi ca an toàn
 function reqCard(r,a=''){
-  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${r.name}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${r.partner}<br>${r.reason?'💬 '+r.reason:''}${r.rejectedBy?'<br>❌ Từ chối: '+r.rejectedBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
+  const safeReason = escapeHTML(r.reason);
+  const safeName = escapeHTML(r.name);
+  const safePartner = escapeHTML(r.partner);
+  const safeRejectBy = escapeHTML(r.rejectedBy);
+  
+  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${safeName}</strong>${badge(r.status)}</div><div class="req-meta">📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}<br>🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}<br>👤 Người đi thay: ${safePartner}<br>${safeReason?'💬 '+safeReason:''}${safeRejectBy?'<br>❌ Từ chối: '+safeRejectBy:''}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
 }
 
 function renderDongY(){ 
@@ -1293,11 +1318,12 @@ function renderScheduleTable() {
     return row;
   }).join('');
   
-  // 5. HÀNG TỔNG CỘNG CHO LÃNH ĐẠO (Tổng Công ca K và Tổng Công tháng)
+  // 5. HÀNG TỔNG CỘNG CHO LÃNH ĐẠO
   if (CU.role === 'ld' && displayList.length > 0) {
+    const colSpanHeader = 3; // Số cột của Lãnh đạo
     bodyHtml += `
       <tr style="background:#f1f5f9; font-weight:700; border-top:2px solid #cbd5e1;">
-        <td colspan="3" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
+        <td colspan="${colSpanHeader}" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
         <td colspan="${daysInMonth}"></td>
         <td style="text-align:center; color:#15803d; font-size:14px;">${grandTotalK}</td>
         <td style="text-align:center; color:#1a56a0; font-size:14px;">${grandTotalCong.toFixed(2)}</td>
@@ -1315,12 +1341,11 @@ function exportExcelSched() {
   const mv = document.getElementById('f-sched-month').value;
   const tableEl = document.getElementById('table-schedule');
   
-  if(!tableEl || tableEl.innerText.includes('Không có dữ liệu')) { 
+  // Sửa thành kiểm tra class .empty thay vì check chữ
+  if(!tableEl || tableEl.querySelector('.empty')) { 
     showAlert('app', 'Không có dữ liệu để tải!', 'ae'); 
     return; 
   }
-  
-  // Gọi hàm tải file
   downloadExcel(tableEl.innerHTML, `Bang_Di_Ca_Tong_Hop_${mv}.xls`, `BangDiCa`);
 }
 </script>
