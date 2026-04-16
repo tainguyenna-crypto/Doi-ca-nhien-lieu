@@ -673,7 +673,7 @@ function addDays(dateStr, days) {
 // =====================================================================
 // LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
 // =====================================================================
-// Hàm tính lịch THỰC TẾ (Bỏ qua đơn đang xét duyệt)
+// HÀM TÍNH LỊCH THỰC TẾ (ĐÃ FIX LỖI TRẬT TỰ THỜI GIAN)
 function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null) {
    let ca = getCaTrucGoc(userName, kipName, dateStr); 
    
@@ -681,16 +681,16 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null) {
        (r.status === 'pending_ld' || r.status === 'approved') && r.id !== ignoreReqId
    );
    
-   // BÍ QUYẾT 1: Duyệt mảng ngược từ dưới lên (từ Đơn CŨ NHẤT -> Đơn MỚI NHẤT)
-   // Để đảm bảo lịch sử diễn ra đúng trật tự thời gian, cái mới sẽ đè cái cũ.
-   for (let i = reqs.length - 1; i >= 0; i--) {
+   // SỬA LỖI Ở ĐÂY: Duyệt mảng xuôi (từ 0 đến hết)
+   // Để đảm bảo Đơn MỚI NHẤT được thi hành sau cùng và đè lên Đơn CŨ.
+   for (let i = 0; i < reqs.length; i++) {
       let r = reqs[i];
       
-      // BÍ QUYẾT 2: Trừ ca cũ (OFF) trước, sau đó mới cộng ca mới vào
-      // Rất quan trọng đối với các ca đổi và trả diễn ra trong CÙNG 1 NGÀY
+      // 1. Xóa ca cũ trước (Nếu ngày đó đi đổi cho người khác)
       if (r.name === userName && r.ngayDoi === dateStr) ca = 'OFF';
       if (r.partner === userName && r.ngayTra === dateStr) ca = 'OFF';
       
+      // 2. Nhận ca mới vào (Nếu ngày đó nhận đi thay người khác)
       if (r.name === userName && r.ngayTra === dateStr) ca = r.caTra;
       if (r.partner === userName && r.ngayDoi === dateStr) ca = r.caDoi;
    }
@@ -1192,7 +1192,7 @@ function exportExcelWarn() {
   downloadExcel(tableHTML, `Canh_Bao_Lech_Ca_${mv}.xls`, `CanhBao`);
 }
 // ===============================================================
-// HÀM VẼ BẢNG ĐI CA (LỌC HC + TÍNH CÔNG + ĐẾM CA K)
+// HÀM VẼ BẢNG ĐI CA (SẮP XẾP ĐỒNG LOẠT THEO CHỨC DANH & KÍP)
 // ===============================================================
 function renderScheduleTable() {
   const mv = document.getElementById('f-sched-month').value || document.getElementById('f-month').value;
@@ -1201,72 +1201,127 @@ function renderScheduleTable() {
   const [yr, mo] = mv.split('-').map(Number);
   const daysInMonth = new Date(yr, mo, 0).getDate();
 
-  // 1. Phân quyền hiển thị nút Tải Excel
   const btnExport = document.getElementById('btn-export-sched');
   if (btnExport) btnExport.style.display = (CU.role === 'ld') ? 'inline-flex' : 'none';
 
-  // 2. Vẽ tiêu đề cột (Ngày + Cột Công ca K + Cột Tổng công)
-  let headHtml = `<tr><th>Họ tên</th>`;
+  // 1. Vẽ tiêu đề cột (Phân quyền: Lãnh đạo thấy Chức danh + Kíp; Nhân viên thấy Kíp)
+  let headHtml = `<tr><th style="position:sticky; left:0; z-index:30; background:#f1f5f9; border-right:2px solid #e2e8f0;">Họ tên</th>`;
+  if (CU.role === 'ld') { 
+    headHtml += `<th>Chức danh</th><th>Kíp</th>`; 
+  } else { 
+    headHtml += `<th>Kíp</th>`; 
+  }
   for(let d=1; d<=daysInMonth; d++) { headHtml += `<th style="text-align:center; width:35px;">${d}</th>`; }
-  headHtml += `<th style="text-align:center; width:55px; background:#f0fdf4; color:#166534;">Công ca K</th>`; // Cột mới thêm
+  headHtml += `<th style="text-align:center; width:55px; background:#f0fdf4; color:#166534;">Công ca K</th>`;
   headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th>`;
   headHtml += `</tr>`;
   document.getElementById('sched-head').innerHTML = headHtml;
 
-  // 3. Bộ lọc nhân sự: Loại bỏ khối Hành chính
-  const danhSachVanHanh = NV_LIST.filter(u => {
-    const k = (u.kip || "").toLowerCase();
-    return !(k.includes('hành chính') || k === 'hc');
-  });
-
-  // 4. Phân quyền hiển thị theo chức danh
+  // 2. Lấy danh sách (Lọc bỏ khối Hành chính)
   let displayList = [];
   if (CU.role === 'ld') {
-    displayList = danhSachVanHanh;
+    displayList = NV_LIST.filter(u => !((u.kip||"").toLowerCase().includes('hành chính') || u.kip === 'hc'));
   } else {
     const myInfo = NV_LIST.find(u => u.name === CU.name);
     const myChucDanh = myInfo ? myInfo.chucDanh : "";
-    displayList = danhSachVanHanh.filter(u => u.chucDanh === myChucDanh);
+    displayList = NV_LIST.filter(u => u.chucDanh === myChucDanh);
   }
 
-  // 5. Vẽ dữ liệu, Tính công và Đếm ca K
-  let bodyHtml = displayList.map(u => {
-    let row = `<tr><td>${u.name} ${u.name === CU.name ? '(Tôi)' : ''}</td>`;
-    let totalHours = 0;
-    let countK = 0; // Biến đếm số ca K
+  // 3. THUẬT TOÁN SẮP XẾP ĐỒNG LOẠT (CHỨC DANH -> KÍP TĂNG DẦN -> TÊN)
+  // Thứ tự ưu tiên chức danh hiển thị từ trên xuống
+  const priorityOrder = ["Trưởng kíp", "Trực chính", "Trực phụ", "Lái máy", "Băng tải", "Lấy mẫu"];
+  displayList.sort((a, b) => {
+    // A. So sánh vị trí Chức danh trong danh sách ưu tiên
+    let idxA = priorityOrder.indexOf(a.chucDanh);
+    let idxB = priorityOrder.indexOf(b.chucDanh);
+    let valA = idxA === -1 ? 999 : idxA;
+    let valB = idxB === -1 ? 999 : idxB;
 
+    if (valA !== valB) return valA - valB;
+    
+    // B. Nếu cả 2 cùng là chức danh "khác" (999) -> Xếp theo tên Chức danh để chúng về cùng nhóm
+    if (valA === 999) {
+      const cComp = (a.chucDanh || "").localeCompare(b.chucDanh || "", 'vi');
+      if (cComp !== 0) return cComp;
+    }
+
+    // C. Cùng Chức danh -> So sánh Kíp tăng dần (Kíp 1 -> Kíp 5)
+    const kA = a.kip || "";
+    const kB = b.kip || "";
+    const kComp = kA.localeCompare(kB, 'vi', {numeric: true});
+    if (kComp !== 0) return kComp;
+
+    // D. Cuối cùng xếp theo Tên ABC
+    return a.name.localeCompare(b.name, 'vi');
+  });
+
+  // BIẾN TÍNH TỔNG CHO LÃNH ĐẠO
+  let grandTotalK = 0, grandTotalCong = 0;
+
+  // 4. Vẽ dữ liệu từng dòng
+  let bodyHtml = displayList.map(u => {
+    let row = `<tr><td style="position:sticky; left:0; background:#fff; font-weight:600; border-right:2px solid #e2e8f0;">${u.name} ${u.name === CU.name ? '(Tôi)' : ''}</td>`;
+    
+    if (CU.role === 'ld') {
+      row += `<td>${u.chucDanh || ''}</td><td>${u.kip || ''}</td>`;
+    } else {
+      row += `<td>${u.kip || ''}</td>`;
+    }
+
+    let totalHours = 0, countK = 0;
     for(let d=1; d<=daysInMonth; d++) {
       const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const ca = getCaThucTe(u.name, u.kip, dateStr);
       const isLech = ca !== getCaTrucGoc(u.name, u.kip, dateStr);
       
-      // Logic tính giờ làm việc và đếm ca K
-      if(ca === 'K') { 
-        totalHours += 8.75; 
-        countK++; // Tăng biến đếm khi gặp ca K
-      }
-      else if(ca === 'N') totalHours += 8.5;
-      else if(ca === 'C') totalHours += 8.5;
+      if(ca === 'K') { totalHours += 8.75; countK++; }
+      else if(ca === 'N') totalHours += 8.5; 
+      else if(ca === 'C') totalHours += 8.5; 
       else if(ca === 'H') totalHours += 8.0;
       
-      let style = "";
-      if (ca === 'OFF') style = "color:#cbd5e1;";
-      else if (isLech) style = "background:#fff7ed; color:#ea580c; font-weight:700;"; 
-      
+      let style = (ca === 'OFF') ? "color:#cbd5e1;" : (isLech ? "background:#fff7ed; color:#ea580c; font-weight:700;" : "");
       row += `<td style="text-align:center; ${style}">${ca === 'OFF' ? '-' : ca}</td>`;
     }
 
-    // Hiển thị số ca K (Cột màu xanh lá nhạt)
-    row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
-    
-    // Tính tổng công (1 công = 8h)
     const totalCong = (totalHours / 8).toFixed(2);
+    grandTotalK += countK;
+    grandTotalCong += parseFloat(totalCong);
+
+    row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
     row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0369a1;">${totalCong}</td>`;
     row += `</tr>`;
     return row;
   }).join('');
   
-  document.getElementById('sched-body').innerHTML = bodyHtml || '<tr><td colspan="35" class="empty">Không có dữ liệu phù hợp</td></tr>';
+  // 5. HÀNG TỔNG CỘNG CHO LÃNH ĐẠO (Tổng Công ca K và Tổng Công tháng)
+  if (CU.role === 'ld' && displayList.length > 0) {
+    bodyHtml += `
+      <tr style="background:#f1f5f9; font-weight:700; border-top:2px solid #cbd5e1;">
+        <td colspan="3" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
+        <td colspan="${daysInMonth}"></td>
+        <td style="text-align:center; color:#15803d; font-size:14px;">${grandTotalK}</td>
+        <td style="text-align:center; color:#1a56a0; font-size:14px;">${grandTotalCong.toFixed(2)}</td>
+      </tr>
+    `;
+  }
+
+  document.getElementById('sched-body').innerHTML = bodyHtml || '<tr><td colspan="45" class="empty">Không có dữ liệu phù hợp</td></tr>';
+}
+// ===============================================================
+// HÀM XUẤT EXCEL CHO BẢNG ĐI CA (DÀNH RIÊNG CHO LÃNH ĐẠO)
+// ===============================================================
+function exportExcelSched() {
+  if (!CU || CU.role !== 'ld') return;
+  const mv = document.getElementById('f-sched-month').value;
+  const tableEl = document.getElementById('table-schedule');
+  
+  if(!tableEl || tableEl.innerText.includes('Không có dữ liệu')) { 
+    showAlert('app', 'Không có dữ liệu để tải!', 'ae'); 
+    return; 
+  }
+  
+  // Gọi hàm tải file
+  downloadExcel(tableEl.innerHTML, `Bang_Di_Ca_Tong_Hop_${mv}.xls`, `BangDiCa`);
 }
 </script>
 </body>
