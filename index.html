@@ -508,9 +508,11 @@ async function doLogin(){
     const r=await api({action:"login",name:n,pin:p}); 
     if(r.error){e.style.color='#dc2626'; e.textContent=r.error;return;} CU=r.user; 
     document.getElementById('overlay').style.display='none'; document.getElementById('app').style.display='block'; 
-    document.getElementById('ub-name').textContent=CU.name; document.getElementById('ub-role').textContent=CU.role==='ld'?'Lãnh đạo PX':'Vận hành'; 
+    document.getElementById('ub-name').textContent=CU.name; 
+    const myInfo = NV_LIST.find(u => u.name === CU.name); 
+    document.getElementById('ub-role').textContent = (myInfo && myInfo.chucDanh) ? myInfo.chucDanh : (CU.role==='ld'?'Lãnh đạo PX':'Vận hành');
     document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none'; document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = CU.admin?'':'none'; document.getElementById('f-name').value = CU.name; 
-    const myInfo = NV_LIST.find(u => u.name === CU.name); if(myInfo && myInfo.kip) { document.getElementById('f-kip').value = myInfo.kip; }
+    if(myInfo && myInfo.kip) { document.getElementById('f-kip').value = myInfo.kip; }
     let isLd = CU.role === 'ld' ? 'inline-flex' : 'none'; document.getElementById('btn-export-excel').style.display = isLd; document.getElementById('btn-export-day').style.display = isLd; document.getElementById('btn-export-warn').style.display = isLd;
     const now = new Date(); const curYear = now.getFullYear(); const curMonthStr = curYear + '-' + String(now.getMonth()+1).padStart(2,'0'); 
     document.getElementById('f-month').value = curMonthStr; document.getElementById('f-warn-month').value = curMonthStr; document.getElementById('f-hist-month').value = curMonthStr; 
