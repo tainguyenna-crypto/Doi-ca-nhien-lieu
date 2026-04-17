@@ -730,7 +730,7 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null) {
    return ca;
 }
 
-// 2. LÍNH GÁC AN TOÀN (Cũng phải truyền ID bỏ qua vào để nó không đếm nhầm)
+// 2. LÍNH GÁC AN TOÀN (TỰ ĐỘNG QUÉT LUẬT TỪ EXCEL)
 function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi, ignoreReqId = null) {
   const ngayTruoc = addDays(dateStr, -1);
   const ngaySau = addDays(dateStr, 1);
@@ -738,17 +738,41 @@ function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi, ignoreReqId = n
   const caNgayTruoc = getCaThucTe(userName, kipName, ngayTruoc, ignoreReqId);
   const caNgaySau = getCaThucTe(userName, kipName, ngaySau, ignoreReqId);
 
-  if (caMuonDi === 'K' && caNgayTruoc === 'C') return "Đi ca K nhưng ngày trước có ca C (Vi phạm 2 ca liên tiếp).";
-  if (caMuonDi === 'C' && caNgaySau === 'K') return "Đi ca C nhưng ngày sau có ca K (Vi phạm 2 ca liên tiếp).";
+  // --- A. LẤY LUẬT TỪ EXCEL ---
+  const c = APP_CONFIG.configs || {};
+  const chuoiCaCam = c.CA_CAM_LIEN_TIEP || "C-K"; // Mặc định nếu Excel trống là C-K
+  const maxK = parseInt(c.MAX_K_LIEN_TIEP) || 4;  // Mặc định là 4
 
+  // Tách chuỗi "C-K, N-K" thành mảng các luật ['C-K', 'N-K']
+  const mangCaCam = chuoiCaCam.split(',').map(s => s.trim().toUpperCase());
+
+  // --- B. KIỂM TRA CẶP CA BỊ CẤM ---
+  // 1. So sánh ngày Hôm qua và Hôm nay
+  const capTruoc = caNgayTruoc + "-" + caMuonDi;
+  if (mangCaCam.includes(capTruoc)) {
+    return `Luật An toàn: Ngày trước đã đi ca ${caNgayTruoc}, cấm đổi sang ca ${caMuonDi} (${capTruoc}).`;
+  }
+
+  // 2. So sánh ngày Hôm nay và Ngày mai
+  const capSau = caMuonDi + "-" + caNgaySau;
+  if (mangCaCam.includes(capSau)) {
+    return `Luật An toàn: Ngày sau phải đi ca ${caNgaySau}, cấm đổi sang ca ${caMuonDi} (${capSau}).`;
+  }
+
+  // --- C. KIỂM TRA GIỚI HẠN CA K (CA ĐÊM) LIÊN TIẾP ---
   if (caMuonDi === 'K') {
     let countK = 1;
     let d = dateStr;
+    // Đếm ngược về quá khứ xem có bao nhiêu ca K
     while(getCaThucTe(userName, kipName, addDays(d, -1), ignoreReqId) === 'K') { countK++; d = addDays(d, -1); }
+    // Đếm tiến về tương lai xem có bao nhiêu ca K
     d = dateStr;
     while(getCaThucTe(userName, kipName, addDays(d, 1), ignoreReqId) === 'K') { countK++; d = addDays(d, 1); }
     
-    if (countK >= 4) return "Vi phạm quy định: Đi 4 ca K liên tiếp.";
+    // So sánh với định mức trên Excel
+    if (countK >= maxK) {
+      return `Vi phạm quy định: Đi ${countK} ca K liên tiếp (Tối đa cho phép là ${maxK}).`;
+    }
   }
   return false;
 }
@@ -980,6 +1004,10 @@ function renderDayTable(){
   // Khởi tạo dữ liệu ngày trong tháng
   const dm = {}; 
   const daysInMonth = new Date(yr, mo, 0).getDate();
+// Đọc danh sách Ngày Lễ từ Excel
+  const c = APP_CONFIG.configs || {};
+  const chuoiLe = c.NGAY_LE || "";
+  const mangLe = chuoiLe.split(',').map(s => s.trim());
   for(let d = 1; d <= daysInMonth; d++) {
     dm[d] = { doi: [], tra: [] };
   }
@@ -1237,20 +1265,37 @@ function renderScheduleTable() {
   const btnExport = document.getElementById('btn-export-sched');
   if (btnExport) btnExport.style.display = (CU.role === 'ld') ? 'inline-flex' : 'none';
 
-  // 1. Vẽ tiêu đề cột (Phân quyền: Lãnh đạo thấy Chức danh + Kíp; Nhân viên thấy Kíp)
+  // --- 1. LẤY CẤU HÌNH NGÀY LỄ VÀ GIỜ CÔNG TỪ EXCEL ---
+  const conf = APP_CONFIG.configs || {};
+  const chuoiLe = conf.NGAY_LE || "";
+  const mangLe = chuoiLe.split(',').map(s => s.trim());
+  
+  const hK = parseFloat(conf.GIO_CONG_CA_K) || 8.75;
+  const hN = parseFloat(conf.GIO_CONG_CA_N) || 8.5;
+  const hC = parseFloat(conf.GIO_CONG_CA_C) || 8.5;
+  const hHC = parseFloat(conf.GIO_CONG_CA_HC) || 8.0;
+
+  // 2. Vẽ tiêu đề cột (Phân quyền: Lãnh đạo thấy Chức danh + Kíp; Nhân viên thấy Kíp)
   let headHtml = `<tr><th style="position:sticky; left:0; z-index:30; background:#f1f5f9; border-right:2px solid #e2e8f0;">Họ tên</th>`;
   if (CU.role === 'ld') { 
     headHtml += `<th>Chức danh</th><th>Kíp</th>`; 
   } else { 
     headHtml += `<th>Kíp</th>`; 
   }
-  for(let d=1; d<=daysInMonth; d++) { headHtml += `<th style="text-align:center; width:35px;">${d}</th>`; }
+  for(let d=1; d<=daysInMonth; d++) { 
+    const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isLe = mangLe.includes(dateStr);
+    
+    // Nếu là ngày lễ, tô nền hồng và chữ đỏ đậm
+    const thStyle = isLe ? "text-align:center; width:35px; background:#fee2e2; color:#dc2626; font-weight:700;" : "text-align:center; width:35px;";
+    headHtml += `<th style="${thStyle}">${d}</th>`; 
+  }
   headHtml += `<th style="text-align:center; width:55px; background:#f0fdf4; color:#166534;">Công ca K</th>`;
   headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th>`;
   headHtml += `</tr>`;
   document.getElementById('sched-head').innerHTML = headHtml;
 
-  // 2. Lấy danh sách (Lọc bỏ khối Hành chính)
+  // 3. Lấy danh sách (Lọc bỏ khối Hành chính)
   let displayList = [];
   if (CU.role === 'ld') {
     displayList = NV_LIST.filter(u => !((u.kip||"").toLowerCase().includes('hành chính') || u.kip === 'hc'));
@@ -1260,38 +1305,29 @@ function renderScheduleTable() {
     displayList = NV_LIST.filter(u => u.chucDanh === myChucDanh);
   }
 
-  // 3. THUẬT TOÁN SẮP XẾP ĐỒNG LOẠT (CHỨC DANH -> KÍP TĂNG DẦN -> TÊN)
-  // Thứ tự ưu tiên chức danh hiển thị từ trên xuống
+  // 4. THUẬT TOÁN SẮP XẾP ĐỒNG LOẠT (CHỨC DANH -> KÍP TĂNG DẦN -> TÊN)
   const priorityOrder = ["Trưởng kíp", "Trực chính", "Trực phụ", "Lái máy", "Băng tải", "Lấy mẫu"];
   displayList.sort((a, b) => {
-    // A. So sánh vị trí Chức danh trong danh sách ưu tiên
     let idxA = priorityOrder.indexOf(a.chucDanh);
     let idxB = priorityOrder.indexOf(b.chucDanh);
     let valA = idxA === -1 ? 999 : idxA;
     let valB = idxB === -1 ? 999 : idxB;
 
     if (valA !== valB) return valA - valB;
-    
-    // B. Nếu cả 2 cùng là chức danh "khác" (999) -> Xếp theo tên Chức danh để chúng về cùng nhóm
     if (valA === 999) {
       const cComp = (a.chucDanh || "").localeCompare(b.chucDanh || "", 'vi');
       if (cComp !== 0) return cComp;
     }
-
-    // C. Cùng Chức danh -> So sánh Kíp tăng dần (Kíp 1 -> Kíp 5)
-    const kA = a.kip || "";
-    const kB = b.kip || "";
+    const kA = a.kip || ""; const kB = b.kip || "";
     const kComp = kA.localeCompare(kB, 'vi', {numeric: true});
     if (kComp !== 0) return kComp;
-
-    // D. Cuối cùng xếp theo Tên ABC
     return a.name.localeCompare(b.name, 'vi');
   });
 
   // BIẾN TÍNH TỔNG CHO LÃNH ĐẠO
   let grandTotalK = 0, grandTotalCong = 0;
 
-  // 4. Vẽ dữ liệu từng dòng
+  // 5. Vẽ dữ liệu từng dòng
   let bodyHtml = displayList.map(u => {
     let row = `<tr><td style="position:sticky; left:0; background:#fff; font-weight:600; border-right:2px solid #e2e8f0;">${u.name} ${u.name === CU.name ? '(Tôi)' : ''}</td>`;
     
@@ -1307,12 +1343,25 @@ function renderScheduleTable() {
       const ca = getCaThucTe(u.name, u.kip, dateStr);
       const isLech = ca !== getCaTrucGoc(u.name, u.kip, dateStr);
       
-      if(ca === 'K') { totalHours += 8.75; countK++; }
-      else if(ca === 'N') totalHours += 8.5; 
-      else if(ca === 'C') totalHours += 8.5; 
-      else if(ca === 'H') totalHours += 8.0;
+      // Áp dụng giờ công động
+      if(ca === 'K') { totalHours += hK; countK++; }
+      else if(ca === 'N') totalHours += hN; 
+      else if(ca === 'C') totalHours += hC; 
+      else if(ca === 'HC' || ca === 'H') totalHours += hHC;
       
-      let style = (ca === 'OFF') ? "color:#cbd5e1;" : (isLech ? "background:#fff7ed; color:#ea580c; font-weight:700;" : "");
+      // Kiểm tra ngày lễ và phối màu
+      let isLe = mangLe.includes(dateStr);
+      let bg = isLe ? "#fef2f2" : "transparent"; 
+      if (isLech) bg = "#fff7ed"; 
+      
+      let style = (ca === 'OFF') ? `color:#cbd5e1; background:${bg};` : `background:${bg};`;
+      
+      if (isLech) {
+        style += "color:#ea580c; font-weight:700;"; 
+      } else if (isLe && ca !== 'OFF') {
+        style += "color:#dc2626; font-weight:700;"; 
+      }
+      
       row += `<td style="text-align:center; ${style}">${ca === 'OFF' ? '-' : ca}</td>`;
     }
 
@@ -1326,9 +1375,9 @@ function renderScheduleTable() {
     return row;
   }).join('');
   
-  // 5. HÀNG TỔNG CỘNG CHO LÃNH ĐẠO
+  // 6. HÀNG TỔNG CỘNG CHO LÃNH ĐẠO
   if (CU.role === 'ld' && displayList.length > 0) {
-    const colSpanHeader = 3; // Số cột của Lãnh đạo
+    const colSpanHeader = 3; 
     bodyHtml += `
       <tr style="background:#f1f5f9; font-weight:700; border-top:2px solid #cbd5e1;">
         <td colspan="${colSpanHeader}" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
