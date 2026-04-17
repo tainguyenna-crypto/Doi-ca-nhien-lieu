@@ -365,7 +365,7 @@ function setupDynamicFields(settings) {
     APP_CONFIG.lechMax = parseInt(settings.configs.SO_CA_LECH_MAX) || 10;
     // Lấy Cảnh báo từ Excel, nếu quên chưa nhập thì tự động lấy mức Max - 2
     APP_CONFIG.lechWarn = parseInt(settings.configs.SO_CA_LECH_CANH_BAO) || (APP_CONFIG.lechMax - 2); 
-    
+    APP_CONFIG.configs = settings.configs;
     document.getElementById('page-title').textContent = "Quản lý đổi ca – " + APP_CONFIG.tenPX; 
     document.getElementById('tb-ten-px').textContent = APP_CONFIG.tenPX;
   }
@@ -673,10 +673,16 @@ function getCaTrucGoc(userName, kipName, dateStr) {
     if (!mauChuan) return 'OFF';
     chuKy = mauChuan.chuKy;
     ngayMocStr = mauChuan.ngayMoc;
+   // --- TỰ ĐỘNG QUÉT MỐC TỪ EXCEL (Không giới hạn số lượng Kíp) ---
+    const c = APP_CONFIG.configs || {};
     
-    // Quy định vị trí các kíp chuẩn (Đồng chí có thể chỉnh lại các số này cho đúng thực tế)
-    const viTriKipChuan = { 'Kíp 1': 4, 'Kíp 2': 2, 'Kíp 3': 0, 'Kíp 4': 8, 'Kíp 5': 6 };
-    viTriMoc = viTriKipChuan[kipName] !== undefined ? viTriKipChuan[kipName] : 0;
+    // Tự động bóc tách con số từ tên Kíp (Ví dụ: "Kíp 1" -> "1", "Kíp 10" -> "10")
+    const soKip = kipName.replace(/\D/g, ""); 
+    const keyTimKiem = "MOC_KIP_" + soKip;
+    
+    // Tìm trong cấu hình Excel, nếu không thấy thì mặc định gán bằng 0
+    viTriMoc = c[keyTimKiem] !== undefined ? parseInt(c[keyTimKiem]) : 0; 
+    
   }
 
   // THUẬT TOÁN TÍNH CA
