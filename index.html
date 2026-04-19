@@ -727,10 +727,39 @@ async function partnerNo(id, btn){
 }
 
 function renderPheDuyet(){ 
-  const el=document.getElementById('list-phe-duyet'); 
-  if(!CU||CU.role!=='ld'){el.innerHTML='<div class="empty">Chỉ Lãnh đạo mới có quyền duyệt</div>';return;} 
-  const its=allReqs.filter(r=>r.status==='pending_ld'); 
-  el.innerHTML=its.length?its.map(r=>reqCard(r,`<button class="btn btn-success" onclick="ldOk('${r.id}', this)">Duyệt</button> <button class="btn btn-danger" onclick="ldNo('${r.id}', this)">Từ chối</button>`)).join(''):'<div class="empty">Không có đơn chờ</div>'; 
+  const el = document.getElementById('list-phe-duyet'); 
+  if(!CU || CU.role !== 'ld'){
+    el.innerHTML = '<div class="empty">Chỉ Lãnh đạo mới có quyền duyệt</div>';
+    return;
+  } 
+  
+  // 1. LẤY QUYỀN DUYỆT CỦA LÃNH ĐẠO ĐANG ĐĂNG NHẬP
+  const myInfo = NV_LIST.find(u => u.name === CU.name);
+  const myPerms = (myInfo && myInfo.quyenDuyet) 
+                  ? myInfo.quyenDuyet.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) 
+                  : [];
+
+  // 2. LỌC DANH SÁCH ĐƠN DỰA TRÊN THẨM QUYỀN
+  const its = allReqs.filter(r => {
+    // Chỉ lấy các đơn đang chờ Lãnh đạo duyệt
+    if (r.status !== 'pending_ld') return false;
+    
+    // Nếu Lãnh đạo bị giới hạn quyền (Có gõ chức danh vào cột L trên Excel)
+    if (myPerms.length > 0) {
+      const reqUser = NV_LIST.find(u => u.name === r.name);
+      const reqRole = (reqUser && reqUser.chucDanh) ? reqUser.chucDanh.toLowerCase() : "";
+      
+      // Nếu chức danh của người xin nghỉ KHÔNG NẰM TRONG danh sách được duyệt -> Giấu đơn đi
+      if (!myPerms.includes(reqRole)) return false;
+    }
+    
+    // Nếu cột L để trống (myPerms rỗng) -> Lãnh đạo này được duyệt tất cả
+    return true; 
+  }); 
+
+  el.innerHTML = its.length 
+    ? its.map(r => reqCard(r, `<button class="btn btn-success" onclick="ldOk('${r.id}', this)">Duyệt</button> <button class="btn btn-danger" onclick="ldNo('${r.id}', this)">Từ chối</button>`)).join('') 
+    : '<div class="empty">Không có đơn chờ duyệt thuộc thẩm quyền của bạn</div>'; 
 }
 
 async function ldOk(id, btn){ 
@@ -1433,7 +1462,7 @@ function renderScheduleTable() {
   }
 
   // 4. THUẬT TOÁN SẮP XẾP ĐỒNG LOẠT (CHỨC DANH -> KÍP TĂNG DẦN -> TÊN)
-  const priorityOrder = ["Trưởng kíp", "Trực chính", "Trực phụ", "Lái máy", "Băng tải", "Lấy mẫu"];
+  const priorityOrder = ["Quản đốc", "Phó quản đốc", "Kỹ thuật Phân xưởng", "Trưởng kíp nhiên liệu", "Trực chính nhiên liệu", "Vận hành Băng tải", "Vận hành Máy đánh phá đống", "Vận hành Cẩu trục và xe cơ giới", "Tiếp nhận nhiên liệu"];
   displayList.sort((a, b) => {
     let idxA = priorityOrder.indexOf(a.chucDanh);
     let idxB = priorityOrder.indexOf(b.chucDanh);
