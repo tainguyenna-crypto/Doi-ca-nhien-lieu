@@ -254,6 +254,53 @@ textarea{resize:none;height:80px}
       </div>
     </div>
   <div id="tab-admin-hc" class="section">
+<div class="card" style="border-top: 4px solid #ea580c; margin-bottom: 20px;">
+      <div class="sec-title" style="color:#ea580c; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span>📜 Lịch sử Điều chuyển Kíp (Tự động đổi lịch ca)</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-success" style="height:38px; font-size:13px;" onclick="exportExcelTransfer()">⬇ Tải Excel</button>
+          <input type="month" id="f-transfer-month" onchange="renderTransferLog()" style="width: auto; padding:8px 12px; font-size:15px; border-radius:6px; background:#f8fafc;">
+        </div>
+      </div>
+      <div class="table-wrapper" style="max-height: 200px;">
+        <table class="dt" id="table-transfer-log">
+          <thead style="position:sticky; top:0; z-index:10; background:#f8fafc;">
+            <tr>
+              <th style="width:120px">Ngày áp dụng</th>
+              <th>Họ tên</th>
+              <th style="width:100px">Kíp mới</th>
+              <th style="width:100px; text-align:center;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="transfer-log-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="border-top: 4px solid #f97316; margin-bottom: 20px; background: #fffaf5;">
+      <div class="sec-title" style="color:#f97316; margin-bottom:15px;">🚀 ĐIỀU CHUYỂN NHÂN SỰ SANG KÍP MỚI</div>
+      <div class="form-row">
+        <div>
+          <label>1. Lọc theo chức danh</label>
+          <select id="tc-role" onchange="filterTCUsers()"><option value="">-- Tất cả --</option></select>
+        </div>
+        <div>
+          <label>2. Ngày bắt đầu áp dụng kíp mới</label>
+          <input type="date" id="tc-date" style="border-color:#f97316;">
+        </div>
+      </div>
+      <div class="form-row full">
+        <label>3. Chọn Kíp điều chuyển đến</label>
+        <select id="tc-newkip" style="border-color:#f97316; font-weight:700; color:#ea580c;"></select>
+      </div>
+      <div class="form-row full">
+        <label>4. Chọn nhân viên (Có thể chọn nhiều người)</label>
+        <div id="tc-user-list" style="height:150px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; padding:10px; background:#fff;">
+          <span style="color:#94a3b8">Đang tải...</span>
+        </div>
+      </div>
+      <button class="btn" style="width:100%; padding:12px; background:#f97316; color:white; font-weight:700; margin-top:10px;" onclick="submitTransfer()">⚡ XÁC NHẬN ĐIỀU CHUYỂN</button>
+    </div>
       <div class="card" style="margin-bottom: 20px; border-top: 4px solid #1a56a0;">
         <div class="sec-title" style="color:#1a56a0; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <span>📋 Lệnh điều động đã ban hành (Nhấn Thu hồi để xóa lệnh)</span>
@@ -444,6 +491,7 @@ window.onload = async () => {
     if (res && res.users && res.users.length > 0) { 
       NV_LIST = res.users; 
       MAU_LICH = res.mauLich || {}; // <- Dán dòng này vào đây
+      allTransfers = res.transfers || []; // DÒNG MỚI THÊM VÀO
       initSS(); 
       if (res.settings) setupDynamicFields(res.settings);
       document.getElementById('login-loading').style.display = 'none'; document.getElementById('login-box').style.display = 'block'; 
@@ -455,7 +503,10 @@ window.onload = async () => {
   }
 };
 
-async function loadAll(){ const d = await api({action:"getAll"}); allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()})); }
+async function loadAll(){ 
+  const d = await api({action:"getAll"}); 
+  allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()})); 
+  await loadTransfers(); }
 
 const SS_SOURCES={'ss-login':()=>NV_LIST.map(u=>u.name),'ss-partner':()=>NV_LIST.map(u=>u.name),'ss-reset':()=>NV_LIST.map(u=>u.name)};
 const SS_HIDDEN={'ss-login':'f-login-name','ss-partner':'f-partner','ss-reset':'f-reset-name'};
@@ -595,8 +646,12 @@ function switchTab(t){
   if(t==='phe-duyet') renderPheDuyet(); 
   if(t==='lich-su') renderHistory(); 
   if(t==='bang-di-ca') renderScheduleTable(); // Dòng mới thêm
-  if(t==='admin-hc') renderAdminHCHist(); // NẠP LỊCH SỬ ĐIỀU ĐỘNG
   if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); }
+  if(t==='admin-hc') { 
+    renderAdminHCHist(); 
+    initTransferForm(); // Dòng mới
+    loadTransfers();    // Dòng mới để tải dữ liệu từ server
+  }
 }
 
 function fmtDate(d){ if(!d) return ''; const p=d.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : d; }
@@ -718,6 +773,17 @@ async function ldNo(id, btn){
 function getCaTrucGoc(userName, kipName, dateStr) {
   if (!dateStr) return 'OFF';
 
+  // 1. TÌM KÍP THỰC TẾ (Ưu tiên lịch sử điều chuyển nếu có)
+  let actualKip = kipName;
+  if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
+    const sortedTransfers = allTransfers
+      .filter(t => t.name === userName && dateStr >= t.date)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    if (sortedTransfers.length > 0) {
+      actualKip = sortedTransfers[0].newKip;
+    }
+  }
+
   const uConf = NV_LIST.find(u => u.name === userName);
   let chuKy = [];
   let ngayMocStr = "";
@@ -725,28 +791,23 @@ function getCaTrucGoc(userName, kipName, dateStr) {
 
   // PHÂN LUỒNG: Đi theo lịch ngoại lệ hay lịch Kíp chuẩn?
   if (uConf && uConf.isNgoaiLe) {
-    // 1. CHẾ ĐỘ NGOẠI LỆ (Nhân sự có đánh dấu X trên Excel)
     const mau = MAU_LICH[uConf.tenMau];
-    if (!mau) return 'OFF'; // Cảnh báo: Tên mẫu gõ sai so với sheet MauLich
+    if (!mau) return 'OFF'; 
     chuKy = mau.chuKy;
     ngayMocStr = mau.ngayMoc;
     viTriMoc = parseInt(uConf.viTriMoc) || 0;
   } else {
-    // 2. CHẾ ĐỘ MẶC ĐỊNH (3 ca 5 kíp)
     const mauChuan = MAU_LICH["3 ca 5 kíp"];
     if (!mauChuan) return 'OFF';
     chuKy = mauChuan.chuKy;
     ngayMocStr = mauChuan.ngayMoc;
-   // --- TỰ ĐỘNG QUÉT MỐC TỪ EXCEL (Không giới hạn số lượng Kíp) ---
     const c = APP_CONFIG.configs || {};
     
-    // Tự động bóc tách con số từ tên Kíp (Ví dụ: "Kíp 1" -> "1", "Kíp 10" -> "10")
-    const soKip = kipName.replace(/\D/g, ""); 
+    // Tự động bóc tách con số từ KÍP THỰC TẾ (Ví dụ: "Kíp 2" -> "2")
+    const soKip = actualKip.replace(/\D/g, ""); 
     const keyTimKiem = "MOC_KIP_" + soKip;
     
-    // Tìm trong cấu hình Excel, nếu không thấy thì mặc định gán bằng 0
     viTriMoc = c[keyTimKiem] !== undefined ? parseInt(c[keyTimKiem]) : 0; 
-    
   }
 
   // THUẬT TOÁN TÍNH CA
@@ -1397,10 +1458,20 @@ function renderScheduleTable() {
   let bodyHtml = displayList.map(u => {
     let row = `<tr><td style="position:sticky; left:0; background:#fff; font-weight:600; border-right:2px solid #e2e8f0;">${u.name} ${u.name === CU.name ? '(Tôi)' : ''}</td>`;
     
+    // TÌM KÍP HIỂN THỊ: Kiểm tra xem trong tháng này người đó đã được chuyển sang Kíp nào chưa
+    const firstDayOfMonth = `${yr}-${String(mo).padStart(2,'0')}-01`;
+    let displayKip = u.kip;
+    if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
+      const sortedTransfers = allTransfers
+        .filter(t => t.name === u.name && firstDayOfMonth >= t.date)
+        .sort((a, b) => b.date.localeCompare(a.date));
+      if (sortedTransfers.length > 0) displayKip = sortedTransfers[0].newKip;
+    }
+
     if (CU.role === 'ld') {
-      row += `<td>${u.chucDanh || ''}</td><td>${u.kip || ''}</td>`;
+      row += `<td>${u.chucDanh || ''}</td><td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`;
     } else {
-      row += `<td>${u.kip || ''}</td>`;
+      row += `<td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`;
     }
 
     let totalHours = 0, countK = 0;
@@ -1821,6 +1892,116 @@ async function submitBatchHC() {
   } catch(e) { showAlert('app', 'Lỗi kết nối mạng!', 'ae'); }
   btn.disabled = false; btn.innerHTML = '⚡ PHÊ DUYỆT LỆNH';
 }
+let allTransfers = []; // Biến lưu trữ lịch sử điều chuyển
+
+// Khởi tạo Form Điều chuyển
+function initTransferForm() {
+  const roles = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
+  const kips = [...new Set(NV_LIST.map(u => u.kip))].filter(Boolean);
+  
+  document.getElementById('tc-role').innerHTML = '<option value="">-- Tất cả --</option>' + roles.map(r=>`<option>${r}</option>`).join('');
+  document.getElementById('tc-newkip').innerHTML = kips.map(k=>`<option>${k}</option>`).join('');
+  
+  const now = new Date();
+  document.getElementById('f-transfer-month').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  
+  filterTCUsers();
+  renderTransferLog();
+}
+
+function filterTCUsers() {
+  const r = document.getElementById('tc-role').value;
+  const list = r ? NV_LIST.filter(u => u.chucDanh === r) : NV_LIST;
+  
+  let html = `<label style="display:flex; align-items:center; font-weight:700; color:#ea580c; margin-bottom:10px; border-bottom:2px solid #fdba74; padding-bottom:8px; cursor:pointer;">
+                <input type="checkbox" onchange="toggleAllTC(this)" style="width:18px; height:18px; margin-right:8px; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> CHỌN TẤT CẢ
+              </label>`;
+              
+  html += list.map(u => `
+    <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer;">
+      <input type="checkbox" class="tc-user-val" value="${u.name}" style="width:18px; height:18px; margin-right:8px; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> 
+      ${u.name} <span style="color:#94a3b8; font-size:12px; margin-left:5px;">(${u.kip})</span>
+    </label>
+  `).join('');
+  
+  document.getElementById('tc-user-list').innerHTML = html;
+}
+
+// Hàm bổ trợ: Bấm 1 phát chọn hết toàn bộ danh sách
+function toggleAllTC(masterCheckbox) {
+  document.querySelectorAll('.tc-user-val').forEach(cb => cb.checked = masterCheckbox.checked);
+}
+
+async function submitTransfer() {
+  const date = document.getElementById('tc-date').value;
+  const newKip = document.getElementById('tc-newkip').value;
+  const users = Array.from(document.querySelectorAll('.tc-user-val:checked')).map(cb => cb.value);
+
+  if(!date || users.length === 0) { showAlert('app','Vui lòng chọn ngày và nhân viên!','ae'); return; }
+  if(!confirm(`Xác nhận chuyển ${users.length} người sang ${newKip} kể từ ngày ${fmtDate(date)}?`)) return;
+
+  showAlert('app','Đang xử lý...','ai');
+  try {
+    // Gửi từng người lên server (Lưu vào tab chuyển kíp trên Excel)
+    for(let name of users) {
+      await api({ action: "addTransfer", data: JSON.stringify({ name, date, newKip }) });
+    }
+    await loadTransfers(); // Tải lại dữ liệu
+    renderTransferLog();
+    renderScheduleTable(); // Cập nhật lại bảng ca ngay lập tức
+    showAlert('app','Điều chuyển thành công!','as');
+    document.getElementById('tc-date').value = '';
+  } catch(e) { showAlert('app','Lỗi kết nối!','ae'); }
+}
+
+async function loadTransfers() {
+  const res = await api({ action: "getTransfers" });
+  allTransfers = res || [];
+}
+
+function renderTransferLog() {
+  const mv = document.getElementById('f-transfer-month').value;
+  const [yr, mo] = mv.split('-').map(Number);
+  
+  const filtered = allTransfers.filter(t => {
+    const [tY, tM] = t.date.split('-').map(Number);
+    return tY === yr && tM === mo;
+  }).sort((a,b) => b.date.localeCompare(a.date));
+
+  const tbody = document.getElementById('transfer-log-body');
+  if(filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Không có dữ liệu tháng này</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(t => `
+    <tr>
+      <td>${fmtDate(t.date)}</td>
+      <td style="font-weight:600;">${t.name}</td>
+      <td><span class="dp">${t.newKip}</span></td>
+      <td style="text-align:center;">
+        <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteTransfer('${t.id}')">Xóa</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function deleteTransfer(id) {
+  if(!confirm("Xóa bản ghi này? Người này sẽ quay lại Kíp cũ nếu không còn lệnh điều chuyển nào khác.")) return;
+  try {
+    await api({ action: "deleteTransfer", id });
+    await loadTransfers();
+    renderTransferLog();
+    renderScheduleTable();
+    showAlert('app','Đã xóa!','as');
+  } catch(e) { showAlert('app','Lỗi!','ae'); }
+}
+
+function exportExcelTransfer() {
+  const html = document.getElementById('table-transfer-log').innerHTML;
+  downloadExcel(html, `Lich_Su_Dieu_Chuyen_Kip.xls`, `DieuChuyen`);
+}
 </script>
 </body>
 </html>
+
