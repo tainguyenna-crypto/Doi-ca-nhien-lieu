@@ -291,7 +291,7 @@ textarea{resize:none;height:80px}
           <table class="dt" style="min-width:1200px;">
           <thead>
               <tr style="background:#f0fdf4;">
-                <th style="width:120px">Ngày đi HC</th>
+               <th style="width:145px">Loại lệnh & Ngày</th>
                 <th style="width:130px">Chức danh</th>
                 <th style="width:90px">Kíp</th>
                 <th style="width:230px">Người đi (Tích chọn)</th>
@@ -770,24 +770,27 @@ function addDays(dateStr, days) {
 // =====================================================================
 // LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
 // =====================================================================
-// HÀM TÍNH LỊCH THỰC TẾ (ĐÃ FIX LỖI TRẬT TỰ THỜI GIAN & AUTO GẮN CA HC)
+// HÀM TÍNH LỊCH THỰC TẾ (HỖ TRỢ NGHỈ PHÉP & HC NỬA NGÀY)
 function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null) {
    let ca = getCaTrucGoc(userName, kipName, dateStr); 
    
-   const reqs = allReqs.filter(r => 
-       (r.status === 'pending_ld' || r.status === 'approved') && r.id !== ignoreReqId
-   );
+   const reqs = allReqs.filter(r => (r.status === 'pending_ld' || r.status === 'approved') && r.id !== ignoreReqId);
    
    for (let i = 0; i < reqs.length; i++) {
       let r = reqs[i];
-      const isHCDispatch = r.reason && r.reason.includes('[LỆNH ĐIỀU ĐỘNG]');
-      
-      // 1. Xóa ca cũ trước (NẾU LÀ ĐIỀU ĐỘNG HC -> ÔNG ĐI HC TỰ ĐỘNG GẮN CHỮ 'HC')
-      if (r.name === userName && r.ngayDoi === dateStr) ca = isHCDispatch ? 'HC' : 'OFF';
-      if (r.partner === userName && r.ngayTra === dateStr) ca = 'OFF';
+      const isHC = r.reason && r.reason.includes('[LỆNH ĐIỀU ĐỘNG]');
+      const isHCHalf = r.reason && r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]');
+      const isPhep = r.reason && r.reason.includes('[NGHỈ PHÉP]');
+      const isNoReturn = isPhep; // Nghỉ phép thì không có khái niệm trả ca
+
+      // 1. Xóa ca cũ trước (Gán chữ HC, HC/2 hoặc P)
+      if (r.name === userName && r.ngayDoi === dateStr) {
+          ca = isHC ? 'HC' : (isHCHalf ? 'HC/2' : (isPhep ? 'P' : 'OFF'));
+      }
+      if (r.partner === userName && r.ngayTra === dateStr && !isNoReturn) ca = 'OFF';
       
       // 2. Nhận ca mới vào
-      if (r.name === userName && r.ngayTra === dateStr) ca = r.caTra;
+      if (r.name === userName && r.ngayTra === dateStr && !isNoReturn) ca = r.caTra;
       if (r.partner === userName && r.ngayDoi === dateStr) ca = r.caDoi;
    }
    return ca;
@@ -1410,7 +1413,8 @@ function renderScheduleTable() {
       if(ca === 'K') { totalHours += hK; countK++; }
       else if(ca === 'N') totalHours += hN; 
       else if(ca === 'C') totalHours += hC; 
-      else if(ca === 'HC' || ca === 'H') totalHours += hHC;
+      else if(ca === 'HC' || ca === 'H' || ca === 'P') totalHours += hHC;
+      else if(ca === 'HC/2') totalHours += (hHC / 2);
       
       // Kiểm tra ngày lễ và phối màu
       let isLe = mangLe.includes(dateStr);
@@ -1418,6 +1422,8 @@ function renderScheduleTable() {
       if (isLech) bg = "#fff7ed"; 
       
       let style = (ca === 'OFF') ? `color:#cbd5e1; background:${bg};` : `background:${bg};`;
+      if (ca === 'P') style += `color:#0284c7; font-weight:800;`; // Màu xanh dương đậm cho Nghỉ Phép
+      else if (ca === 'HC/2') style += "color:#d97706; font-weight:700;"; // Tô màu cam cho ca Nửa ngày
       
       if (isLech) {
         style += "color:#ea580c; font-weight:700;"; 
@@ -1482,7 +1488,14 @@ function addRowHC() {
   const tr = document.createElement('tr');
   tr.id = `hc-r-${id}`;
   tr.innerHTML = `
-    <td><input type="date" class="h-date" style="padding:8px; width:100%; border-radius:4px;" onchange="checkShiftStatus(${id}); validateHCDates(${id})"></td>
+    <td>
+      <select class="h-type" style="padding:6px; width:100%; border-radius:4px; margin-bottom:6px; font-weight:700; color:#1a56a0; background:#f0f9ff; border:1px solid #bae6fd;" onchange="checkShiftStatus(${id}); validateHCDates(${id})">
+        <option value="HC">🛠️ Đi HC (Cả ngày)</option>
+        <option value="HC/2">🌗 Đi HC (Nửa ngày)</option>
+        <option value="P">🏖️ Nghỉ Phép (P)</option>
+      </select>
+      <input type="date" class="h-date" style="padding:8px; width:100%; border-radius:4px;" onchange="checkShiftStatus(${id}); validateHCDates(${id})">
+    </td>
     <td><select class="h-role" style="padding:8px; width:100%; border-radius:4px;" onchange="syncHCFilters(${id}); checkShiftStatus(${id}); validateHCDates(${id})"><option value="">- Chọn -</option>${roles.map(r=>`<option>${r}</option>`).join('')}</select></td>
     <td><select class="h-kip" style="padding:8px; width:100%; border-radius:4px;" onchange="syncHCFilters(${id}); checkShiftStatus(${id}); validateHCDates(${id})"><option value="">- Kíp -</option>${kips.map(k=>`<option>${k}</option>`).join('')}</select></td>
     <td>
@@ -1562,8 +1575,8 @@ function checkShiftStatus(id) {
   const row = document.getElementById(`hc-r-${id}`);
   const d = row.querySelector('.h-date').value;
   const k = row.querySelector('.h-kip').value;
+  const type = row.querySelector('.h-type').value;
   const chkContainer = row.querySelector('.h-main-chk');
-  
   const pkipBox = row.querySelector('.h-pkip');
   const partnerBox = row.querySelector('.h-partner');
   const retBox = row.querySelector('.h-ret');
@@ -1577,39 +1590,39 @@ function checkShiftStatus(id) {
   const oldW = chkContainer.querySelector('.warning-lbl'); if(oldW) oldW.remove();
 
   if(isShift) {
-    // 1. NẾU LÀ NGÀY TRỰC -> Mở khóa, bắt buộc nhập người đi thay
     pkipBox.style.opacity = '1'; pkipBox.style.pointerEvents = 'auto';
     partnerBox.style.opacity = '1'; partnerBox.style.pointerEvents = 'auto';
-    retBox.style.opacity = '1'; retBox.style.pointerEvents = 'auto';
 
-    chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#ea580c; font-size:12px; font-weight:700; margin-bottom:8px;">⚠️ Ngày trực! Bắt buộc nhập Kíp thay & Trả ca!</div>`);
-    
-    // Nếu trước đó đang hiện chữ "ĐANG NGHỈ" hoặc "BÁO LỖI" thì reset lại
+    if (type === 'P') {
+        retBox.style.opacity = '0.3'; retBox.style.pointerEvents = 'none'; retBox.value = '';
+        chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#0284c7; font-size:12px; font-weight:700; margin-bottom:8px;">🏖️ NGHỈ PHÉP: Cần Kíp thay, KHÔNG CẦN Trả ca!</div>`);
+    } else {
+        retBox.style.opacity = '1'; retBox.style.pointerEvents = 'auto';
+        chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#ea580c; font-size:12px; font-weight:700; margin-bottom:8px;">⚠️ Đi Hành Chính: Bắt buộc nhập Kíp thay & Trả ca!</div>`);
+    }
     if(partnerBox.innerHTML.includes('ĐANG NGHỈ') || partnerBox.innerHTML.includes('BÁO LỖI')) {
        partnerBox.innerHTML = '<span style="color:#64748b; font-size:12px;">Chọn Kíp thay trước</span>';
     }
   } else {
-    // 2. NẾU LÀ NGÀY NGHỈ -> Khóa mờ đi nhưng hiển thị chữ Xanh (Cho phép đi)
-    pkipBox.style.opacity = '0.3'; pkipBox.style.pointerEvents = 'none';
+    pkipBox.style.opacity = '0.3'; pkipBox.style.pointerEvents = 'none'; pkipBox.value = '';
     partnerBox.style.opacity = '0.3'; partnerBox.style.pointerEvents = 'none';
-    retBox.style.opacity = '0.3'; retBox.style.pointerEvents = 'none';
+    retBox.style.opacity = '0.3'; retBox.style.pointerEvents = 'none'; retBox.value = '';
     
-    // Reset rỗng các ô
-    pkipBox.value = '';
-    retBox.value = '';
-    
-    chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#16a34a; font-size:12px; font-weight:700; margin-bottom:8px;">✅ Kíp đang NGHỈ. Cứ ấn Phê duyệt để gán ca HC!</div>`);
-    
-    // Đổi chữ ô người đi thay thành thông báo xanh
-    partnerBox.innerHTML = `<div style="color:#16a34a; font-size:14px; font-weight:700; text-align:center; margin-top:25px;">✅ ĐANG NGHỈ (OFF)<br>Hệ thống sẽ gán tự động<br>Không cần người thay!</div>`;
+    if (type === 'P') {
+        chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px;">❌ Kíp đang NGHỈ. Không thể Nghỉ phép vào ngày nghỉ!</div>`);
+        partnerBox.innerHTML = `<div style="color:#dc2626; font-size:14px; font-weight:700; text-align:center; margin-top:25px;">❌ KHÔNG THỂ NGHỈ PHÉP</div>`;
+    } else {
+        chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#16a34a; font-size:12px; font-weight:700; margin-bottom:8px;">✅ Kíp đang NGHỈ. Cứ ấn Phê duyệt để gán ca HC!</div>`);
+        partnerBox.innerHTML = `<div style="color:#16a34a; font-size:14px; font-weight:700; text-align:center; margin-top:25px;">✅ ĐANG NGHỈ (OFF)<br>Hệ thống sẽ gán tự động</div>`;
+    }
   }
 }
 
-// MẮT THẦN QUÉT LỖI CHÉO CÁC CA
 function validateHCDates(id) {
   const row = document.getElementById(`hc-r-${id}`);
   const dHC = row.querySelector('.h-date').value;
   const kip = row.querySelector('.h-kip').value;
+  const type = row.querySelector('.h-type').value;
   const pkip = row.querySelector('.h-pkip').value;
   const dRet = row.querySelector('.h-ret').value;
   const partnerBox = row.querySelector('.h-partner');
@@ -1626,17 +1639,22 @@ function validateHCDates(id) {
   if(isShiftA && pkip) {
     const repB = NV_LIST.find(u => u.kip === pkip);
     if(repB) {
-      // 1. Check ngày đi HC
+      // 1. Check ngày đi thay: Kíp thay phải OFF
       const caB_Doi = getCaThucTe(repB.name, pkip, dHC);
       if(caB_Doi !== 'OFF') {
         partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Kíp thay đang có lịch (Ca ${caB_Doi}). Họ phải NGHỈ mới đi thay được!</div>`);
       }
-
-      // 2. Check ngày trả ca
-      if(dRet) {
+      
+      if(dRet && type !== 'P') {
+        // 2. Check ngày trả ca: Kíp thay phải có ca trực
         const caB_Tra = getCaThucTe(repB.name, pkip, dRet);
-        if(caB_Tra === 'OFF' || caB_Tra === 'HC') {
+        if(caB_Tra === 'OFF' || caB_Tra === 'HC' || caB_Tra === 'P') {
           partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Ngày trả ca, Kíp thay đang NGHỈ. Không có ca nào để gánh trả!</div>`);
+        }
+        // 3. Check ngày trả ca: Người đi HC bắt buộc phải OFF
+        const caA_Tra = getCaThucTe(repA.name, kip, dRet);
+        if(caA_Tra !== 'OFF') {
+          partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Ngày trả ca, Kíp đi HC đang vướng ca ${caA_Tra}. Phải chọn ngày NGHỈ để đi trả ca!</div>`);
         }
       }
     }
@@ -1647,19 +1665,16 @@ function renderAdminHCHist() {
   const tbody = document.getElementById('admin-hc-hist-body');
   if(!tbody) return;
 
-  // FIX: Tự động lấy tháng hiện tại nếu ô chọn tháng bị trống
   let mv = document.getElementById('f-admin-hc-month').value;
   if (!mv) {
-    const now = new Date();
-    mv = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    const now = new Date(); mv = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
     document.getElementById('f-admin-hc-month').value = mv;
   }
 
   const [yr, mo] = mv.split('-').map(Number);
-  
   const hcReqs = allReqs.filter(r => {
     if (r.status !== 'approved') return false;
-    const isDispatch = (r.partner === 'CÔNG TÁC HC' || (r.reason && r.reason.includes('[LỆNH ĐIỀU ĐỘNG]')));
+    const isDispatch = (r.partner === 'CÔNG TÁC HC' || (r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]'))));
     if (!isDispatch) return false;
     const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0, 10).split('-').map(Number) : [0,0];
     const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0, 10).split('-').map(Number) : [0,0];
@@ -1667,11 +1682,12 @@ function renderAdminHCHist() {
   }).sort((a,b) => b.id - a.id); 
 
   if(hcReqs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">Chưa có lệnh điều động nào trong tháng ${mo}/${yr}</td></tr>`; 
-    return;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Chưa có lệnh nào trong tháng ${mo}/${yr}</td></tr>`; return;
   }
   
-  tbody.innerHTML = hcReqs.map(r => `
+  tbody.innerHTML = hcReqs.map(r => {
+    const isPhep = r.reason.includes('[NGHỈ PHÉP]');
+    return `
     <tr>
       <td style="font-weight:600">${fmtDate(r.ngayDoi)}</td>
       <td style="color:#1a56a0; font-weight:700">${r.name}</td>
@@ -1680,12 +1696,14 @@ function renderAdminHCHist() {
       <td>
         ${r.partner === 'CÔNG TÁC HC' 
           ? '<span style="color:#16a34a; font-weight:600">Ngày nghỉ (OFF)</span>' 
-          : `<span style="color:#64748b; font-weight:700">${fmtDate(r.ngayTra)}</span> <span class="dp" style="background:#fef3c7; color:#b45309; border: 1px solid #fde68a;">Ca ${r.caTra}</span>`
+          : (isPhep ? '<span style="color:#0284c7; font-weight:600; font-style:italic;">Không có (Nghỉ phép)</span>' 
+                    : `<span style="color:#64748b; font-weight:700">${fmtDate(r.ngayTra)}</span> <span class="dp" style="background:#fef3c7; color:#b45309; border: 1px solid #fde68a;">Ca ${r.caTra}</span>`)
         }
       </td>
       <td style="font-size:13px;">${escapeHTML(r.reason)}</td>
       <td style="text-align:center;"><button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteAdminHC('${r.id}', this)">Thu hồi</button></td>
-    </tr>`).join('');
+    </tr>`
+  }).join('');
 }
 
 function exportExcelAdminHC() {
@@ -1712,12 +1730,12 @@ async function submitBatchHC() {
   const rows = document.querySelectorAll('#hc-table-body tr');
   if(rows.length === 0) { showAlert('app', 'Vui lòng chèn ít nhất 1 hàng để điều động!', 'ae'); return; }
   const reason = document.getElementById('hc-group-reason').value;
-  if(!reason) { showAlert('app','Vui lòng nhập lý do điều động chung!','ae'); return; }
+  if(!reason) { showAlert('app','Vui lòng nhập nội dung công việc/lý do nghỉ!','ae'); return; }
 
-  let hasError = false;
-  const allReqs = [];
+  let hasError = false; const allReqs = [];
 
   rows.forEach(row => {
+    const type = row.querySelector('.h-type').value;
     const dHC = row.querySelector('.h-date').value;
     const role = row.querySelector('.h-role').value;
     const kip = row.querySelector('.h-kip').value;
@@ -1730,61 +1748,78 @@ async function submitBatchHC() {
 
     const rep = NV_LIST.find(u => u.kip === kip);
     const isShift = rep ? (getCaTrucGoc(rep.name, kip, dHC) !== 'OFF') : false;
+    let reasonPrefix = '';
+    if (type === 'P') reasonPrefix = '[NGHỈ PHÉP]';
+    else if (type === 'HC/2') reasonPrefix = '[ĐIỀU ĐỘNG 0.5 NGÀY]';
+    else reasonPrefix = '[LỆNH ĐIỀU ĐỘNG]';
 
     if (isShift) {
       if (selectedNames.length !== selectedPartners.length) {
-        hasError = true; showAlert('app', `LỖI DÒNG: Số người đi HC (${selectedNames.length}) KHÁC số người đi thay (${selectedPartners.length})! Vui lòng tích số lượng bằng nhau.`, 'ae'); return;
+        hasError = true; showAlert('app', `LỖI: Số người đi (${selectedNames.length}) KHÁC số người đi thay (${selectedPartners.length})!`, 'ae'); return;
       }
-      if (!pkip || !retDate) {
+      if (!pkip || (type !== 'P' && !retDate)) {
         hasError = true; showAlert('app', `Vui lòng chọn Kíp thay và Ngày trả ca đầy đủ!`, 'ae'); return;
       }
+    } else {
+      if (type === 'P') { hasError = true; showAlert('app', `LỖI: Không thể Nghỉ phép vào ngày Kíp đang được OFF!`, 'ae'); return; }
     }
 
     selectedNames.forEach((n, idx) => {
       const caGocA = getCaTrucGoc(n, kip, dHC);
       const isShiftItem = caGocA !== 'OFF';
+      
+      let finalRetDate = retDate;
       let autoCaTra = 'HC';
 
       if (isShiftItem) {
-        const pName = selectedPartners[idx];
-        const caGocB_Doi = getCaThucTe(pName, pkip, dHC);
-        if (caGocB_Doi !== 'OFF') {
-            hasError = true;
-            showAlert('app', `LỖI: Đồng chí ${pName} đang vướng Ca ${caGocB_Doi} ngày đi thay. Không thể gánh ca!`, 'ae'); return;
-        }
+        if (type === 'P') {
+            finalRetDate = dHC; // Lưu giả ngày trả ca bằng ngày đi để tránh lỗi hệ thống
+            autoCaTra = 'OFF';
+        } else {
+            const pName = selectedPartners[idx];
+            const caGocB_Doi = getCaThucTe(pName, pkip, dHC);
+            if (caGocB_Doi !== 'OFF') {
+                hasError = true; showAlert('app', `LỖI: Đồng chí ${pName} đang vướng Ca ${caGocB_Doi} ngày đi thay. Không thể gánh ca!`, 'ae'); return;
+            }
+            const caGocB_Tra = getCaThucTe(pName, pkip, retDate); 
+            if (caGocB_Tra === 'OFF' || caGocB_Tra === 'HC' || caGocB_Tra === 'P') {
+                hasError = true; showAlert('app', `LỖI: Ngày trả ca ${fmtDate(retDate)}, đồng chí ${pName} đang NGHỈ. Không có ca để trả!`, 'ae'); return;
+            }
+            
+            // CHẶN BỔ SUNG: Ép người đi HC phải được nghỉ (OFF) vào ngày trả ca
+            const caGocA_Tra = getCaThucTe(n, kip, retDate);
+            if (caGocA_Tra !== 'OFF') {
+                hasError = true; showAlert('app', `LỖI: Ngày trả ca ${fmtDate(retDate)}, đồng chí ${n} (Người đi HC) đang vướng ca ${caGocA_Tra}. Phải chọn ngày NGHỈ để đi trả ca!`, 'ae'); return;
+            }
 
-        const caGocB_Tra = getCaThucTe(pName, pkip, retDate); 
-        if (caGocB_Tra === 'OFF' || caGocB_Tra === 'HC') {
-            hasError = true;
-            showAlert('app', `LỖI: Ngày ${fmtDate(retDate)}, đồng chí ${pName} đang được NGHỈ. Không có ca để trả!`, 'ae'); return;
+            autoCaTra = caGocB_Tra;
         }
-        autoCaTra = caGocB_Tra; 
       }
 
       if(!hasError) {
         allReqs.push({
           name: n, kip: kip, caDoi: isShiftItem ? caGocA : 'OFF', ngayDoi: dHC,
-          caTra: autoCaTra, ngayTra: isShiftItem ? retDate : dHC,
+          caTra: autoCaTra, ngayTra: isShiftItem ? finalRetDate : dHC,
           partner: isShiftItem ? selectedPartners[idx] : 'CÔNG TÁC HC', partnerKip: isShiftItem ? pkip : 'Hành chính', partnerRole: role,
-          reason: "[LỆNH ĐIỀU ĐỘNG] " + reason, status: 'approved'
+          reason: reasonPrefix + " " + reason, status: 'approved'
         });
       }
     });
   });
 
   if (hasError) return; 
-  if (allReqs.length === 0) { showAlert('app', 'Dữ liệu không hợp lệ (Bạn chưa tích chọn nhân sự nào).', 'ae'); return; }
-  if(!confirm(`Xác nhận PHÊ DUYỆT lệnh điều động này?\nDữ liệu sẽ tự động nội suy ca và GHI ĐÈ LÊN BẢNG CA lập tức.`)) return;
+  if (allReqs.length === 0) { showAlert('app', 'Chưa có nhân sự nào được tích chọn.', 'ae'); return; }
+  if(!confirm(`Xác nhận PHÊ DUYỆT lệnh này?\nDữ liệu sẽ tự động nội suy ca và GHI ĐÈ LÊN BẢNG CA.`)) return;
 
   const btn = document.querySelector('button[onclick="submitBatchHC()"]');
-  btn.disabled = true; btn.innerHTML = '⏳ Đang đồng bộ lên máy chủ...';
+  btn.disabled = true; btn.innerHTML = '⏳ Đang đồng bộ...';
   try {
     for(let data of allReqs) { await api({ action: "add", data: JSON.stringify(data) }); }
     await loadAll(); showAlert('app', 'Đã phê duyệt lệnh thành công!', 'as');
     document.getElementById('hc-table-body').innerHTML = ''; document.getElementById('hc-group-reason').value = '';
     renderAdminHCHist(); renderScheduleTable(); 
-  } catch(e) { showAlert('app', 'Lỗi kết nối mạng trong quá trình gửi!', 'ae'); }
-  btn.disabled = false; btn.innerHTML = '⚡ PHÊ DUYỆT LỆNH ĐIỀU ĐỘNG';
+  } catch(e) { showAlert('app', 'Lỗi kết nối mạng!', 'ae'); }
+  btn.disabled = false; btn.innerHTML = '⚡ PHÊ DUYỆT LỆNH';
 }
 </script>
 </body>
