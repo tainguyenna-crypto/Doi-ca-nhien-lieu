@@ -278,23 +278,33 @@ textarea{resize:none;height:80px}
     </div>
 
     <div class="card" style="border-top: 4px solid #f97316; margin-bottom: 20px; background: #fffaf5;">
-      <div class="sec-title" style="color:#f97316; margin-bottom:15px;">🚀 ĐIỀU CHUYỂN NHÂN SỰ SANG KÍP MỚI</div>
+      <div class="sec-title" style="color:#f97316; margin-bottom:15px;">🚀 ĐIỀU CHUYỂN NHÂN SỰ SANG TRẠNG THÁI MỚI</div>
       <div class="form-row">
         <div>
           <label>1. Lọc theo chức danh</label>
           <select id="tc-role" onchange="filterTCUsers()"><option value="">-- Tất cả --</option></select>
         </div>
         <div>
-          <label>2. Ngày bắt đầu áp dụng kíp mới</label>
+          <label>2. Ngày bắt đầu áp dụng</label>
           <input type="date" id="tc-date" style="border-color:#f97316;">
         </div>
       </div>
-      <div class="form-row full">
-        <label>3. Chọn Kíp điều chuyển đến</label>
-        <select id="tc-newkip" style="border-color:#f97316; font-weight:700; color:#ea580c;"></select>
+      <div class="form-row">
+        <div>
+          <label>3. Chọn Kíp mới</label>
+          <select id="tc-newkip" style="border-color:#f97316; font-weight:700; color:#ea580c;"></select>
+        </div>
+        <div>
+          <label>4. Mẫu lịch mới (Nếu đổi kíp hệ)</label>
+          <select id="tc-newpattern" style="border-color:#f97316;"></select>
+        </div>
       </div>
       <div class="form-row full">
-        <label>4. Chọn nhân viên (Có thể chọn nhiều người)</label>
+        <label>5. Vị trí mốc khởi tạo (Dành cho lịch riêng/ngoại lệ)</label>
+        <input type="number" id="tc-newvitri" value="0" style="border-color:#f97316;" placeholder="Nhập số vị trí mốc...">
+      </div>
+      <div class="form-row full">
+        <label>6. Chọn nhân viên (Có thể chọn nhiều người)</label>
         <div id="tc-user-list" style="height:150px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; padding:10px; background:#fff;">
           <span style="color:#94a3b8">Đang tải...</span>
         </div>
@@ -797,58 +807,93 @@ async function ldNo(id, btn){
 }
 
 // =====================================================================
-// BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (ĐỌC TỪ EXCEL)
+// BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (TRÁI TIM HỆ THỐNG)
 // =====================================================================
-function getCaTrucGoc(userName, kipName, dateStr) {
+function getCaTrucGoc(userName, defaultKip, dateStr) {
   if (!dateStr) return 'OFF';
 
-  // 1. TÌM KÍP THỰC TẾ (Ưu tiên lịch sử điều chuyển nếu có)
-  let actualKip = kipName;
+  // --- 1. TÌM TRẠNG THÁI THỰC TẾ TẠI NGÀY ĐANG XÉT ---
+  let currentKip = defaultKip;
+  let currentPattern = "3 ca 5 kíp";
+  let currentRef = 0;
+  let isNgoaiLe = false;
+
+  // Lấy giá trị mặc định từ hồ sơ gốc (sheet users)
+  const uConf = NV_LIST.find(u => u.name === userName);
+  if (uConf) {
+    currentPattern = uConf.isNgoaiLe ? uConf.tenMau : "3 ca 5 kíp";
+    currentRef = parseInt(uConf.viTriMoc) || 0;
+    isNgoaiLe = uConf.isNgoaiLe;
+  }
+
+  // MẮT THẦN: Quét lịch sử điều chuyển để ghi đè nếu ngày xét >= ngày áp dụng lệnh
   if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
-    const sortedTransfers = allTransfers
+    const sorted = allTransfers
       .filter(t => t.name === userName && dateStr >= t.date)
       .sort((a, b) => b.date.localeCompare(a.date));
-    if (sortedTransfers.length > 0) {
-      actualKip = sortedTransfers[0].newKip;
+    
+    if (sorted.length > 0) {
+      const latest = sorted[0];
+      if (latest.newKip) currentKip = latest.newKip;
+      if (latest.newPattern) {
+        currentPattern = latest.newPattern;
+        currentRef = parseInt(latest.newViTriMoc) || 0;
+        isNgoaiLe = (latest.newPattern !== "3 ca 5 kíp");
+      }
     }
   }
-// === CHẶN NGAY TỪ ĐẦU NẾU LÀ HÀNH CHÍNH ===
-  if ((actualKip || "").toLowerCase().includes('hành chính') || (actualKip || "").toLowerCase() === 'hc') {
-    const d = new Date(dateStr).getDay();
-    // Mặc định nghỉ Thứ 7 (6) và Chủ nhật (0). Các ngày khác hiển thị chữ HC.
-    return (d === 0 || d === 6) ? 'OFF' : 'HC'; 
-  }
-// ==========================================
-  const uConf = NV_LIST.find(u => u.name === userName);
-  let chuKy = [];
-  let ngayMocStr = "";
-  let viTriMoc = 0;
 
-  // PHÂN LUỒNG: Đi theo lịch ngoại lệ hay lịch Kíp chuẩn?
-  if (uConf && uConf.isNgoaiLe) {
-    const mau = MAU_LICH[uConf.tenMau];
-    if (!mau) return 'OFF'; 
-    chuKy = mau.chuKy;
-    ngayMocStr = mau.ngayMoc;
-    viTriMoc = parseInt(uConf.viTriMoc) || 0;
-  } else {
-    const mauChuan = MAU_LICH["3 ca 5 kíp"];
-    if (!mauChuan) return 'OFF';
-    chuKy = mauChuan.chuKy;
-    ngayMocStr = mauChuan.ngayMoc;
+  // --- 2. XỬ LÝ KHỐI HÀNH CHÍNH (LỄ, NGHỈ BÙ) ---
+  if ((currentKip || "").toLowerCase().includes('hành chính') || (currentKip || "").toLowerCase() === 'hc') {
+    const dateObj = new Date(dateStr);
+    const d = dateObj.getDay(); 
+
+    const ngayNghiCuoiTuan = [0]; // 0 là Chủ nhật. Nếu nghỉ cả T7 thì đổi thành [0, 6]
+    const isCuoiTuan = ngayNghiCuoiTuan.includes(d);
+
     const c = APP_CONFIG.configs || {};
-    
-    // Tự động bóc tách con số từ KÍP THỰC TẾ (Ví dụ: "Kíp 2" -> "2")
-    const soKip = actualKip.replace(/\D/g, ""); 
+    const mangLe = (c.NGAY_LE || "").split(',').map(s => s.trim());
+    const isNgayLe = mangLe.includes(dateStr);
+
+    let isNghiBu = false;
+    if (!isCuoiTuan && !isNgayLe) {
+      let compDaysEarned = 0;
+      for (let i = 10; i >= 1; i--) {
+        let past = new Date(dateObj);
+        past.setDate(dateObj.getDate() - i);
+        let pastStr = past.getFullYear() + '-' + String(past.getMonth() + 1).padStart(2, '0') + '-' + String(past.getDate()).padStart(2, '0');
+        let pastDay = past.getDay();
+        
+        let pastIsHol = mangLe.includes(pastStr);
+        let pastIsCuoiTuan = ngayNghiCuoiTuan.includes(pastDay);
+
+        if (pastIsHol && pastIsCuoiTuan) compDaysEarned++; 
+        else if (!pastIsHol && !pastIsCuoiTuan && compDaysEarned > 0) compDaysEarned--; 
+      }
+      if (compDaysEarned > 0) isNghiBu = true;
+    }
+
+    if (isCuoiTuan || isNgayLe || isNghiBu) return 'OFF';
+    return 'HC'; 
+  }
+
+  // --- 3. XỬ LÝ KHỐI CA KÍP (ĐỌC VÒNG LẶP MẪU LỊCH) ---
+  const mau = MAU_LICH[currentPattern];
+  if (!mau) return 'OFF';
+  
+  let chuKy = mau.chuKy;
+  let ngayMocStr = mau.ngayMoc;
+  let viTriMoc = currentRef;
+
+  // Nếu là lịch chuẩn, bốc vị trí mốc theo tên Kíp từ Settings
+  if (!isNgoaiLe) {
+    const c = APP_CONFIG.configs || {};
+    const soKip = currentKip.replace(/\D/g, ""); 
     const keyTimKiem = "MOC_KIP_" + soKip;
-    
     viTriMoc = c[keyTimKiem] !== undefined ? parseInt(c[keyTimKiem]) : 0; 
   }
 
-  // THUẬT TOÁN TÍNH CA
-  const ngayMoc = new Date(ngayMocStr);
-  const ngayCanTim = new Date(dateStr);
-  const diffTime = ngayCanTim - ngayMoc;
+  const diffTime = new Date(dateStr) - new Date(ngayMocStr);
   let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
   const len = chuKy.length;
@@ -1979,9 +2024,11 @@ let allTransfers = []; // Biến lưu trữ lịch sử điều chuyển
 function initTransferForm() {
   const roles = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
   const kips = [...new Set(NV_LIST.map(u => u.kip))].filter(Boolean);
+  const patterns = Object.keys(MAU_LICH); 
   
   document.getElementById('tc-role').innerHTML = '<option value="">-- Tất cả --</option>' + roles.map(r=>`<option>${r}</option>`).join('');
-  document.getElementById('tc-newkip').innerHTML = kips.map(k=>`<option>${k}</option>`).join('');
+  document.getElementById('tc-newkip').innerHTML = '<option value="">-- Giữ nguyên Kíp --</option>' + kips.map(k=>`<option>${k}</option>`).join('');
+  document.getElementById('tc-newpattern').innerHTML = '<option value="">-- Giữ nguyên Mẫu --</option>' + patterns.map(p=>`<option>${p}</option>`).join('');
   
   const now = new Date();
   document.getElementById('f-transfer-month').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -2016,20 +2063,21 @@ function toggleAllTC(masterCheckbox) {
 async function submitTransfer() {
   const date = document.getElementById('tc-date').value;
   const newKip = document.getElementById('tc-newkip').value;
+  const newPattern = document.getElementById('tc-newpattern').value;
+  const newViTriMoc = document.getElementById('tc-newvitri').value;
   const users = Array.from(document.querySelectorAll('.tc-user-val:checked')).map(cb => cb.value);
 
   if(!date || users.length === 0) { showAlert('app','Vui lòng chọn ngày và nhân viên!','ae'); return; }
-  if(!confirm(`Xác nhận chuyển ${users.length} người sang ${newKip} kể từ ngày ${fmtDate(date)}?`)) return;
+  if(!confirm(`Xác nhận chuyển ${users.length} người sang trạng thái mới kể từ ${fmtDate(date)}?`)) return;
 
   showAlert('app','Đang xử lý...','ai');
   try {
-    // Gửi từng người lên server (Lưu vào tab chuyển kíp trên Excel)
     for(let name of users) {
-      await api({ action: "addTransfer", data: JSON.stringify({ name, date, newKip }) });
+      await api({ action: "addTransfer", data: JSON.stringify({ name, date, newKip, newPattern, newViTriMoc }) });
     }
-    await loadTransfers(); // Tải lại dữ liệu
+    await loadTransfers(); 
     renderTransferLog();
-    renderScheduleTable(); // Cập nhật lại bảng ca ngay lập tức
+    renderScheduleTable(); 
     showAlert('app','Điều chuyển thành công!','as');
     document.getElementById('tc-date').value = '';
   } catch(e) { showAlert('app','Lỗi kết nối!','ae'); }
