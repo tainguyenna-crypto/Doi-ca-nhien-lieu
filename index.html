@@ -911,30 +911,41 @@ function addDays(dateStr, days) {
 // =====================================================================
 // LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
 // =====================================================================
-// HÀM TÍNH LỊCH THỰC TẾ (HỖ TRỢ NGHỈ PHÉP & HC NỬA NGÀY)
+// HÀM TÍNH LỊCH THỰC TẾ (ĐÃ FIX: ƯU TIÊN TUYỆT ĐỐI CHO LỆNH ĐIỀU ĐỘNG)
 function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null) {
    let ca = getCaTrucGoc(userName, kipName, dateStr); 
-   
    const reqs = allReqs.filter(r => (r.status === 'pending_ld' || r.status === 'approved') && r.id !== ignoreReqId);
    
+   let finalOverride = null; // Biến lưu trữ "Thẻ kim bài" của Lệnh điều động
+
    for (let i = 0; i < reqs.length; i++) {
       let r = reqs[i];
-      const isHC = r.reason && r.reason.includes('[LỆNH ĐIỀU ĐỘNG]');
-      const isHCHalf = r.reason && r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]');
+      const isSpecial = r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]'));
       const isPhep = r.reason && r.reason.includes('[NGHỈ PHÉP]');
-      const isNoReturn = isPhep; // Nghỉ phép thì không có khái niệm trả ca
 
-      // 1. Xóa ca cũ trước (Gán chữ HC, HC/2 hoặc P)
+      // Ngữ cảnh 1: Mình là người ĐƯỢC ĐIỀU ĐỘNG / XIN NGHỈ vào ngày đó
       if (r.name === userName && r.ngayDoi === dateStr) {
-          ca = isHC ? 'HC' : (isHCHalf ? 'HC/2' : (isPhep ? 'P' : 'OFF'));
+          if (isSpecial) {
+              if (r.reason.includes('[NGHỈ PHÉP]')) finalOverride = 'P';
+              else if (r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]')) finalOverride = 'HC/2';
+              else finalOverride = 'HC';
+          } else {
+              ca = 'OFF'; // Đổi ca bình thường thì thành OFF
+          }
       }
-      if (r.partner === userName && r.ngayTra === dateStr && !isNoReturn) ca = 'OFF';
       
-      // 2. Nhận ca mới vào
-      if (r.name === userName && r.ngayTra === dateStr && !isNoReturn) ca = r.caTra;
+      // Ngữ cảnh 2: Mình là người ĐI THAY (trả ca) vào ngày trả -> được nghỉ
+      if (r.partner === userName && r.ngayTra === dateStr && !isPhep) ca = 'OFF';
+      
+      // Ngữ cảnh 3: Mình là người XIN NGHỈ (đi làm bù) vào ngày trả -> nhận ca
+      if (r.name === userName && r.ngayTra === dateStr && !isPhep) ca = r.caTra;
+      
+      // Ngữ cảnh 4: Mình là người ĐI THAY vào ngày đổi -> nhận ca
       if (r.partner === userName && r.ngayDoi === dateStr) ca = r.caDoi;
    }
-   return ca;
+   
+   // Nếu có Lệnh HC/Phép, nó sẽ ghi đè lên tất cả kết quả tính toán bên dưới
+   return finalOverride !== null ? finalOverride : ca;
 }
 
 // 2. LÍNH GÁC AN TOÀN (TỰ ĐỘNG QUÉT LUẬT TỪ EXCEL)
@@ -978,7 +989,7 @@ function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi, ignoreReqId = n
     
     // So sánh với định mức trên Excel
     if (countK >= maxK) {
-      return `Vi phạm quy định: Đi ${countK} ca K liên tiếp (Tối đa cho phép là ${maxK}).`;
+      return `Vi phạm quy định: Đi ${countK} ca K liên tiếp (Tối đa cho phép là ${maxK - 1}).`;
     }
   }
   return false;
@@ -1807,44 +1818,69 @@ function validateHCDates(id) {
   const dRet = row.querySelector('.h-ret').value;
   const partnerBox = row.querySelector('.h-partner');
 
+  // Xóa các cảnh báo cũ mỗi khi Admin thay đổi lựa chọn
   const oldErrs = partnerBox.querySelectorAll('.realtime-err');
   oldErrs.forEach(e => e.remove());
 
   if(!dHC || !kip) return; 
 
+  // Lấy đại diện 1 người để check luật (vì cả kíp đi giống nhau)
   const selectedNames = Array.from(row.querySelectorAll('.hc-chk-val:checked')).map(cb => cb.value);
+  let repA_name = selectedNames.length > 0 ? selectedNames[0] : null;
+  if (!repA_name) {
+    const repObj = NV_LIST.find(u => u.kip === kip);
+    if(repObj) repA_name = repObj.name;
+  }
+  
   let isShiftA = false;
-  if (selectedNames.length > 0) {
-    isShiftA = selectedNames.some(name => getCaThucTe(name, kip, dHC) !== 'OFF');
-  } else {
-    const repA = NV_LIST.find(u => u.kip === kip);
-    if(repA) isShiftA = getCaThucTe(repA.name, kip, dHC) !== 'OFF';
+  let caThucTeA = 'OFF';
+  
+  if (repA_name) {
+      caThucTeA = getCaThucTe(repA_name, kip, dHC);
+      isShiftA = caThucTeA !== 'OFF';
+      
+      // [1] LỖI NGƯỜI ĐI: Báo lỗi ngay nếu ép người đang trực ca đi Hành chính sai luật
+      if (isShiftA) {
+          const loiA_HC = checkViPhamAnToan(repA_name, kip, dHC, type);
+          if (loiA_HC) {
+              partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Lỗi người đi HC: ${loiA_HC}</div>`);
+          }
+      }
   }
 
   if(isShiftA && pkip) {
     const repB = NV_LIST.find(u => u.kip === pkip);
     if(repB) {
       const caB_Doi = getCaThucTe(repB.name, pkip, dHC);
+      
+      // [2] LỖI NGƯỜI THAY: Bận lịch không đi thay được
       if(caB_Doi !== 'OFF') {
         partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Kíp thay đang có lịch (Ca ${caB_Doi}). Họ phải NGHỈ mới đi thay được!</div>`);
+      } else {
+        // [3] LỖI NGƯỜI THAY (AN TOÀN): Vi phạm luật C-K, 4K khi gánh ca
+        const loiB_Thay = checkViPhamAnToan(repB.name, pkip, dHC, caThucTeA);
+        if (loiB_Thay) partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Lỗi An toàn (Người thay): ${loiB_Thay}</div>`);
       }
       
       if(dRet && type !== 'P') {
         const caB_Tra = getCaThucTe(repB.name, pkip, dRet);
+        
+        // [4] LỖI TRẢ CA: Kíp thay hôm đó đang nghỉ, không có ca để trả
         if(caB_Tra === 'OFF' || caB_Tra === 'HC' || caB_Tra === 'P') {
           partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Ngày trả ca, Kíp thay đang NGHỈ. Không có ca nào để gánh trả!</div>`);
         }
         
-        let caA_Tra = 'OFF';
-        if (selectedNames.length > 0) {
-            caA_Tra = getCaThucTe(selectedNames[0], kip, dRet);
-        } else {
-            const repA = NV_LIST.find(u => u.kip === kip);
-            if(repA) caA_Tra = getCaThucTe(repA.name, kip, dRet);
-        }
-        
-        if(caA_Tra !== 'OFF') {
-          partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Ngày trả ca, Kíp đi HC đang vướng ca ${caA_Tra}. Phải chọn ngày NGHỈ để đi trả ca!</div>`);
+        if (repA_name) {
+            const caA_Tra = getCaThucTe(repA_name, kip, dRet);
+            
+            // [5] LỖI TRẢ CA: Người đi HC hôm đó lại đang bận trực
+            if(caA_Tra !== 'OFF') {
+              partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Ngày trả ca, Kíp đi HC đang vướng ca ${caA_Tra}. Phải chọn ngày NGHỈ để đi trả ca!</div>`);
+            } else if (caB_Tra !== 'OFF' && caB_Tra !== 'HC' && caB_Tra !== 'P') {
+                // [6] LỖI TRẢ CA (AN TOÀN): Vi phạm C-K, 4K khi nhận ca trả
+                const loiA_Tra = checkViPhamAnToan(repA_name, kip, dRet, caB_Tra);
+                if (loiA_Tra) partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Lỗi An toàn (Lúc trả ca): ${loiA_Tra}</div>`);
+            }
         }
       }
     }
@@ -1921,7 +1957,12 @@ async function submitBatchHC() {
   if(rows.length === 0) { showAlert('app', 'Vui lòng chèn ít nhất 1 hàng để điều động!', 'ae'); return; }
   const reason = document.getElementById('hc-group-reason').value;
   if(!reason) { showAlert('app','Vui lòng nhập nội dung công việc/lý do nghỉ!','ae'); return; }
-
+// --- CHỐT CHẶN GIAO DIỆN: KHÓA NÚT NẾU ĐANG CÓ LỖI ĐỎ ---
+  const realtimeErrors = document.querySelectorAll('.realtime-err');
+  if (realtimeErrors.length > 0) {
+      showAlert('app', '❌ LỆNH ĐANG BỊ SAI LUẬT! Vui lòng xử lý các cảnh báo màu đỏ trên màn hình trước khi ấn Phê duyệt.', 'ae');
+      return;
+  }
   let hasError = false; const allReqs = [];
 
   rows.forEach(row => {
@@ -1990,6 +2031,18 @@ async function submitBatchHC() {
             }
 
             autoCaTra = caGocB_Tra;
+           // ========================================================
+            // BỔ SUNG: KIỂM TRA LUẬT AN TOÀN KHI ADMIN ĐIỀU ĐỘNG
+            // ========================================================
+            const loiNguoiThay = checkViPhamAnToan(pName, pkip, dHC, caThucTeA);
+            if(loiNguoiThay) {
+                hasError = true; showAlert('app', `LỖI AN TOÀN: Đ/c ${pName} đi thay ngày ${fmtDate(dHC)} sẽ vi phạm - ${loiNguoiThay}`, 'ae'); return;
+            }
+            const loiNguoiTra = checkViPhamAnToan(n, kip, retDate, autoCaTra);
+            if(loiNguoiTra) {
+                hasError = true; showAlert('app', `LỖI AN TOÀN: Đ/c ${n} trả ca ngày ${fmtDate(retDate)} sẽ vi phạm - ${loiNguoiTra}`, 'ae'); return;
+            }
+            // ========================================================
         }
       }
 
