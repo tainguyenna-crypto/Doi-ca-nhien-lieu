@@ -714,8 +714,23 @@ function escapeHTML(str) {
   );
 }
 
-// Hàm render thẻ đổi ca an toàn
-function reqCard(r,a=''){
+// Hàm phụ trợ: Chuyển đổi chuỗi thời gian thành định dạng Giờ:Phút Ngày/Tháng/Năm
+function fmtDateTime(str) {
+    if (!str) return '';
+    try {
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return str; 
+        const hrs = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${hrs}:${mins} ${dd}/${mm}/${yyyy}`;
+    } catch(e) { return str; }
+}
+
+// Hàm render thẻ đổi ca an toàn (ĐÃ BỔ SUNG LỊCH SỬ THỜI GIAN VÀ CẢNH BÁO SLA CHỜ DUYỆT)
+function reqCard(r, a = '') {
   const safeReason = escapeHTML(r.reason);
   const safeName = escapeHTML(r.name);
   const safePartner = escapeHTML(r.partner);
@@ -725,9 +740,65 @@ function reqCard(r,a=''){
   const textDoi = r.ngayDoi ? `📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}` : `📅 Đổi: <i>Chưa xác định</i>`;
   const textTra = r.ngayTra ? `🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}` : `🔄 Trả: <i>Chưa xác định</i>`;
 
-  return`<div class="req">${flowBar(r.status)}<div class="req-hd"><strong>${safeName}</strong>${badge(r.status)}</div><div class="req-meta">${textDoi}<br>${textTra}<br>👤 Người đi thay: ${safePartner}<br>${safeReason?'💬 '+safeReason:''}${safeRejectBy?'<br>❌ Từ chối: '+safeRejectBy:''}${imgLink}</div>${a?'<div class="req-acts">'+a+'</div>':''}</div>`;
-}
+  // --- BỘ XỬ LÝ NHẬT KÝ THỜI GIAN ---
+  let timeLogs = '';
+  if (r.createdAt) timeLogs += `🔸 <b>Tạo đơn:</b> ${fmtDateTime(r.createdAt)}<br>`;
+  if (r.partnerApprovedAt) timeLogs += `🔸 <b>Người thay OK:</b> ${fmtDateTime(r.partnerApprovedAt)}<br>`;
+  if (r.approvedAt) timeLogs += `🔸 <b>LĐ duyệt:</b> ${fmtDateTime(r.approvedAt)}<br>`;
+  if (r.rejectedAt) timeLogs += `🔸 <b>Từ chối lúc:</b> ${fmtDateTime(r.rejectedAt)}<br>`;
+  const timeHtml = timeLogs ? `<div style="margin-top:10px; padding-top:8px; border-top:1px dashed #cbd5e1; font-size:11px; color:#64748b; line-height:1.6;">${timeLogs}</div>` : '';
 
+  // =========================================================
+  // BỘ TÍNH TOÁN CẢNH BÁO SLA (THỜI GIAN NGÂM ĐƠN)
+  // =========================================================
+  let slaStyle = ''; 
+  let slaWarning = '';
+
+  // Chỉ tính SLA cho các đơn đang ở trạng thái CHỜ
+  if (r.status === 'pending_partner' || r.status === 'pending_ld') {
+      let startTime = null;
+      
+      // Nếu đang chờ Đồng nghiệp -> Tính từ lúc Tạo đơn
+      if (r.status === 'pending_partner' && r.createdAt) {
+          startTime = new Date(r.createdAt).getTime();
+      } 
+      // Nếu đang chờ Lãnh đạo -> Tính từ lúc Đồng nghiệp OK
+      else if (r.status === 'pending_ld' && r.partnerApprovedAt) {
+          startTime = new Date(r.partnerApprovedAt).getTime();
+      }
+
+      if (startTime) {
+          const now = new Date().getTime();
+          // Tính số ngày đã trôi qua
+          const diffDays = (now - startTime) / (1000 * 60 * 60 * 24);
+
+          // Cài đặt mốc cảnh báo (3 ngày và 5 ngày)
+          if (diffDays >= 5) {
+              // Quá 5 ngày: Báo ĐỎ - Cảnh báo khẩn cấp
+              slaStyle = 'background-color:#fef2f2; border:1px solid #fca5a5;';
+              slaWarning = `<div style="font-size:11.5px; color:#dc2626; font-weight:700; margin-bottom:8px; display:inline-block; background:#fee2e2; padding:2px 8px; border-radius:4px;">⏳ Đã ngâm đơn > ${Math.floor(diffDays)} ngày!</div>`;
+          } else if (diffDays >= 3) {
+              // Quá 3 ngày: Báo VÀNG - Nhắc nhở
+              slaStyle = 'background-color:#fffbeb; border:1px solid #fde68a;';
+              slaWarning = `<div style="font-size:11.5px; color:#d97706; font-weight:700; margin-bottom:8px; display:inline-block; background:#fef3c7; padding:2px 8px; border-radius:4px;">⏳ Đang chờ > ${Math.floor(diffDays)} ngày</div>`;
+          }
+      }
+  }
+
+  // --- TRẢ VỀ GIAO DIỆN THẺ (Đã chèn SLA Style) ---
+  return`
+  <div class="req" style="${slaStyle} padding:14px; border-radius:8px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+    ${slaWarning}
+    ${flowBar(r.status)}
+    <div class="req-hd">
+      <strong>${safeName}</strong>${badge(r.status)}
+    </div>
+    <div class="req-meta">
+      ${textDoi}<br>${textTra}<br>👤 Người đi thay: ${safePartner}<br>${safeReason?'💬 '+safeReason:''}${safeRejectBy?'<br>❌ Từ chối: '+safeRejectBy:''}${imgLink}${timeHtml}
+    </div>
+    ${a?'<div class="req-acts">'+a+'</div>':''}
+  </div>`;
+}
 function renderDongY(){ 
   const el=document.getElementById('list-dong-y'); 
   const its=allReqs.filter(r=>r.status==='pending_partner'&&r.partner===CU.name); 
@@ -1053,32 +1124,53 @@ function addDays(dateStr, days) {
 function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullObj = false) {
    let ca = getCaTrucGoc(userName, kipName, dateStr); 
    const reqs = allReqs.filter(r => (r.status === 'approved' || r.status === 'pending_ld') && r.id !== ignoreReqId);
+   
    let finalOverride = null;
    let currentStatus = 'goc'; 
+   let isCommandFound = false; // Cờ đánh dấu nếu đã tìm thấy Lệnh điều động cấp cao
 
    for (let i = 0; i < reqs.length; i++) {
       let r = reqs[i];
-     // Nhận diện tất cả các nhãn kể cả có hay không có chữ (KHÔNG THAY)
+      // Nhận diện Lệnh cấp cao (Điều động, Nghỉ phép, Việc riêng...)
       const isSpecial = r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]') || r.reason.includes('[VIỆC RIÊNG]') || r.reason.includes('[NGHỈ ỐM]'));
       
+      let matched = false;
+      let tempCa = ca;
+
+      // 1. Kiểm tra khớp tên và ngày
       if (r.name === userName && r.ngayDoi === dateStr) {
           if (isSpecial) {
-              if (r.reason.includes('[NGHỈ PHÉP]')) finalOverride = 'P';
-              else if (r.reason.includes('[VIỆC RIÊNG]')) finalOverride = 'VR';
-              else if (r.reason.includes('[NGHỈ ỐM]')) finalOverride = 'Ô';
-              else if (r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]')) finalOverride = 'HC/2';
-              else finalOverride = 'HC';
-          } else { ca = 'OFF'; }
-          currentStatus = r.status;
+              if (r.reason.includes('[NGHỈ PHÉP]')) tempCa = 'P';
+              else if (r.reason.includes('[VIỆC RIÊNG]')) tempCa = 'VR';
+              else if (r.reason.includes('[NGHỈ ỐM]')) tempCa = 'Ô';
+              else if (r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]')) tempCa = 'HC/2';
+              else tempCa = 'HC';
+              finalOverride = tempCa;
+          } else { tempCa = 'OFF'; }
+          matched = true;
       }
-      if (r.partner === userName && r.ngayTra === dateStr && !r.reason.includes('[NGHỈ PHÉP]')) { ca = 'OFF'; currentStatus = r.status; }
-      if (r.name === userName && r.ngayTra === dateStr && !r.reason.includes('[NGHỈ PHÉP]')) { ca = r.caTra; currentStatus = r.status; }
-      if (r.partner === userName && r.ngayDoi === dateStr) { ca = r.caDoi; currentStatus = r.status; }
+      else if (r.partner === userName && r.ngayTra === dateStr && (!r.reason || !r.reason.includes('[NGHỈ PHÉP]'))) { tempCa = 'OFF'; matched = true; }
+      else if (r.name === userName && r.ngayTra === dateStr && (!r.reason || !r.reason.includes('[NGHỈ PHÉP]'))) { tempCa = r.caTra; matched = true; }
+      else if (r.partner === userName && r.ngayDoi === dateStr) { tempCa = r.caDoi; matched = true; }
+      
+      // 2. LOGIC ƯU TIÊN TUYỆT ĐỐI
+      if (matched) {
+         if (isSpecial && r.status === 'approved') {
+            // LỆNH ĐIỀU ĐỘNG ĐÃ DUYỆT -> Chốt cứng kết quả, không cho đơn chờ duyệt nào đè lên nữa
+            isCommandFound = true;
+            ca = tempCa;
+            currentStatus = 'approved'; 
+         } 
+         else if (!isCommandFound) {
+            // Chỉ áp dụng đơn cá nhân/đơn chờ nếu chưa có lệnh điều động nào chèn vào
+            ca = tempCa;
+            currentStatus = r.status;
+         }
+      }
    }
    const resCa = finalOverride !== null ? finalOverride : ca;
    return returnFullObj ? { ca: resCa, status: currentStatus } : resCa;
 }
-
 // 2. LÍNH GÁC AN TOÀN (TỰ ĐỘNG QUÉT LUẬT TỪ EXCEL)
 function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi, ignoreReqId = null) {
   const ngayTruoc = addDays(dateStr, -1);
@@ -1713,13 +1805,13 @@ function renderScheduleTable() {
       // LƯỚI LỌC MÀU SẮC - THỨ TỰ ƯU TIÊN TỪ CAO XUỐNG THẤP
       // ====================================================
       if (status === 'pending_ld') {
-         // 1. ƯU TIÊN MÀU TÍM BẤT CHẤP LỆCH CA
+         // 1. ƯU TIÊN TUYỆT ĐỐI: MÀU TÍM (Đang chờ duyệt)
          style = "background:#f3e8ff !important; color:#7e22ce !important; border:1px dashed #a855f7 !important; font-weight:800 !important;";
       } else if (isLech) {
-         // 2. LỆCH CA ĐÃ DUYỆT (Cam nhạt)
+         // 2. LỆCH CA ĐÃ DUYỆT (Màu Cam nhạt)
          style = "background:#fff7ed; color:#ea580c; font-weight:700;";
       } else if (isLe && ca !== 'OFF') {
-         // 3. ĐI LÀM NGÀY LỄ (Nền hồng chữ đỏ)
+         // 3. ĐI LÀM NGÀY LỄ (Nền hồng, chữ đỏ)
          style = "background:#fef2f2; color:#dc2626; font-weight:700;";
       } else if (ca === 'P') {
          // 4. NGHỈ PHÉP (Xanh lam)
@@ -2095,7 +2187,8 @@ async function submitBatchHC() {
   }
   
   let hasError = false; 
-  const allReqsHC = []; // Mảng tạm để lưu các lệnh chuẩn bị gửi đi
+  const allReqsHC = []; 
+  const cancelIds = new Set(); // MẢNG TẠM LƯU ID CÁC ĐƠN CẦN TỰ ĐỘNG HỦY
 
   rows.forEach(row => {
     const type = row.querySelector('.h-type').value;
@@ -2111,11 +2204,9 @@ async function submitBatchHC() {
     const retDate = row.querySelector('.h-ret').value;
     const isNoReplace = row.querySelector('.h-no-replace').checked;
 
-    // PHÂN LOẠI LỆNH
     const isLeave = (type === 'P' || type === 'VR' || type === 'Ô');
-    const isRowShift = !isLeave; // HC hoặc HC/2
+    const isRowShift = !isLeave;
 
-    // KIỂM TRA ĐIỀU KIỆN NHẬP LIỆU
     if (isRowShift && !isNoReplace) {
         if (selectedNames.length !== selectedPartners.length) { hasError = true; showAlert('app', `LỖI: Số người đi KHÁC số người thay!`, 'ae'); return; }
         if (!pkip || !retDate) { hasError = true; showAlert('app', `Vui lòng chọn Kíp thay và Ngày trả ca!`, 'ae'); return; }
@@ -2156,6 +2247,22 @@ async function submitBatchHC() {
         }
       }
 
+      // ========================================================
+      // BỘ QUÉT: TÌM CÁC ĐƠN CÁ NHÂN ĐANG CHỜ MÀ BỊ TRÙNG LỊCH
+      // ========================================================
+      const checkUsers = [n, finalPartner];
+      const checkDates = [dHC, finalRetDate];
+      
+      allReqs.forEach(r => {
+          if (r.status === 'pending_partner' || r.status === 'pending_ld') {
+              if (checkUsers.includes(r.name) || checkUsers.includes(r.partner)) {
+                  if (checkDates.includes(r.ngayDoi) || checkDates.includes(r.ngayTra)) {
+                      cancelIds.add(r.id); // Ghi lại ID để lát nữa đem đi "Hủy"
+                  }
+              }
+          }
+      });
+
       if(!hasError) {
         allReqsHC.push({
           name: n, kip: kip, caDoi: isShiftItem ? caThucTeA : 'OFF', ngayDoi: dHC,
@@ -2169,13 +2276,30 @@ async function submitBatchHC() {
 
   if (hasError) return; 
   if (allReqsHC.length === 0) { showAlert('app', 'Chưa chọn nhân sự nào.', 'ae'); return; }
-  if(!confirm(`Xác nhận PHÊ DUYỆT ${allReqsHC.length} lệnh điều động?`)) return;
+  
+  // CẢNH BÁO LÃNH ĐẠO NẾU CÓ ĐƠN BỊ HỦY
+  let confirmMsg = `Xác nhận PHÊ DUYỆT ${allReqsHC.length} lệnh điều động?`;
+  if (cancelIds.size > 0) {
+      confirmMsg += `\n\n⚠️ LƯU Ý: Phát hiện có ${cancelIds.size} đơn xin đổi ca đang chờ duyệt bị TRÙNG LỊCH với lệnh này. Hệ thống sẽ TỰ ĐỘNG HỦY các đơn đó!`;
+  }
+  if(!confirm(confirmMsg)) return;
 
   const btn = document.querySelector('button[onclick="submitBatchHC()"]');
   btn.disabled = true; btn.innerHTML = '⏳ Đang đồng bộ...';
   try {
-    for(let data of allReqsHC) { await api({ action: "add", data: JSON.stringify(data) }); }
-    await loadAll(); showAlert('app', 'Đã ban hành lệnh thành công!', 'as');
+    // 1. BẮN LỆNH HỦY CÁC ĐƠN TRÙNG LỊCH LÊN MÁY CHỦ TRƯỚC
+    const cancelArr = Array.from(cancelIds);
+    for(let id of cancelArr) {
+        await api({action: "updateStatus", id: id, status: "cancelled", by: "Hệ thống (Auto)"});
+    }
+    
+    // 2. BẮN LỆNH ĐIỀU ĐỘNG SAU
+    for(let data of allReqsHC) { 
+        await api({ action: "add", data: JSON.stringify(data) }); 
+    }
+    
+    await loadAll(); 
+    showAlert('app', 'Đã ban hành lệnh thành công!', 'as');
     document.getElementById('hc-table-body').innerHTML = ''; document.getElementById('hc-group-reason').value = '';
     renderAdminHCHist(); renderScheduleTable(); 
   } catch(e) { showAlert('app', 'Lỗi mạng!', 'ae'); }
