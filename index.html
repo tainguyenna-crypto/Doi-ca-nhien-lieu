@@ -1614,7 +1614,7 @@ function exportExcelWarn() {
   downloadExcel(tableHTML, `Canh_Bao_Lech_Ca_${mv}.xls`, `CanhBao`);
 }
 // ===============================================================
-// HÀM VẼ BẢNG ĐI CA (SẮP XẾP ĐỒNG LOẠT THEO CHỨC DANH & KÍP)
+// HÀM VẼ BẢNG ĐI CA (ĐÃ PHÂN RÕ CẤP ĐỘ ƯU TIÊN MÀU SẮC)
 // ===============================================================
 function renderScheduleTable() {
   const mv = document.getElementById('f-sched-month').value || document.getElementById('f-month').value;
@@ -1626,7 +1626,7 @@ function renderScheduleTable() {
   const btnExport = document.getElementById('btn-export-sched');
   if (btnExport) btnExport.style.display = (CU.role === 'ld') ? 'inline-flex' : 'none';
 
-  // --- 1. LẤY CẤU HÌNH NGÀY LỄ VÀ GIỜ CÔNG TỪ EXCEL ---
+  // --- 1. LẤY CẤU HÌNH TỪ EXCEL ---
   const conf = APP_CONFIG.configs || {};
   const chuoiLe = conf.NGAY_LE || "";
   const mangLe = chuoiLe.split(',').map(s => s.trim());
@@ -1636,146 +1636,124 @@ function renderScheduleTable() {
   const hC = parseFloat(conf.GIO_CONG_CA_C) || 8.5;
   const hHC = parseFloat(conf.GIO_CONG_CA_HC) || 8.0;
 
-  // 2. Vẽ tiêu đề cột (Phân quyền: Lãnh đạo thấy Chức danh + Kíp; Nhân viên thấy Kíp)
+  // 2. VẼ TIÊU ĐỀ
   let headHtml = `<tr><th style="position:sticky; left:0; z-index:30; background:#f1f5f9; border-right:2px solid #e2e8f0;">Họ tên</th>`;
-  if (CU.role === 'ld') { 
-    headHtml += `<th>Chức danh</th><th>Kíp</th>`; 
-  } else { 
-    headHtml += `<th>Kíp</th>`; 
-  }
-  // Khai báo mảng tên Thứ viết tắt
+  if (CU.role === 'ld') { headHtml += `<th>Chức danh</th><th>Kíp</th>`; } 
+  else { headHtml += `<th>Kíp</th>`; }
+  
   const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
   for(let d=1; d<=daysInMonth; d++) { 
     const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isLe = mangLe.includes(dateStr);
-    
-    // Xác định Thứ trong tuần
     const dateObj = new Date(yr, mo - 1, d);
     const tenThu = dayNames[dateObj.getDay()];
-    
-    // Nếu là ngày lễ, tô nền hồng và chữ đỏ đậm
     const thStyle = isLe ? "text-align:center; width:35px; background:#fee2e2; color:#dc2626; font-weight:700;" : "text-align:center; width:35px;";
-    
-    // In ra Ngày ở trên, Thứ ở dưới (chữ nhỏ hơn một chút và làm mờ 15% cho thanh thoát)
-    headHtml += `<th style="${thStyle}">
-      <div style="font-size:14px;">${d}</div>
-      <div style="font-size:11px; font-weight:500; margin-top:2px; opacity:0.85;">${tenThu}</div>
-    </th>`; 
+    headHtml += `<th style="${thStyle}"><div style="font-size:14px;">${d}</div><div style="font-size:11px; font-weight:500; margin-top:2px; opacity:0.85;">${tenThu}</div></th>`; 
   }
   headHtml += `<th style="text-align:center; width:55px; background:#f0fdf4; color:#166534;">Công ca K</th>`;
-  headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th>`;
-  headHtml += `</tr>`;
+  headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th></tr>`;
   document.getElementById('sched-head').innerHTML = headHtml;
 
- // 3. Lấy danh sách (Lọc bỏ khối Hành chính cho TẤT CẢ mọi người)
+  // 3. LẤY DANH SÁCH NHÂN SỰ
   let displayList = [];
-  if (CU.role === 'ld') {
-    displayList = NV_LIST; // Lãnh đạo xem tất cả
-  } else {
+  if (CU.role === 'ld') { displayList = NV_LIST; } 
+  else {
     const myInfo = NV_LIST.find(u => u.name === CU.name);
     const myChucDanh = myInfo ? myInfo.chucDanh : "";
-    displayList = NV_LIST.filter(u => u.chucDanh === myChucDanh); // Vận hành xem những người cùng chức danh
+    displayList = NV_LIST.filter(u => u.chucDanh === myChucDanh);
   }
   
-  // BỘ LỌC CHUNG: Đã là "Hành chính" thì ẩn đi không cho lên Bảng đi ca (Shift)
-  // displayList = displayList.filter(u => !((u.kip||"").toLowerCase().includes('hành chính') || (u.kip||"").toLowerCase() === 'hc'));
-
-  // 4. THUẬT TOÁN SẮP XẾP ĐỒNG LOẠT (CHỨC DANH -> KÍP TĂNG DẦN -> TÊN)
   const priorityOrder = ["Quản đốc", "Phó quản đốc", "Kỹ thuật Phân xưởng", "Trưởng kíp nhiên liệu", "Trực chính nhiên liệu", "Vận hành Băng tải", "Vận hành Máy đánh phá đống", "Vận hành Cẩu trục và xe cơ giới", "Tiếp nhận nhiên liệu"];
   displayList.sort((a, b) => {
-    let idxA = priorityOrder.indexOf(a.chucDanh);
-    let idxB = priorityOrder.indexOf(b.chucDanh);
-    let valA = idxA === -1 ? 999 : idxA;
-    let valB = idxB === -1 ? 999 : idxB;
-
+    let idxA = priorityOrder.indexOf(a.chucDanh); let idxB = priorityOrder.indexOf(b.chucDanh);
+    let valA = idxA === -1 ? 999 : idxA; let valB = idxB === -1 ? 999 : idxB;
     if (valA !== valB) return valA - valB;
-    if (valA === 999) {
-      const cComp = (a.chucDanh || "").localeCompare(b.chucDanh || "", 'vi');
-      if (cComp !== 0) return cComp;
-    }
+    if (valA === 999) { const cComp = (a.chucDanh || "").localeCompare(b.chucDanh || "", 'vi'); if (cComp !== 0) return cComp; }
     const kA = a.kip || ""; const kB = b.kip || "";
     const kComp = kA.localeCompare(kB, 'vi', {numeric: true});
     if (kComp !== 0) return kComp;
     return a.name.localeCompare(b.name, 'vi');
   });
 
-  // BIẾN TÍNH TỔNG CHO LÃNH ĐẠO
   let grandTotalK = 0, grandTotalCong = 0;
 
-  // 5. Vẽ dữ liệu từng dòng
+  // 4. VẼ TỪNG Ô LỊCH
   let bodyHtml = displayList.map(u => {
     let row = `<tr><td style="position:sticky; left:0; background:#fff; font-weight:600; border-right:2px solid #e2e8f0;">${u.name} ${u.name === CU.name ? '(Tôi)' : ''}</td>`;
     
-    // TÌM KÍP HIỂN THỊ: Kiểm tra xem trong tháng này người đó đã được chuyển sang Kíp nào chưa
     const firstDayOfMonth = `${yr}-${String(mo).padStart(2,'0')}-01`;
     let displayKip = u.kip;
     if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
-      const sortedTransfers = allTransfers
-        .filter(t => t.name === u.name && firstDayOfMonth >= t.date)
-        .sort((a, b) => b.date.localeCompare(a.date));
+      const sortedTransfers = allTransfers.filter(t => t.name === u.name && firstDayOfMonth >= t.date).sort((a, b) => b.date.localeCompare(a.date));
       if (sortedTransfers.length > 0) displayKip = sortedTransfers[0].newKip;
     }
 
-    if (CU.role === 'ld') {
-      row += `<td>${u.chucDanh || ''}</td><td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`;
-    } else {
-      row += `<td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`;
-    }
+    if (CU.role === 'ld') { row += `<td>${u.chucDanh || ''}</td><td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`; } 
+    else { row += `<td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`; }
 
     let totalHours = 0, countK = 0;
     for(let d=1; d<=daysInMonth; d++) {
       const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const ca = getCaThucTe(u.name, u.kip, dateStr);
+      const caInfo = getCaThucTe(u.name, u.kip, dateStr, null, true);
+      const ca = caInfo.ca; 
+      const status = caInfo.status;
       const isLech = ca !== getCaTrucGoc(u.name, u.kip, dateStr);
       
-      // Áp dụng giờ công động
       if(ca === 'K') { totalHours += hK; countK++; }
       else if(ca === 'N') totalHours += hN; 
       else if(ca === 'C') totalHours += hC; 
       else if(ca === 'HC' || ca === 'H' || ca === 'P') totalHours += hHC;
       else if(ca === 'HC/2') totalHours += (hHC / 2);
       
-      // Kiểm tra ngày lễ và phối màu
       let isLe = mangLe.includes(dateStr);
-      let bg = isLe ? "#fef2f2" : "transparent"; 
-      if (isLech) bg = "#fff7ed"; 
+      let style = "";
       
-      let style = (ca === 'OFF') ? `color:#cbd5e1; background:${bg};` : `background:${bg};`;
-      if (ca === 'P') style += `color:#0284c7; font-weight:800;`; // Màu xanh dương đậm cho Nghỉ Phép
-      else if (ca === 'HC/2') style += "color:#d97706; font-weight:700;"; // Tô màu cam cho ca Nửa ngày
-      else if (ca === 'VR' || ca === 'Ô') style += `color:#94a3b8; font-style:italic; font-weight:700;`;
-      else if (ca === 'HC/2') style += "color:#d97706; font-weight:700;";
-      // TÔ MÀU RIÊNG CHO ĐƠN CHỜ DUYỆT (Màu tím nhạt, viền đứt)
+      // ====================================================
+      // LƯỚI LỌC MÀU SẮC - THỨ TỰ ƯU TIÊN TỪ CAO XUỐNG THẤP
+      // ====================================================
       if (status === 'pending_ld') {
-   style += "background:#f3e8ff; color:#7e22ce; border: 1px dashed #a855f7; font-weight:700;";
-}
-      
-      if (isLech) {
-        style += "color:#ea580c; font-weight:700;"; 
+         // 1. ƯU TIÊN MÀU TÍM BẤT CHẤP LỆCH CA
+         style = "background:#f3e8ff !important; color:#7e22ce !important; border:1px dashed #a855f7 !important; font-weight:800 !important;";
+      } else if (isLech) {
+         // 2. LỆCH CA ĐÃ DUYỆT (Cam nhạt)
+         style = "background:#fff7ed; color:#ea580c; font-weight:700;";
       } else if (isLe && ca !== 'OFF') {
-        style += "color:#dc2626; font-weight:700;"; 
+         // 3. ĐI LÀM NGÀY LỄ (Nền hồng chữ đỏ)
+         style = "background:#fef2f2; color:#dc2626; font-weight:700;";
+      } else if (ca === 'P') {
+         // 4. NGHỈ PHÉP (Xanh lam)
+         style = "color:#0284c7; font-weight:800;";
+      } else if (ca === 'HC/2') {
+         // 5. HC NỬA NGÀY (Cam đậm)
+         style = "color:#d97706; font-weight:700;";
+      } else if (ca === 'VR' || ca === 'Ô') {
+         // 6. VIỆC RIÊNG / ỐM ĐAU (Xám in nghiêng)
+         style = "color:#94a3b8; font-style:italic; font-weight:700;";
+      } else if (ca === 'OFF') {
+         // 7. NGÀY NGHỈ BÌNH THƯỜNG
+         style = isLe ? "background:#fef2f2; color:#cbd5e1;" : "color:#cbd5e1;";
+      } else {
+         // 8. ĐI LÀM ĐÚNG CA GỐC BÌNH THƯỜNG
+         style = isLe ? "background:#fef2f2;" : "";
       }
       
       row += `<td style="text-align:center; ${style}">${ca === 'OFF' ? '-' : ca}</td>`;
     }
 
     const totalCong = (totalHours / 8).toFixed(2);
-    grandTotalK += countK;
-    grandTotalCong += parseFloat(totalCong);
+    grandTotalK += countK; grandTotalCong += parseFloat(totalCong);
 
     row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
-    row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0369a1;">${totalCong}</td>`;
-    row += `</tr>`;
+    row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0369a1;">${totalCong}</td></tr>`;
     return row;
   }).join('');
   
-  // 6. HÀNG TỔNG CỘNG CHO LÃNH ĐẠO
+  // 5. HÀNG TỔNG CỘNG LÃNH ĐẠO
   if (CU.role === 'ld' && displayList.length > 0) {
-    const colSpanHeader = 3; 
     bodyHtml += `
       <tr style="background:#f1f5f9; font-weight:700; border-top:2px solid #cbd5e1;">
-        <td colspan="${colSpanHeader}" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
+        <td colspan="${CU.role === 'ld' ? 3 : 2}" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
         <td colspan="${daysInMonth}"></td>
         <td style="text-align:center; color:#15803d; font-size:14px;">${grandTotalK}</td>
         <td style="text-align:center; color:#1a56a0; font-size:14px;">${grandTotalCong.toFixed(2)}</td>
