@@ -948,7 +948,7 @@ async function ldOk(id, btn){
     const err = validateExistingReq(req); 
     if(err) { showAlert('app', `Hệ thống chặn: ${err}`, 'ae'); return; } 
   } 
-  if(!confirm("Xác nhận DUYỆT PX?\nBấm OK để chụp ảnh Sổ giao ca / Chữ ký tươi đính kèm.")) return; 
+  if(!confirm("Xác nhận DUYỆT PX?\nBấm OK để chụp ảnh Đơn đổi ca chữ ký tươi đính kèm.")) return; 
   
   currentApproveId = id;
   currentApproveBtn = btn;
@@ -1747,22 +1747,35 @@ function renderScheduleTable() {
   headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th></tr>`;
   document.getElementById('sched-head').innerHTML = headHtml;
 
-  // 3. LẤY DANH SÁCH NHÂN SỰ
-  let displayList = [];
-  if (CU.role === 'ld') { displayList = NV_LIST; } 
+ // 3. LẤY DANH SÁCH NHÂN SỰ VÀ TÍNH KÍP HIỆN TẠI (ĐÃ FIX LỖI SẮP XẾP)
+  let rawList = [];
+  if (CU.role === 'ld') { rawList = NV_LIST; } 
   else {
     const myInfo = NV_LIST.find(u => u.name === CU.name);
     const myChucDanh = myInfo ? myInfo.chucDanh : "";
-    displayList = NV_LIST.filter(u => u.chucDanh === myChucDanh);
+    rawList = NV_LIST.filter(u => u.chucDanh === myChucDanh);
   }
   
+  // Tính trước Kíp thực tế của tháng đang xem để lấy dữ liệu sắp xếp
+  const firstDayOfMonth = `${yr}-${String(mo).padStart(2,'0')}-01`;
+  let displayList = rawList.map(u => {
+    let currentKip = u.kip;
+    if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
+      const sortedTransfers = allTransfers.filter(t => t.name === u.name && firstDayOfMonth >= t.date).sort((a, b) => b.date.localeCompare(a.date));
+      if (sortedTransfers.length > 0) currentKip = sortedTransfers[0].newKip;
+    }
+    return { ...u, displayKip: currentKip };
+  });
+
   const priorityOrder = ["Quản đốc", "Phó quản đốc", "Kỹ thuật Phân xưởng", "Trưởng kíp nhiên liệu", "Trực chính nhiên liệu", "Vận hành Băng tải", "Vận hành Máy đánh phá đống", "Vận hành Cẩu trục và xe cơ giới", "Tiếp nhận nhiên liệu"];
   displayList.sort((a, b) => {
     let idxA = priorityOrder.indexOf(a.chucDanh); let idxB = priorityOrder.indexOf(b.chucDanh);
     let valA = idxA === -1 ? 999 : idxA; let valB = idxB === -1 ? 999 : idxB;
     if (valA !== valB) return valA - valB;
     if (valA === 999) { const cComp = (a.chucDanh || "").localeCompare(b.chucDanh || "", 'vi'); if (cComp !== 0) return cComp; }
-    const kA = a.kip || ""; const kB = b.kip || "";
+    
+    // ĐÃ SỬA: Sắp xếp theo Kíp hiển thị (sau khi điều chuyển) thay vì Kíp gốc
+    const kA = a.displayKip || ""; const kB = b.displayKip || "";
     const kComp = kA.localeCompare(kB, 'vi', {numeric: true});
     if (kComp !== 0) return kComp;
     return a.name.localeCompare(b.name, 'vi');
@@ -1774,12 +1787,7 @@ function renderScheduleTable() {
   let bodyHtml = displayList.map(u => {
     let row = `<tr><td style="position:sticky; left:0; background:#fff; font-weight:600; border-right:2px solid #e2e8f0;">${u.name} ${u.name === CU.name ? '(Tôi)' : ''}</td>`;
     
-    const firstDayOfMonth = `${yr}-${String(mo).padStart(2,'0')}-01`;
-    let displayKip = u.kip;
-    if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
-      const sortedTransfers = allTransfers.filter(t => t.name === u.name && firstDayOfMonth >= t.date).sort((a, b) => b.date.localeCompare(a.date));
-      if (sortedTransfers.length > 0) displayKip = sortedTransfers[0].newKip;
-    }
+    let displayKip = u.displayKip;
 
     if (CU.role === 'ld') { row += `<td>${u.chucDanh || ''}</td><td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`; } 
     else { row += `<td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`; }
