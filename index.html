@@ -202,12 +202,12 @@ textarea{resize:none;height:80px}
           <div><label>Kíp</label><select id="f-kip" disabled style="background:#f1f5f9; color:#475569; font-weight:600; appearance:none;"><option value="">-- Kíp --</option></select></div>
         </div>
         <div class="form-row">
-          <div><label>Ca đổi</label><select id="f-ca-doi"><option value="">-- Chọn ca --</option></select></div>
-          <div><label>Ngày đổi</label><input type="date" id="f-ngay-doi"></div>
+          <div><label>Ca đổi</label><select id="f-ca-doi" onchange="refreshPartnerList()"><option value="">-- Chọn ca --</option></select></div>
+          <div><label>Ngày đổi</label><input type="date" id="f-ngay-doi" onchange="refreshPartnerList()"></div>
         </div>
         <div class="form-row">
-          <div><label>Ca trả lại</label><select id="f-ca-tra"><option value="">-- Chọn ca --</option></select></div>
-          <div><label>Ngày trả lại</label><input type="date" id="f-ngay-tra"></div>
+          <div><label>Ca trả lại</label><select id="f-ca-tra" onchange="refreshPartnerList()"><option value="">-- Chọn ca --</option></select></div>
+          <div><label>Ngày trả lại</label><input type="date" id="f-ngay-tra" onchange="refreshPartnerList()"></div>
         </div>
         <div class="form-row three">
           <div><label>Người đi thay</label>
@@ -552,8 +552,70 @@ async function loadAll(){
   allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()})); 
   await loadTransfers(); }
 
-const SS_SOURCES={'ss-login':()=>NV_LIST.map(u=>u.name),'ss-partner':()=>NV_LIST.map(u=>u.name),'ss-reset':()=>NV_LIST.map(u=>u.name)};
+const SS_SOURCES = {
+  'ss-login': () => NV_LIST.map(u => u.name),
+  'ss-reset': () => NV_LIST.map(u => u.name),
+  'ss-partner': () => {
+    if (!CU) return [];
+    const myInfo = NV_LIST.find(u => u.name === CU.name);
+    if (!myInfo) return [];
+    
+    const getRoles = (u) => {
+      let roles = [];
+      if (u.chucDanh) roles.push(u.chucDanh.trim().toLowerCase());
+      if (u.chucDanhDuPhong) roles.push(...u.chucDanhDuPhong.split(',').map(s => s.trim().toLowerCase()));
+      return roles.filter(Boolean);
+    };
+    const myRoles = getRoles(myInfo);
+    
+    // Đọc thông số Ngày/Ca anh em vừa chọn trên màn hình
+    const ngayDoi = document.getElementById('f-ngay-doi').value;
+    const caDoi = document.getElementById('f-ca-doi').value;
+    const ngayTra = document.getElementById('f-ngay-tra').value;
+    const caTra = document.getElementById('f-ca-tra').value;
+    const isDoiCungNgay = (ngayDoi && ngayTra && ngayDoi === ngayTra);
+    
+    // BỘ LỌC ĐA TẦNG
+    return NV_LIST.filter(u => {
+      if (u.name === CU.name) return false; // Lọc 1: Bỏ qua chính mình
+      
+      const theirRoles = getRoles(u);
+      if (!myRoles.some(r => theirRoles.includes(r))) return false; // Lọc 2: Bỏ qua người khác chức danh
+      
+      // Lọc 3: Kiểm tra điều kiện CHIỀU ĐỔI CA
+      if (ngayDoi && caDoi) {
+          const caThucTeB_Doi = getCaThucTe(u.name, u.kip, ngayDoi);
+          // Trừ khi đổi cùng ngày, còn lại người đi thay BẮT BUỘC phải đang rảnh (OFF)
+          if (!isDoiCungNgay && caThucTeB_Doi !== 'OFF') return false; 
+          
+          // Bộ quét an toàn: Xem người này đi ca đó có bị kẹp C-K hay quá 4K không
+          const loiAnToan = checkViPhamAnToan(u.name, u.kip, ngayDoi, caDoi);
+          if (loiAnToan) return false; 
+      }
+      
+      // Lọc 4: Kiểm tra điều kiện CHIỀU TRẢ CA
+      if (ngayTra && caTra) {
+          const caThucTeB_Tra = getCaThucTe(u.name, u.kip, ngayTra);
+          // Người đó bắt buộc phải có ca đó vào ngày đó để cho mình trả
+          if (caThucTeB_Tra !== caTra) return false; 
+      }
+      
+      return true; // Vượt qua 4 vòng gửi xe thì mới được hiện tên lên!
+    }).map(u => u.name);
+  }
+};
 const SS_HIDDEN={'ss-login':'f-login-name','ss-partner':'f-partner','ss-reset':'f-reset-name'};
+// Hàm tự động làm sạch ô "Người đi thay" mỗi khi đổi Ngày/Ca
+function refreshPartnerList() {
+  document.getElementById('f-partner').value = '';
+  document.getElementById('ss-partner-lbl').textContent = '-- Chọn --';
+  document.querySelector('#ss-partner .ss-btn').classList.add('ph');
+  document.getElementById('f-partner-kip').value = '';
+  document.getElementById('f-partner-role').value = '';
+  
+  // Nạp lại danh sách mới toanh theo điều kiện mới
+  buildSS('ss-partner', '');
+}
 function buildSS(id,q){
   const items=SS_SOURCES[id](); const el=document.getElementById(id+'-list');
   const f=q?items.filter(n=>n.toLowerCase().includes(q.toLowerCase())):items; el.innerHTML=f.map(n=>`<div class="ss-opt" data-val="${n}">${n}</div>`).join('');
@@ -626,6 +688,10 @@ async function doLogin(){
     } 
     loginFailCount = 0;
     CU=r.user; 
+    
+    // 👉 DÒNG MỚI BỔ SUNG: Tự động nạp danh sách "Đồng nghiệp cùng chuyên môn"
+    buildSS('ss-partner', ''); 
+    
     document.getElementById('overlay').style.display='none'; document.getElementById('app').style.display='block'; 
     document.getElementById('ub-name').textContent=CU.name; 
     const myInfo = NV_LIST.find(u => u.name === CU.name); 
@@ -756,17 +822,50 @@ function reqCard(r, a = '') {
   const safeReason = escapeHTML(r.reason);
   const safeName = escapeHTML(r.name);
   const safePartner = escapeHTML(r.partner);
-const uInfo = NV_LIST.find(u => u.name === r.name);
-  const pInfo = NV_LIST.find(u => u.name === r.partner);
-  const uRole = uInfo ? ` <small style="color:#64748b; font-weight:500;">(${uInfo.chucDanh})</small>` : '';
-  const pRole = pInfo ? ` <small style="color:#64748b; font-weight:500;">(${pInfo.chucDanh})</small>` : '';
-  const safeRejectBy = escapeHTML(r.rejectedBy);
-  const imgLink = r.minhChung ? `<br>🖼️ <a href="${r.minhChung}" target="_blank" style="color:#2563eb; font-weight:600; text-decoration:none;">Xem ảnh minh chứng</a>` : '';
   
+  const uInfo = NV_LIST.find(u => u.name === r.name);
+  const pInfo = NV_LIST.find(u => u.name === r.partner);
+
+  // --- LOGIC HIỂN THỊ CHỨC DANH CHUNG & DỰ PHÒNG ---
+  let uRoleDisplay = '';
+  let pRoleDisplay = '';
+
+  if (uInfo && pInfo) {
+    const getRoles = (u) => ({
+      main: (u.chucDanh || "").trim(),
+      backups: (u.chucDanhDuPhong || "").split(',').map(s => s.trim()).filter(Boolean)
+    });
+
+    const uR = getRoles(uInfo);
+    const pR = getRoles(pInfo);
+
+    // Lấy chức danh chính của người xin nghỉ làm mốc chung cho đơn
+    let commonRole = uR.main; 
+    let uSuffix = "";
+    let pSuffix = "";
+
+    // Kiểm tra xem người đi thay đang dùng chức danh nào để khớp với mốc chung
+    if (pR.main === commonRole) {
+      pSuffix = ""; // Cùng chức danh chính
+    } else if (pR.backups.includes(commonRole)) {
+      pSuffix = " (Dự phòng)"; // Người đi thay dùng chức danh dự phòng
+    } else {
+      // Nếu người đi thay không khớp chức danh chính, tìm chức danh dự phòng chung
+      const shared = uR.backups.find(role => pR.main === role || pR.backups.includes(role));
+      if (shared) {
+        commonRole = shared;
+        uSuffix = " (Dự phòng)";
+        pSuffix = (pR.main === shared) ? "" : " (Dự phòng)";
+      }
+    }
+    uRoleDisplay = ` <small style="color:#64748b; font-weight:500;">(${commonRole}${uSuffix})</small>`;
+    pRoleDisplay = ` <small style="color:#64748b; font-weight:500;">(${commonRole}${pSuffix})</small>`;
+  }
+
+  const imgLink = r.minhChung ? `<br>🖼️ <a href="${r.minhChung}" target="_blank" style="color:#2563eb; font-weight:600; text-decoration:none;">Xem ảnh minh chứng</a>` : '';
   const textDoi = r.ngayDoi ? `📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}` : `📅 Đổi: <i>Chưa xác định</i>`;
   const textTra = r.ngayTra ? `🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}` : `🔄 Trả: <i>Chưa xác định</i>`;
 
-  // --- BỘ XỬ LÝ NHẬT KÝ THỜI GIAN ---
   let timeLogs = '';
   if (r.createdAt) timeLogs += `🔸 <b>Tạo đơn:</b> ${fmtDateTime(r.createdAt)}<br>`;
   if (r.partnerApprovedAt) timeLogs += `🔸 <b>Người thay OK:</b> ${fmtDateTime(r.partnerApprovedAt)}<br>`;
@@ -774,53 +873,14 @@ const uInfo = NV_LIST.find(u => u.name === r.name);
   if (r.rejectedAt) timeLogs += `🔸 <b>Từ chối lúc:</b> ${fmtDateTime(r.rejectedAt)}<br>`;
   const timeHtml = timeLogs ? `<div style="margin-top:10px; padding-top:8px; border-top:1px dashed #cbd5e1; font-size:11px; color:#64748b; line-height:1.6;">${timeLogs}</div>` : '';
 
-  // =========================================================
-  // BỘ TÍNH TOÁN CẢNH BÁO SLA (THỜI GIAN NGÂM ĐƠN)
-  // =========================================================
-  let slaStyle = ''; 
-  let slaWarning = '';
-
-  // Chỉ tính SLA cho các đơn đang ở trạng thái CHỜ
-  if (r.status === 'pending_partner' || r.status === 'pending_ld') {
-      let startTime = null;
-      
-      // Nếu đang chờ Đồng nghiệp -> Tính từ lúc Tạo đơn
-      if (r.status === 'pending_partner' && r.createdAt) {
-          startTime = new Date(r.createdAt).getTime();
-      } 
-      // Nếu đang chờ Lãnh đạo -> Tính từ lúc Đồng nghiệp OK
-      else if (r.status === 'pending_ld' && r.partnerApprovedAt) {
-          startTime = new Date(r.partnerApprovedAt).getTime();
-      }
-
-      if (startTime) {
-          const now = new Date().getTime();
-          // Tính số ngày đã trôi qua
-          const diffDays = (now - startTime) / (1000 * 60 * 60 * 24);
-
-          // Cài đặt mốc cảnh báo (3 ngày và 5 ngày)
-          if (diffDays >= 5) {
-              // Quá 5 ngày: Báo ĐỎ - Cảnh báo khẩn cấp
-              slaStyle = 'background-color:#fef2f2; border:1px solid #fca5a5;';
-              slaWarning = `<div style="font-size:11.5px; color:#dc2626; font-weight:700; margin-bottom:8px; display:inline-block; background:#fee2e2; padding:2px 8px; border-radius:4px;">⏳ Đã ngâm đơn > ${Math.floor(diffDays)} ngày!</div>`;
-          } else if (diffDays >= 3) {
-              // Quá 3 ngày: Báo VÀNG - Nhắc nhở
-              slaStyle = 'background-color:#fffbeb; border:1px solid #fde68a;';
-              slaWarning = `<div style="font-size:11.5px; color:#d97706; font-weight:700; margin-bottom:8px; display:inline-block; background:#fef3c7; padding:2px 8px; border-radius:4px;">⏳ Đang chờ > ${Math.floor(diffDays)} ngày</div>`;
-          }
-      }
-  }
-
-  // --- TRẢ VỀ GIAO DIỆN THẺ (Đã chèn SLA Style) ---
-  return`
-  <div class="req" style="${slaStyle} padding:14px; border-radius:8px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
-    ${slaWarning}
+  return `
+  <div class="req" style="padding:14px; border-radius:8px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,0.05); background:#fff;">
     ${flowBar(r.status)}
-  <div class="req-hd">
-      <strong>${safeName}${uRole}</strong>${badge(r.status)}
+    <div class="req-hd">
+      <strong>${safeName}${uRoleDisplay}</strong>${badge(r.status)}
     </div>
     <div class="req-meta">
-      ${textDoi}<br>${textTra}<br>👤 Người đi thay: ${safePartner}${pRole}<br>${safeReason?'💬 '+safeReason:''}${safeRejectBy?'<br>❌ Từ chối: '+safeRejectBy:''}${imgLink}${timeHtml}
+      ${textDoi}<br>${textTra}<br>👤 Người đi thay: <b>${safePartner}${pRoleDisplay}</b><br>${safeReason?'💬 '+safeReason:''}${imgLink}${timeHtml}
     </div>
     ${a?'<div class="req-acts">'+a+'</div>':''}
   </div>`;
@@ -1499,7 +1559,6 @@ async function submitRequest(){
 function renderHistory(){ 
   const fs = document.getElementById('f-fst').value; 
   const hm = document.getElementById('f-hist-month').value;
-  // Bổ sung: Lấy giá trị của ô chọn Kíp
   const fkp = document.getElementById('f-fkp').value; 
 
   let yr = 0, mo = 0; 
@@ -1507,12 +1566,18 @@ function renderHistory(){
   
   const items = allReqs.filter(r => {
     if (r.status === 'cancelled') return false; 
-    if (CU.role !== 'ld' && r.name !== CU.name && r.partner !== CU.name) return false;
     
+    // --- CHỐT CHẶN QUYỀN RIÊNG TƯ ---
+    // 1. Chỉ Lãnh đạo và Quản trị viên mới được xem tất cả
+    // 2. Anh em vận hành CHỈ ĐƯỢC XEM ĐƠN CÓ TÊN MÌNH (Là người xin nghỉ hoặc người đi thay)
+    if (CU.role !== 'ld' && !CU.admin) {
+        if (r.name !== CU.name && r.partner !== CU.name) return false;
+    }
+
     // Lọc theo Trạng thái
     if (fs && r.status !== fs) return false;
     
-    // Bổ sung: Lọc theo Kíp (Bỏ qua nếu cả 2 người đều không thuộc Kíp đang chọn)
+    // Lọc theo Kíp
     if (fkp && r.kip !== fkp && r.partnerKip !== fkp) return false;
 
     // Lọc theo Tháng
@@ -1526,12 +1591,12 @@ function renderHistory(){
   
   document.getElementById('list-lich-su').innerHTML = items.length ? items.map(r => {
     let action = '';
-    // Nếu là đơn của mình tạo và chưa ai xác nhận -> hiện nút hủy đơn
+    // Cho phép Hủy đơn nếu mình tạo và chưa ai xác nhận
     if (r.status === 'pending_partner' && r.name === CU.name) {
       action = `<button class="btn btn-danger" style="width:100%" onclick="deleteReq('${r.id}', this)">🗑️ Hủy & Rút đơn</button>`;
     }
     return reqCard(r, action);
-  }).join('') : '<div class="empty">Không có lịch sử</div>'; 
+  }).join('') : '<div class="empty">Không có lịch sử liên quan đến bạn</div>'; 
 }
 
 // Hàm Xóa đơn mới tinh
