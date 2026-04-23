@@ -919,8 +919,15 @@ function reqCard(r, a = '') {
   let timeLogs = '';
   if (r.createdAt) timeLogs += `🔸 <b>Tạo đơn:</b> ${fmtDateTime(r.createdAt)}<br>`;
   if (r.partnerApprovedAt) timeLogs += `🔸 <b>Người thay OK:</b> ${fmtDateTime(r.partnerApprovedAt)}<br>`;
-  if (r.approvedAt) timeLogs += `🔸 <b>LĐ duyệt:</b> ${fmtDateTime(r.approvedAt)}<br>`;
-  if (r.rejectedAt) timeLogs += `🔸 <b>Từ chối lúc:</b> ${fmtDateTime(r.rejectedAt)}<br>`;
+ // Hiển thị thêm tên người duyệt hoặc người từ chối
+  if (r.approvedAt) {
+    const approverName = r.approvedBy ? ` (Duyệt bởi: ${r.approvedBy})` : "";
+    timeLogs += `🔸 <b>LĐ duyệt:</b> ${fmtDateTime(r.approvedAt)}${approverName}<br>`;
+  }
+  if (r.rejectedAt) {
+    const rejecterName = r.approvedBy ? ` (Bởi: ${r.approvedBy})` : "";
+    timeLogs += `🔸 <b>Từ chối lúc:</b> ${fmtDateTime(r.rejectedAt)}${rejecterName}<br>`;
+  }
   const timeHtml = timeLogs ? `<div style="margin-top:10px; padding-top:8px; border-top:1px dashed #cbd5e1; font-size:11px; color:#64748b; line-height:1.6;">${timeLogs}</div>` : '';
 
   return `
