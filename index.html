@@ -1057,8 +1057,17 @@ document.getElementById('camera-upload').addEventListener('change', function(e) 
                 const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
                 const fileName = "MinhChung_DoiCa_" + currentApproveId;
 
-                // Tải ảnh lên Drive
-                const imgRes = await api({ action: "uploadImg", base64: compressedBase64, fileName: fileName });
+                // Chặn lỗi ID rỗng (chống ra chữ null)
+               if (!currentApproveId) throw new Error("Mất dữ liệu ID đơn. Vui lòng ấn Hủy và duyệt lại.");
+
+               // Tải ảnh lên Drive (Gửi kèm PIN để Lính gác kiểm tra)
+              const imgRes = await api({ 
+              action: "uploadImg", 
+              base64: compressedBase64, 
+              fileName: fileName,
+              verifyPin: currentApprovePin,
+              by: CU.name
+              });
                 if (imgRes.error) throw new Error(imgRes.error);
 
                 // Gửi lệnh duyệt kèm PIN
