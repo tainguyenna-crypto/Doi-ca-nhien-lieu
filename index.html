@@ -148,7 +148,15 @@ textarea{resize:none;height:80px}
       <div class="ss" id="ss-login"><button class="ss-btn ph"><span id="ss-login-lbl">-- Chọn tên của bạn --</span><span>▾</span></button><div class="ss-drop" id="ss-login-drop"><input class="ss-inp" oninput="filterSS('ss-login',this.value)" placeholder="Tìm tên..."><div class="ss-list" id="ss-login-list"></div></div></div>
       <input type="hidden" id="f-login-name">
     </div>
-    <div class="pfield"><label>Mật khẩu (4-12 ký tự)</label><input type="password" id="pin-inp" minlength="4" maxlength="12" placeholder="••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="pfield">
+      <label>Mật khẩu (4-12 ký tự)</label>
+      <div style="position: relative;">
+        <input type="password" id="pin-inp" minlength="4" maxlength="12" placeholder="••••" onkeydown="if(event.key==='Enter')doLogin()" style="padding-right: 40px;">
+        <span id="toggle-eye" onclick="togglePasswordVisibility('pin-inp', 'toggle-eye')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #64748b; display: flex; align-items: center; justify-content: center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </span>
+      </div>
+    </div>
     
     <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-top: 4px;">
       <a href="javascript:void(0)" onclick="doForgotPin()" style="font-size: 13px; color: #1a56a0; text-decoration: none; font-weight: 500;">Quên mã PIN?</a>
@@ -2616,6 +2624,23 @@ async function deleteTransfer(id) {
 function exportExcelTransfer() {
   const html = document.getElementById('table-transfer-log').innerHTML;
   downloadExcel(html, `Lich_Su_Dieu_Chuyen_Kip.xls`, `DieuChuyen`);
+}
+// ===============================================================
+// HÀM ẨN / HIỂN THỊ MẬT KHẨU
+// ===============================================================
+function togglePasswordVisibility(inputId, iconId) {
+  const input = document.getElementById(inputId);
+  const iconSpan = document.getElementById(iconId);
+  
+  if (input.type === "password") {
+    input.type = "text";
+    // Đổi sang biểu tượng nhắm mắt (Con mắt bị gạch chéo)
+    iconSpan.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+  } else {
+    input.type = "password";
+    // Đổi lại biểu tượng mở mắt
+    iconSpan.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  }
 }
 </script>
 </body>
