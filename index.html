@@ -450,7 +450,21 @@ textarea{resize:none;height:80px}
     <div style="display:flex;gap:10px;"><button class="btn" style="flex:1" onclick="closePinModal()">Hủy</button><button class="btn btn-primary" style="flex:2" onclick="doChangePin()">Đổi PIN</button></div>
   </div>
 </div>
-
+<div class="overlay" id="approve-modal" style="display:none">
+  <div class="pbox">
+    <div class="plogo" style="font-size:18px; color:#16a34a;">✅ Phê duyệt đơn</div>
+    <div class="psub" style="margin-bottom: 12px;">Vui lòng nhập mã PIN để xác nhận:</div>
+    <div class="pfield">
+      <input type="password" id="approve-pin-inp" placeholder="Nhập PIN cá nhân..." minlength="4" maxlength="12" style="border-color:#16a34a; font-weight:bold; text-align:center; font-size:18px; letter-spacing:4px;">
+    </div>
+    <div class="perr" id="approve-err"></div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+      <button class="btn btn-primary" onclick="doApproveWithImage()" style="font-size:14px; padding:10px;">📸 Chọn ảnh & Duyệt</button>
+      <button class="btn btn-success" onclick="doApproveNoImage()" style="font-size:14px; padding:10px;">✅ Phê duyệt thường</button>
+      <button class="btn" onclick="closeApproveModal()" style="font-size:14px; padding:10px; background:#f1f5f9; color:#475569; border-color:#cbd5e1;">❌ Hủy, quay lại</button>
+    </div>
+  </div>
+</div>
 <script>
 // =============================================
 // DÁN LINK WEB APP CỦA BẠN VÀO DÒNG BÊN DƯỚI:
@@ -945,58 +959,135 @@ function renderPheDuyet(){
 
 let currentApproveId = null;
 let currentApproveBtn = null;
+let currentApprovePin = null;
 
-async function ldOk(id, btn){ 
+// Bật bảng nhập PIN
+function ldOk(id, btn){ 
   const req = allReqs.find(r => r.id === id); 
   if(req) { 
     const err = validateExistingReq(req); 
     if(err) { showAlert('app', `Hệ thống chặn: ${err}`, 'ae'); return; } 
   } 
-  if(!confirm("Xác nhận DUYỆT PX?\nBấm OK để chụp ảnh Đơn đổi ca chữ ký tươi đính kèm.")) return; 
   
+ // RESET BIẾN TẠM ĐỂ TRÁNH LỖI LẦN TRƯỚC ĐÈ LẦN SAU
   currentApproveId = id;
   currentApproveBtn = btn;
+  currentApprovePin = null; // Xóa PIN cũ đi
+  
+  document.getElementById('approve-pin-inp').value = '';
+  document.getElementById('approve-err').textContent = '';
+  document.getElementById('approve-modal').style.display = 'flex';
+}
+
+// Nút Hủy bỏ
+function closeApproveModal() {
+  document.getElementById('approve-modal').style.display = 'none';
+  currentApproveId = null; currentApproveBtn = null; currentApprovePin = null;
+}
+
+// Nút Duyệt Thường
+async function doApproveNoImage() {
+  const pin = document.getElementById('approve-pin-inp').value;
+  const err = document.getElementById('approve-err');
+  if(!pin) { err.textContent = '⚠️ Vui lòng nhập mã PIN!'; return; }
+
+  const id = currentApproveId; const btn = currentApproveBtn;
+  
+  // 👉 ĐÃ SỬA: Chỉ ẩn bảng đi, KHÔNG DÙNG hàm closeApproveModal() để tránh xóa mất biến
+  document.getElementById('approve-modal').style.display = 'none'; 
+
+  btn.disabled = true; btn.innerHTML = '⏳ Đang duyệt...';
+  try {
+    const res = await api({action:"updateStatus", id, status:"approved", by:CU.name, verifyPin: pin});
+    if(res.error) {
+      btn.disabled = false; btn.innerHTML = 'Duyệt'; showAlert('app', res.error, 'ae');
+    } else {
+      await loadAll(); renderPheDuyet(); showAlert('app', 'Đã phê duyệt thành công!', 'as'); 
+    }
+  } catch(e) { btn.disabled = false; btn.innerHTML = 'Duyệt'; showAlert('app', 'Lỗi mạng!', 'ae'); }
+}
+
+// Nút Đăng ảnh
+function doApproveWithImage() {
+  const pin = document.getElementById('approve-pin-inp').value;
+  const err = document.getElementById('approve-err');
+  if(!pin) { err.textContent = '⚠️ Vui lòng nhập mã PIN!'; return; }
+
+  currentApprovePin = pin; // Lưu tạm PIN lại
+  
+  // 👉 ĐÃ SỬA: Chỉ ẩn bảng đi, giữ nguyên mã PIN trong túi để lát gửi
+  document.getElementById('approve-modal').style.display = 'none'; 
+  
   document.getElementById('camera-upload').click();
 }
 
-// Bộ xử lý nén ảnh và gửi lên máy chủ
+// BỘ XỬ LÝ MÁY ẢNH - BẢN NÂNG CẤP CHỐNG ĐƠ
 document.getElementById('camera-upload').addEventListener('change', function(e) {
     const file = e.target.files[0];
-    if(!file) { showAlert('app', 'Đã hủy duyệt vì không có ảnh minh chứng.', 'ae'); return; }
+    
+    // 1. Nếu người dùng hủy không chọn ảnh, phải giải phóng nút ngay
+    if(!file) { 
+        if(currentApproveBtn) {
+            currentApproveBtn.disabled = false;
+            currentApproveBtn.innerHTML = 'Duyệt';
+        }
+        return; 
+    }
 
     const btn = currentApproveBtn;
-    if(btn){ btn.disabled=true; btn.innerHTML='⏳ Đang nén & tải ảnh...'; btn.style.opacity='0.6'; } 
+    if(btn){ 
+        btn.disabled = true; 
+        btn.innerHTML = '⏳ Đang nén & gửi...'; 
+        btn.style.opacity = '0.6'; 
+    } 
     showAlert('app', 'Đang nén ảnh và phê duyệt...', 'ai'); 
 
     const reader = new FileReader();
     reader.onload = function(event) {
         const img = new Image();
         img.onload = async function() {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 1200; 
-            let width = img.width;
-            let height = img.height;
-
-            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-            canvas.width = width; canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-
-            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
-            const fileName = "MinhChung_DoiCa_" + currentApproveId;
-
             try {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 1200; 
+                let width = img.width, height = img.height;
+                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                canvas.width = width; canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                const fileName = "MinhChung_DoiCa_" + currentApproveId;
+
+                // Tải ảnh lên Drive
                 const imgRes = await api({ action: "uploadImg", base64: compressedBase64, fileName: fileName });
                 if (imgRes.error) throw new Error(imgRes.error);
 
-                await api({action:"updateStatus", id: currentApproveId, status:"approved", by:CU.name, imgUrl: imgRes.url}); 
-                await loadAll(); renderPheDuyet(); 
-                showAlert('app', 'Đã phê duyệt và lưu minh chứng!', 'as'); 
-                document.getElementById('camera-upload').value = ''; 
+                // Gửi lệnh duyệt kèm PIN
+                const res = await api({
+                    action: "updateStatus", 
+                    id: currentApproveId, 
+                    status: "approved", 
+                    by: CU.name, 
+                    imgUrl: imgRes.url, 
+                    verifyPin: currentApprovePin
+                }); 
+                
+                if (res.error) throw new Error(res.error);
+
+                await loadAll(); 
+                renderPheDuyet(); 
+                showAlert('app', 'Đã phê duyệt kèm ảnh minh chứng!', 'as'); 
             } catch(err) { 
-                if(btn){ btn.disabled=false; btn.innerHTML='Duyệt'; btn.style.opacity='1'; } 
                 showAlert('app', 'Lỗi: ' + err.message, 'ae');
-            } 
+            } finally {
+                // QUAN TRỌNG: Dù thành công hay thất bại cũng phải dọn dẹp để làm lần sau
+                if(btn) {
+                    btn.disabled = false; 
+                    btn.innerHTML = 'Duyệt'; 
+                    btn.style.opacity = '1';
+                }
+                // Làm sạch ô chọn file để lần sau chọn lại ảnh cũ vẫn chạy
+                document.getElementById('camera-upload').value = '';
+            }
         };
         img.src = event.target.result;
     };
@@ -1009,7 +1100,7 @@ async function ldNo(id, btn){
   if(btn){ btn.disabled=true; btn.innerHTML='⏳ Đang xử lý...'; btn.style.opacity='0.6'; btn.style.cursor='not-allowed'; } 
   showAlert('app', 'Đang xử lý...', 'ai'); 
   try{ 
-    await api({action:"updateStatus",id,status:"rejected",by:CU.name,rejectReason:rs}); 
+    await api({action:"updateStatus", id: currentApproveId, status:"approved", by:CU.name, imgUrl: imgRes.url, verifyPin: currentApprovePin}); 
     await loadAll(); 
     renderPheDuyet(); 
     showAlert('app', 'Đã từ chối.', 'ae'); 
@@ -1179,7 +1270,11 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
 }
 // 2. LÍNH GÁC AN TOÀN (TỰ ĐỘNG QUÉT LUẬT TỪ EXCEL)
 function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi, ignoreReqId = null) {
+  // BỔ SUNG: Không quét lỗi an toàn (C-K) đối với các ca Hành chính, Nghỉ phép, Việc riêng
+  if (['HC', 'HC/2', 'P', 'VR', 'Ô', 'OFF'].includes(caMuonDi)) return false;
+  
   const ngayTruoc = addDays(dateStr, -1);
+  // ... (phần code bên dưới giữ nguyên)
   const ngaySau = addDays(dateStr, 1);
   
   const caNgayTruoc = getCaThucTe(userName, kipName, ngayTruoc, ignoreReqId);
@@ -2161,21 +2256,29 @@ function validateHCDates(id) {
       }
   }
 
-  if(isShiftA && pkip && pkip !== 'AUTO') {
-    const repB = NV_LIST.find(u => u.kip === pkip);
+  if(isShiftA && pkip) {
+    const selectedPartners = Array.from(row.querySelectorAll('.hc-partner-val:checked')).map(cb => cb.value);
+    const repB_name = selectedPartners.length > 0 ? selectedPartners[0] : null;
+    // Tìm thông tin người thay dù bác chọn Kíp cụ thể hay chọn Tự động
+    const repB = repB_name ? NV_LIST.find(u => u.name === repB_name) : (pkip !== 'AUTO' ? NV_LIST.find(u => u.kip === pkip) : null);
+    const realPkip = repB ? repB.kip : pkip;
+
     if(repB) {
-      const caB_Doi = getCaThucTe(repB.name, pkip, dHC);
+      const caB_Doi = getCaThucTe(repB.name, realPkip, dHC);
+      // (Các dòng check caB_Doi bên dưới bác giữ nguyên, chỉ cần đổi biến pkip thành realPkip là xong)
       
       if(caB_Doi !== 'OFF') {
         partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Kíp thay đang có lịch (Ca ${caB_Doi}). Họ phải NGHỈ mới đi thay được!</div>`);
       } else {
-        const loiB_Thay = checkViPhamAnToan(repB.name, pkip, dHC, caThucTeA);
+        // ĐÃ SỬA: Dùng realPkip thay vì pkip
+        const loiB_Thay = checkViPhamAnToan(repB.name, realPkip, dHC, caThucTeA);
         if (loiB_Thay) partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Lỗi An toàn (Người thay): ${loiB_Thay}</div>`);
       }
       
       // BỎ QUA KIỂM TRA TRẢ CA NẾU LÀ NGHỈ PHÉP HOẶC TÍCH VÀO "KHÔNG TRẢ CA"
       if(dRet && !isLeave && !isNoReturn) {
-        const caB_Tra = getCaThucTe(repB.name, pkip, dRet);
+        // ĐÃ SỬA: Dùng realPkip thay vì pkip
+        const caB_Tra = getCaThucTe(repB.name, realPkip, dRet);
         
         if(caB_Tra === 'OFF' || caB_Tra === 'HC' || caB_Tra === 'P') {
           partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Ngày trả ca, Kíp thay đang NGHỈ. Không có ca nào để gánh trả!</div>`);
@@ -2318,21 +2421,33 @@ async function submitBatchHC() {
       const isShiftItem = caThucTeA !== 'OFF';
       let finalRetDate = retDate, autoCaTra = 'HC', finalPartner = 'CÔNG TÁC HC', finalPartnerKip = 'Hành chính';
 
-      if (isShiftItem) {
+    if (isShiftItem) {
         if (isNoReplace) { 
             finalRetDate = dHC; autoCaTra = 'OFF';
         } else if (noRetRequired) { 
-            // Nếu được Miễn trả ca -> Coi như ngày đổi và ngày trả bằng nhau, ca trả là OFF
             finalRetDate = dHC; autoCaTra = 'OFF';
-            finalPartner = selectedPartners[idx]; finalPartnerKip = pkip;
-            const loi = checkViPhamAnToan(finalPartner, pkip, dHC, caThucTeA);
+            finalPartner = selectedPartners[idx]; 
+            
+            // ĐÃ SỬA: Lấy kíp thực tế để kiểm tra an toàn thay vì lưu chữ AUTO
+            const pInfo = NV_LIST.find(u => u.name === finalPartner);
+            finalPartnerKip = pInfo ? pInfo.kip : pkip;
+            
+            const loi = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caThucTeA);
             if(loi) { hasError = true; showAlert('app', `LỖI AN TOÀN: Đ/c ${finalPartner} vi phạm - ${loi}`, 'ae'); return; }
         } else { 
-            finalPartner = selectedPartners[idx]; finalPartnerKip = pkip;
-            const caGocB_Tra = getCaThucTe(finalPartner, pkip, retDate); 
+            finalPartner = selectedPartners[idx]; 
+            
+            // ĐÃ SỬA: Lấy kíp thực tế
+            const pInfo = NV_LIST.find(u => u.name === finalPartner);
+            finalPartnerKip = pInfo ? pInfo.kip : pkip;
+
+            const caGocB_Tra = getCaThucTe(finalPartner, finalPartnerKip, retDate);
             autoCaTra = caGocB_Tra;
-            const loiThay = checkViPhamAnToan(finalPartner, pkip, dHC, caThucTeA);
+            
+            // ĐÃ SỬA: Đổi pkip thành finalPartnerKip
+            const loiThay = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caThucTeA);
             if(loiThay) { hasError = true; showAlert('app', `LỖI NGƯỜI THAY: ${loiThay}`, 'ae'); return; }
+            
             const loiTra = checkViPhamAnToan(n, kip, retDate, autoCaTra);
             if(loiTra) { hasError = true; showAlert('app', `LỖI TRẢ CA: ${loiTra}`, 'ae'); return; }
         }
