@@ -201,10 +201,11 @@ textarea{resize:none;height:80px}
           <div><label>Người xin nghỉ</label><input type="text" id="f-name" readonly style="background:#f1f5f9; color:#475569; font-weight:600;"></div>
           <div><label>Kíp</label><select id="f-kip" disabled style="background:#f1f5f9; color:#475569; font-weight:600; appearance:none;"><option value="">-- Kíp --</option></select></div>
         </div>
-        <div class="form-row">
-          <div><label>Ca đổi</label><select id="f-ca-doi" onchange="refreshPartnerList()"><option value="">-- Chọn ca --</option></select></div>
-          <div><label>Ngày đổi</label><input type="date" id="f-ngay-doi" onchange="refreshPartnerList()"></div>
+        <div class="form-row" style="margin-bottom: 4px;">
+          <div><label>Ca đổi</label><select id="f-ca-doi" onchange="validateRealtimeDoi()"><option value="">-- Chọn ca --</option></select></div>
+          <div><label>Ngày đổi</label><input type="date" id="f-ngay-doi" onchange="validateRealtimeDoi()"></div>
         </div>
+        <div id="err-ca-doi" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:12px; display:none; background:#fee2e2; padding:8px 12px; border-radius:6px; border:1px dashed #fca5a5;"></div>
         <div class="form-row">
           <div><label>Ca trả lại</label><select id="f-ca-tra" onchange="refreshPartnerList()"><option value="">-- Chọn ca --</option></select></div>
           <div><label>Ngày trả lại</label><input type="date" id="f-ngay-tra" onchange="refreshPartnerList()"></div>
@@ -2706,6 +2707,44 @@ function togglePasswordVisibility(inputId, iconId) {
     // Đổi lại biểu tượng mở mắt
     iconSpan.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   }
+}
+// ===============================================================
+// HÀM KIỂM TRA ĐỒNG BỘ CA ĐỔI VÀ NGÀY ĐỔI (THỜI GIAN THỰC)
+// ===============================================================
+function validateRealtimeDoi() {
+    const name = document.getElementById('f-name').value;
+    const kip = document.getElementById('f-kip').value;
+    const caDoi = document.getElementById('f-ca-doi').value;
+    const ngayDoi = document.getElementById('f-ngay-doi').value;
+    const errBox = document.getElementById('err-ca-doi');
+    
+    if (!errBox) return;
+    
+    // Đợi người dùng nhập đủ cả 2 ô mới bắt đầu kiểm tra
+    if (!name || !kip || !caDoi || !ngayDoi) { 
+        errBox.style.display = 'none'; 
+        return; 
+    }
+
+    // Nhờ hệ thống tính toán ca thực tế của người đó trong ngày vừa chọn
+    const caThucTe = getCaThucTe(name, kip, ngayDoi);
+    
+    // So sánh: Nếu ca thực tế khác với ca xin nghỉ
+    if (caThucTe !== caDoi) {
+        let msg = `❌ Ngày ${fmtDate(ngayDoi)} bạn có lịch là `;
+        msg += (caThucTe === 'OFF') ? "NGHỈ (OFF)" : `Ca ${caThucTe}`;
+        msg += `. Bạn không thể xin nghỉ Ca ${caDoi}!`;
+        
+        // Hiện cảnh báo đỏ
+        errBox.innerHTML = msg;
+        errBox.style.display = 'block';
+        
+        // CÚ CHỐT: Tự động xóa rỗng ô "Ca đổi" để ép anh em phải chọn lại cho đúng
+        document.getElementById('f-ca-doi').value = '';
+    } else {
+        // Nếu khớp nhau thì giấu hộp báo lỗi đi
+        errBox.style.display = 'none';
+    }
 }
 </script>
 </body>
