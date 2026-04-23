@@ -206,10 +206,12 @@ textarea{resize:none;height:80px}
           <div><label>Ngày đổi</label><input type="date" id="f-ngay-doi" onchange="validateRealtimeDoi()"></div>
         </div>
         <div id="err-ca-doi" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:12px; display:none; background:#fee2e2; padding:8px 12px; border-radius:6px; border:1px dashed #fca5a5;"></div>
-        <div class="form-row">
-          <div><label>Ca trả lại</label><select id="f-ca-tra" onchange="refreshPartnerList()"><option value="">-- Chọn ca --</option></select></div>
-          <div><label>Ngày trả lại</label><input type="date" id="f-ngay-tra" onchange="refreshPartnerList()"></div>
+
+        <div class="form-row" style="margin-bottom: 4px;">
+          <div><label>Ca trả lại</label><select id="f-ca-tra" onchange="validateRealtimeTra()"><option value="">-- Chọn ca --</option></select></div>
+          <div><label>Ngày trả lại</label><input type="date" id="f-ngay-tra" onchange="validateRealtimeTra()"></div>
         </div>
+        <div id="err-ca-tra" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:12px; display:none; background:#fee2e2; padding:8px 12px; border-radius:6px; border:1px dashed #fca5a5;"></div>
         <div class="form-row three">
           <div><label>Người đi thay</label>
             <div class="ss" id="ss-partner"><button class="ss-btn ph"><span id="ss-partner-lbl">-- Chọn --</span><span>▾</span></button><div class="ss-drop" id="ss-partner-drop"><input class="ss-inp" oninput="filterSS('ss-partner',this.value)" placeholder="Tìm..."><div class="ss-list" id="ss-partner-list"></div></div></div>
@@ -553,6 +555,9 @@ async function loadAll(){
   allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()})); 
   await loadTransfers(); }
 
+// ===============================================================
+// 1. PHỄU LỌC THÔNG MINH: CHỈ HIỆN NGƯỜI ĐI THAY PHÙ HỢP
+// ===============================================================
 const SS_SOURCES = {
   'ss-login': () => NV_LIST.map(u => u.name),
   'ss-reset': () => NV_LIST.map(u => u.name),
@@ -562,49 +567,93 @@ const SS_SOURCES = {
     if (!myInfo) return [];
     
     const getRoles = (u) => {
-      let roles = [];
-      if (u.chucDanh) roles.push(u.chucDanh.trim().toLowerCase());
-      if (u.chucDanhDuPhong) roles.push(...u.chucDanhDuPhong.split(',').map(s => s.trim().toLowerCase()));
-      return roles.filter(Boolean);
+      let rls = [];
+      if (u.chucDanh) rls.push(u.chucDanh.trim().toLowerCase());
+      if (u.chucDanhDuPhong) rls.push(...u.chucDanhDuPhong.split(',').map(s => s.trim().toLowerCase()));
+      return rls.filter(Boolean);
     };
     const myRoles = getRoles(myInfo);
     
-    // Đọc thông số Ngày/Ca anh em vừa chọn trên màn hình
-    const ngayDoi = document.getElementById('f-ngay-doi').value;
-    const caDoi = document.getElementById('f-ca-doi').value;
-    const ngayTra = document.getElementById('f-ngay-tra').value;
-    const caTra = document.getElementById('f-ca-tra').value;
-    const isDoiCungNgay = (ngayDoi && ngayTra && ngayDoi === ngayTra);
-    
-    // BỘ LỌC ĐA TẦNG
+    const nDoi = document.getElementById('f-ngay-doi').value;
+    const cDoi = document.getElementById('f-ca-doi').value;
+    const nTra = document.getElementById('f-ngay-tra').value;
+    const cTra = document.getElementById('f-ca-tra').value;
+    const isCungNgay = (nDoi && nTra && nDoi === nTra);
+
     return NV_LIST.filter(u => {
-      if (u.name === CU.name) return false; // Lọc 1: Bỏ qua chính mình
-      
+      if (u.name === CU.name) return false; 
       const theirRoles = getRoles(u);
-      if (!myRoles.some(r => theirRoles.includes(r))) return false; // Lọc 2: Bỏ qua người khác chức danh
-      
-      // Lọc 3: Kiểm tra điều kiện CHIỀU ĐỔI CA
-      if (ngayDoi && caDoi) {
-          const caThucTeB_Doi = getCaThucTe(u.name, u.kip, ngayDoi);
-          // Trừ khi đổi cùng ngày, còn lại người đi thay BẮT BUỘC phải đang rảnh (OFF)
-          if (!isDoiCungNgay && caThucTeB_Doi !== 'OFF') return false; 
-          
-          // Bộ quét an toàn: Xem người này đi ca đó có bị kẹp C-K hay quá 4K không
-          const loiAnToan = checkViPhamAnToan(u.name, u.kip, ngayDoi, caDoi);
-          if (loiAnToan) return false; 
+      if (!myRoles.some(r => theirRoles.includes(r))) return false;
+
+      // Lọc người rảnh và an toàn để đi thay
+      if (nDoi && cDoi) {
+         const caB_Doi = getCaThucTe(u.name, u.kip, nDoi);
+         if (isCungNgay) { if (cTra && caB_Doi !== cTra) return false; } 
+         else { if (caB_Doi !== 'OFF') return false; }
+         if (checkViPhamAnToan(u.name, u.kip, nDoi, cDoi)) return false; 
       }
-      
-      // Lọc 4: Kiểm tra điều kiện CHIỀU TRẢ CA
-      if (ngayTra && caTra) {
-          const caThucTeB_Tra = getCaThucTe(u.name, u.kip, ngayTra);
-          // Người đó bắt buộc phải có ca đó vào ngày đó để cho mình trả
-          if (caThucTeB_Tra !== caTra) return false; 
+      // Lọc người có ca để mình đi trả
+      if (nTra && cTra && !isCungNgay) {
+         if (getCaThucTe(u.name, u.kip, nTra) !== cTra) return false; 
       }
-      
-      return true; // Vượt qua 4 vòng gửi xe thì mới được hiện tên lên!
+      return true;
     }).map(u => u.name);
   }
 };
+
+// ===============================================================
+// 2. CẬP NHẬT DANH SÁCH & BÁO LỖI NGAY LẬP TỨC
+// ===============================================================
+function updatePartnerListRealtime() {
+    buildSS('ss-partner', ''); 
+    const curP = document.getElementById('f-partner').value;
+    const valids = SS_SOURCES['ss-partner']();
+    if (curP && !valids.includes(curP)) {
+        document.getElementById('f-partner').value = '';
+        document.getElementById('ss-partner-lbl').textContent = '-- Chọn --';
+    }
+}
+
+function validateRealtimeDoi() {
+    const n = document.getElementById('f-name').value, k = document.getElementById('f-kip').value;
+    const cD = document.getElementById('f-ca-doi').value, nD = document.getElementById('f-ngay-doi').value;
+    const box = document.getElementById('err-ca-doi');
+    if (!nD || !cD) { box.style.display = 'none'; updatePartnerListRealtime(); return; }
+
+    const thucTe = getCaThucTe(n, k, nD);
+    if (thucTe !== cD) {
+        box.innerHTML = `❌ Ngày ${fmtDate(nD)} bạn có lịch là ${thucTe==='OFF'?'NGHỈ':('Ca '+thucTe)}. Không thể nghỉ Ca ${cD}!`;
+        box.style.display = 'block';
+        document.getElementById('f-ca-doi').value = ''; 
+    } else { box.style.display = 'none'; }
+    updatePartnerListRealtime();
+}
+
+function validateRealtimeTra() {
+    const n = document.getElementById('f-name').value, k = document.getElementById('f-kip').value;
+    const cT = document.getElementById('f-ca-tra').value, nT = document.getElementById('f-ngay-tra').value;
+    const box = document.getElementById('err-ca-tra');
+    if (!nT || !cT) { box.style.display = 'none'; updatePartnerListRealtime(); return; }
+
+    const thucTe = getCaThucTe(n, k, nT);
+    const nD = document.getElementById('f-ngay-doi').value;
+    
+    // Kiểm tra vướng lịch làm việc
+    if (thucTe !== 'OFF' && nD !== nT) {
+        box.innerHTML = `❌ Ngày ${fmtDate(nT)} bạn vướng lịch Ca ${thucTe}. Phải chọn ngày NGHỈ để trả ca!`;
+        box.style.display = 'block';
+        document.getElementById('f-ca-tra').value = '';
+    } else {
+        // KIỂM TRA AN TOÀN (C-K, 4K) CHO CHIỀU TRẢ - BÁO LỖI NGAY TẠI ĐÂY
+        const loiAT = checkViPhamAnToan(n, k, nT, cT);
+        if (loiAT) {
+            box.innerHTML = `❌ Vi phạm An toàn khi Trả ca: ${loiAT}`;
+            box.style.display = 'block';
+            document.getElementById('f-ca-tra').value = ''; // Xóa ngay để không cho gửi
+        } else { box.style.display = 'none'; }
+    }
+    updatePartnerListRealtime();
+}
 const SS_HIDDEN={'ss-login':'f-login-name','ss-partner':'f-partner','ss-reset':'f-reset-name'};
 // Hàm tự động làm sạch ô "Người đi thay" mỗi khi đổi Ngày/Ca
 function refreshPartnerList() {
@@ -2709,7 +2758,26 @@ function togglePasswordVisibility(inputId, iconId) {
   }
 }
 // ===============================================================
-// HÀM KIỂM TRA ĐỒNG BỘ CA ĐỔI VÀ NGÀY ĐỔI (THỜI GIAN THỰC)
+// CẬP NHẬT LẠI DANH SÁCH NGƯỜI ĐI THAY MỖI KHI ĐỔI NGÀY/CA
+// ===============================================================
+function updatePartnerListRealtime() {
+    buildSS('ss-partner', ''); // Dựng lại danh sách xổ xuống
+    
+    // Nếu người đang chọn không còn đáp ứng điều kiện -> Tự động xóa để ép chọn người khác
+    const currentPartner = document.getElementById('f-partner').value;
+    const validPartners = SS_SOURCES['ss-partner']();
+    
+    if (currentPartner && !validPartners.includes(currentPartner)) {
+        document.getElementById('f-partner').value = '';
+        document.getElementById('f-partner-kip').value = '';
+        document.getElementById('f-partner-role').value = '';
+        document.getElementById('ss-partner-lbl').textContent = '-- Chọn --';
+        document.querySelector('#ss-partner .ss-btn').classList.add('ph');
+    }
+}
+
+// ===============================================================
+// 1. KIỂM TRA CHIỀU ĐỔI CA (Tự động Lọc danh sách)
 // ===============================================================
 function validateRealtimeDoi() {
     const name = document.getElementById('f-name').value;
@@ -2718,33 +2786,85 @@ function validateRealtimeDoi() {
     const ngayDoi = document.getElementById('f-ngay-doi').value;
     const errBox = document.getElementById('err-ca-doi');
     
-    if (!errBox) return;
-    
-    // Đợi người dùng nhập đủ cả 2 ô mới bắt đầu kiểm tra
-    if (!name || !kip || !caDoi || !ngayDoi) { 
-        errBox.style.display = 'none'; 
-        return; 
+    if (errBox) {
+        if (!name || !kip || !ngayDoi || !caDoi) { 
+            errBox.style.display = 'none'; 
+        } else {
+            const caThucTe = getCaThucTe(name, kip, ngayDoi);
+            if (caThucTe !== caDoi) {
+                let msg = `❌ Ngày ${fmtDate(ngayDoi)} bạn có lịch là ${caThucTe === 'OFF' ? "NGHỈ (OFF)" : 'Ca '+caThucTe}. Bạn không thể xin nghỉ Ca ${caDoi}!`;
+                errBox.innerHTML = msg;
+                errBox.style.display = 'block';
+                document.getElementById('f-ca-doi').value = ''; 
+                setTimeout(() => { if(!document.getElementById('f-ca-doi').value) errBox.style.display = 'none'; }, 5000);
+            } else {
+                errBox.style.display = 'none';
+            }
+        }
     }
+    updatePartnerListRealtime(); // Kích hoạt bộ lọc
+}
 
-    // Nhờ hệ thống tính toán ca thực tế của người đó trong ngày vừa chọn
-    const caThucTe = getCaThucTe(name, kip, ngayDoi);
+// ===============================================================
+// 2. KIỂM TRA CHIỀU TRẢ CA (Bổ sung Quét lỗi An Toàn)
+// ===============================================================
+function validateRealtimeTra() {
+    const name = document.getElementById('f-name').value;
+    const kip = document.getElementById('f-kip').value;
+    const caTra = document.getElementById('f-ca-tra').value;
+    const ngayTra = document.getElementById('f-ngay-tra').value;
+    const errBox = document.getElementById('err-ca-tra');
     
-    // So sánh: Nếu ca thực tế khác với ca xin nghỉ
-    if (caThucTe !== caDoi) {
-        let msg = `❌ Ngày ${fmtDate(ngayDoi)} bạn có lịch là `;
-        msg += (caThucTe === 'OFF') ? "NGHỈ (OFF)" : `Ca ${caThucTe}`;
-        msg += `. Bạn không thể xin nghỉ Ca ${caDoi}!`;
-        
-        // Hiện cảnh báo đỏ
-        errBox.innerHTML = msg;
-        errBox.style.display = 'block';
-        
-        // CÚ CHỐT: Tự động xóa rỗng ô "Ca đổi" để ép anh em phải chọn lại cho đúng
-        document.getElementById('f-ca-doi').value = '';
-    } else {
-        // Nếu khớp nhau thì giấu hộp báo lỗi đi
-        errBox.style.display = 'none';
+    if (errBox) {
+        if (!name || !kip || !ngayTra) { 
+            errBox.style.display = 'none'; 
+        } else {
+            const caThucTe = getCaThucTe(name, kip, ngayTra);
+            const ngayDoi = document.getElementById('f-ngay-doi').value;
+            const isDoiCungNgay = (ngayDoi && ngayDoi === ngayTra);
+            
+            // Luật 1: Kiểm tra xem ngày trả ca mình có ĐANG NGHỈ không
+            if (caThucTe !== 'OFF' && !isDoiCungNgay) {
+                errBox.innerHTML = `❌ Ngày ${fmtDate(ngayTra)} bạn đang vướng lịch Ca ${caThucTe}. Bạn chỉ được chọn ngày NGHỈ để đi trả ca!`;
+                errBox.style.display = 'block';
+                document.getElementById('f-ngay-tra').value = '';
+                document.getElementById('f-ca-tra').value = '';
+                setTimeout(() => { if(!document.getElementById('f-ngay-tra').value) errBox.style.display = 'none'; }, 5000);
+            } else {
+                
+                // Luật 2: Nếu đã chọn Người đi thay, đối chiếu xem họ có ca trả không
+                const partner = document.getElementById('f-partner').value;
+                const partnerKip = document.getElementById('f-partner-kip').value;
+                let coLoiPartner = false;
+                
+                if (caTra && partner && partnerKip) {
+                    const caThucTeDoiTac = getCaThucTe(partner, partnerKip, ngayTra);
+                    if (caThucTeDoiTac !== caTra) {
+                        errBox.innerHTML = `❌ Ngày ${fmtDate(ngayTra)} đồng chí ${partner} có lịch là ${caThucTeDoiTac==='OFF'?'NGHỈ':('Ca '+caThucTeDoiTac)}. Không thể trả bằng Ca ${caTra}!`;
+                        errBox.style.display = 'block';
+                        document.getElementById('f-ca-tra').value = '';
+                        coLoiPartner = true;
+                        setTimeout(() => { if(!document.getElementById('f-ca-tra').value) errBox.style.display = 'none'; }, 5000);
+                    }
+                }
+
+                // Luật 3: LÍNH GÁC AN TOÀN (BÁO LỖI NGAY NẾU MÌNH VI PHẠM C-K, 4K)
+                if (caTra && !coLoiPartner) {
+                    const loiAnToanCuaToi = checkViPhamAnToan(name, kip, ngayTra, caTra);
+                    if (loiAnToanCuaToi) {
+                        errBox.innerHTML = `❌ Vi phạm An toàn: ${loiAnToanCuaToi}`;
+                        errBox.style.display = 'block';
+                        document.getElementById('f-ca-tra').value = ''; // Ép chọn lại ca trả khác
+                        setTimeout(() => { if(!document.getElementById('f-ca-tra').value) errBox.style.display = 'none'; }, 6000);
+                    } else {
+                        // Nếu qua hết 3 vòng thì tắt báo lỗi
+                        errBox.style.display = 'none';
+                    }
+                }
+            }
+        }
     }
+    updatePartnerListRealtime(); // Kích hoạt bộ lọc danh sách
 }
 </script>
 </body>
