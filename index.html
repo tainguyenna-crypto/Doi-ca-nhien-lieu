@@ -2607,7 +2607,8 @@ async function submitBatchHC() {
           name: n, kip: kip, caDoi: isShiftItem ? caThucTeA : 'OFF', ngayDoi: dHC,
           caTra: autoCaTra, ngayTra: isShiftItem ? finalRetDate : dHC,
           partner: finalPartner, partnerKip: finalPartnerKip, partnerRole: role,
-          reason: reasonPrefix + " " + reason, status: 'approved'
+          reason: reasonPrefix + " " + reason, status: 'approved',
+          approvedBy: CU.name // <--- Bơm tên Sếp đang thao tác vào đây
         });
       }
     });
