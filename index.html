@@ -708,38 +708,28 @@ async function doForgotPin() {
   }
 }
 
-let loginFailCount = 0;
-let lockTime = 0;
+// --- XÓA HẾT BIẾN ĐẾM BÊN TRÌNH DUYỆT VÌ MÁY CHỦ ĐÃ LO VIỆC ĐÓ ---
 
 async function doLogin(){
   const n=document.getElementById('f-login-name').value;
   const p=document.getElementById('pin-inp').value;
   const e=document.getElementById('pin-err');
 
-  if (Date.now() < lockTime) {
-      const remain = Math.ceil((lockTime - Date.now()) / 1000);
-      e.style.color = '#dc2626'; e.textContent = `Khóa dò mã! Thử lại sau ${remain} giây`; return;
-  }
-
   if(!n||!p){e.style.color='#dc2626'; e.textContent='Chọn tên và nhập Mật khẩu';return;} 
   e.style.color='#1a56a0'; e.textContent='Đang vào...';
 
   try{ 
     const r=await api({action:"login",name:n,pin:p}); 
+    
+    // NẾU CÓ LỖI TỪ MÁY CHỦ (Bao gồm khóa 10 phút và sai mật khẩu)
     if(r.error){
-        loginFailCount++;
-        if (loginFailCount >= 5) {
-            lockTime = Date.now() + 10 * 60 * 1000; // Phạt khóa 10 PHÚT
-            e.style.color='#dc2626'; e.textContent = `Nhập sai 5 lần. Khóa đăng nhập 10 phút!`;
-        } else {
-            e.style.color='#dc2626'; e.textContent = `${r.error} (Sai ${loginFailCount}/5 lần)`;
-        }
+        e.style.color='#dc2626'; 
+        e.textContent = r.error;
         return;
     } 
-    loginFailCount = 0;
-    CU=r.user; 
     
-    // 👉 DÒNG MỚI BỔ SUNG: Tự động nạp danh sách "Đồng nghiệp cùng chuyên môn"
+    // ĐĂNG NHẬP THÀNH CÔNG
+    CU=r.user; 
     buildSS('ss-partner', ''); 
     
     document.getElementById('overlay').style.display='none'; document.getElementById('app').style.display='block'; 
@@ -755,12 +745,13 @@ async function doLogin(){
     for(let y = curYear - 2; y <= curYear + 2; y++) { yrSelect.innerHTML += `<option value="${y}" ${y===curYear ? 'selected':''}>Năm ${y}</option>`; }
     await loadAll(); 
   } catch(ex){e.style.color='#dc2626'; e.textContent='Lỗi kết nối mạng';}
-// TỰ ĐỘNG CẬP NHẬT SAU MỖI 60 GIÂY
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer); // Dọn dẹp vòng lặp cũ nếu có
+  
+  // TỰ ĐỘNG CẬP NHẬT SAU MỖI 60 GIÂY
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer); 
   
   autoRefreshTimer = setInterval(async () => {
     if (CU) {
-      await loadAll(); // Tải dữ liệu mới ngầm
+      await loadAll(); 
       const activeBtn = document.querySelector('.tab.active');
       if (activeBtn) {
         const t = activeBtn.getAttribute('onclick').match(/'([^']+)'/)[1];
@@ -771,12 +762,17 @@ async function doLogin(){
 }
 
 function doLogout() {
+  // GỬI LỆNH TIÊU DIỆT TOKEN LÊN MÁY CHỦ
+  if (CU && CU.name) {
+    api({action: "logout", name: CU.name}); 
+  }
+  
   CU = null; allReqs = [];
   document.getElementById('overlay').style.display = 'flex'; document.getElementById('app').style.display = 'none'; document.getElementById('login-box').style.display = 'block'; document.getElementById('login-loading').style.display = 'none';
   document.getElementById('f-login-name').value = ''; document.getElementById('pin-inp').value = ''; document.getElementById('pin-err').textContent = ''; document.getElementById('ss-login-lbl').textContent = '-- Chọn tên của bạn --';
   document.querySelector('#ss-login .ss-btn').classList.add('ph'); document.getElementById('f-name').value = ''; buildSS('ss-login', '');
-}
- async function doRefresh(btn) {
+} 
+async function doRefresh(btn) {
   // 1. Đổi nút sang màu xanh, hiện chữ đang tải và khóa nút
   btn.classList.add('btn-success'); 
   btn.textContent = '⏳ Đang tải...'; 
