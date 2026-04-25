@@ -2870,24 +2870,6 @@ function validateRealtimeTra() {
     }
     updatePartnerListRealtime(); // Kích hoạt bộ lọc danh sách
 }
-// ===============================================================
-// CHỐT CHẶN CUỐI CÙNG: TIÊU DIỆT TOKEN KHI TẮT TAB/TRÌNH DUYỆT
-// ===============================================================
-window.addEventListener('unload', function () {
-  // Kiểm tra xem có người đang đăng nhập không
-  if (typeof CU !== 'undefined' && CU && CU.name) {
-    let p = { action: "logout", name: CU.name };
-    if (CU.token) { p.reqName = CU.name; p.reqToken = CU.token; }
-
-    // Bắn tín hiệu hủy Token lên máy chủ trong tích tắc trước khi tab đóng lại
-    if (typeof navigator.sendBeacon === "function" && typeof SCRIPT_URL !== "undefined") {
-        let formData = new URLSearchParams(p);
-        navigator.sendBeacon(SCRIPT_URL, formData);
-    } else if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run.apiRun(p);
-    }
-  }
-});
 </script>
 </body>
 </html>
