@@ -486,18 +486,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjb6nn9Y5thaK1tj6FD
 let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 10 };
 let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
 let autoRefreshTimer = null;
-// XÓA TOKEN KHI TẮT TRÌNH DUYỆT / ĐÓNG TAB
-window.addEventListener('beforeunload', function() {
-  if (CU && CU.name && CU.token) {
-    navigator.sendBeacon(SCRIPT_URL,
-      new URLSearchParams({
-        action: 'logout',
-        reqName: CU.name,
-        reqToken: CU.token
-      }).toString()
-    );
-  }
-});
 async function api(p) {
   // SỬA LỖI 2: Tự động đính kèm Token (Thẻ bài) vào mọi gói tin gửi lên máy chủ
   if (typeof CU !== 'undefined' && CU && CU.token) {
