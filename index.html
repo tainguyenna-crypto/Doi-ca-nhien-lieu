@@ -731,6 +731,13 @@ async function doLogin(){
     // ĐĂNG NHẬP THÀNH CÔNG
     CU=r.user; 
     buildSS('ss-partner', ''); 
+// CẢI TIẾN 3: NHẮC ĐỔI PIN NẾU QUÁ 6 THÁNG
+    if (r.nhacDoiPin) {
+  setTimeout(() => {
+    const xacNhan = confirm('⚠️ Đã hơn 6 tháng bạn chưa đổi mã PIN!\n\nBấm OK để đổi PIN ngay, hoặc Hủy để bỏ qua.');
+    if (xacNhan) openChangePin(); // Mở luôn form đổi PIN
+  }, 1500);
+}
     
     document.getElementById('overlay').style.display='none'; document.getElementById('app').style.display='block'; 
     document.getElementById('ub-name').textContent=CU.name; 
