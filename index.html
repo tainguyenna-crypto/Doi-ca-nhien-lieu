@@ -1355,7 +1355,9 @@ function addDays(dateStr, days) {
 // HÀM TÍNH LỊCH THỰC TẾ (ĐÃ FIX: ƯU TIÊN TUYỆT ĐỐI CHO LỆNH ĐIỀU ĐỘNG)
 function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullObj = false) {
    let ca = getCaTrucGoc(userName, kipName, dateStr); 
-   const reqs = allReqs.filter(r => (r.status === 'approved' || r.status === 'pending_ld') && r.id !== ignoreReqId);
+   const reqs = allReqs
+  .filter(r => (r.status === 'approved' || r.status === 'pending_ld') && r.id !== ignoreReqId)
+  .sort((a, b) => a.id.toString().localeCompare(b.id.toString()));
    
    let finalOverride = null;
    let currentStatus = 'goc'; 
