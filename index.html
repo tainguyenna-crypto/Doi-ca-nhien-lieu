@@ -958,9 +958,9 @@ async function partnerOk(id, btn){
   // --- LOGIC GHI ĐÈ ĐƠN CHÍNH XÁC: CHỈ XẢY RA KHI ANH A BẤM ĐỒNG Ý ---
   // Tìm xem anh A đã lỡ Đồng ý (pending_ld) hoặc Đã duyệt (approved) cho ai khác vào ngày này chưa
   const oldReq = allReqs.find(r => 
-      (r.status === 'pending_ld' || r.status === 'approved') && 
-      r.partner === req.partner && 
-      r.ngayDoi === req.ngayDoi && 
+      (r.status === 'pending_ld') && 
+       r.ngayDoi === req.ngayDoi &&
+      r.partner === req.partner &&  
       r.id !== req.id
   );
 
@@ -2880,4 +2880,3 @@ function validateRealtimeTra() {
 </script>
 </body>
 </html>
-
