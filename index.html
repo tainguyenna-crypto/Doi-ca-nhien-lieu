@@ -954,68 +954,6 @@ function renderDongY(){
 async function partnerOk(id, btn){ 
   const req = allReqs.find(r => r.id === id); 
   if(!req) return; 
-
-  // --- LOGIC GHI ĐÈ ĐƠN CHÍNH XÁC: CHỈ XẢY RA KHI ANH A BẤM ĐỒNG Ý ---
-  // Tìm xem anh A đã lỡ Đồng ý (pending_ld) hoặc Đã duyệt (approved) cho ai khác vào ngày này chưa
-  const oldReq = allReqs.find(r => 
-      (r.status === 'pending_ld') && 
-       r.ngayDoi === req.ngayDoi &&
-      r.partner === req.partner &&  
-      r.id !== req.id
-  );
-
-  if (oldReq) {
-      // ========================================================
-      // LÍNH GÁC BẢO VỆ 24H: CHỐNG "QUAY XE" PHÚT CHÓT
-      // ========================================================
-      function getShiftTime(dStr, cCode) {
-          if (!dStr) return Infinity; // Không có ngày thì bỏ qua
-          let tStr = "00:00"; // Mặc định nếu Excel quên cấu hình giờ
-          if (CA[cCode] && CA[cCode].label) {
-              // Bóc tách giờ từ chuỗi ví dụ: "Ca N (07:00-15:00)" -> "07:00"
-              const m = CA[cCode].label.match(/\((\d{1,2}:\d{2})/);
-              if (m) tStr = m[1];
-          }
-          const [yr, mo, da] = dStr.split('-');
-          const [hr, mi] = tStr.split(':');
-          return new Date(yr, mo - 1, da, hr, mi).getTime();
-      }
-
-      // 1. Lấy mốc thời gian của chiều Đổi và chiều Trả
-      const tDoi = getShiftTime(oldReq.ngayDoi, oldReq.caDoi);
-      const tTra = getShiftTime(oldReq.ngayTra, oldReq.caTra);
-      
-      // 2. Chọn mốc thời gian đến sớm nhất
-      const earliestTime = Math.min(tDoi, tTra);
-      const nowTime = new Date().getTime();
-      
-      // 3. Tính khoảng cách thời gian (Quy ra số Tiếng)
-      const hoursDiff = (earliestTime - nowTime) / (1000 * 60 * 60);
-
-      if (hoursDiff <= 24) {
-          showAlert('app', `LỖI: Đã sát giờ đi ca của Đ/c ${oldReq.name} (Còn < 24h). Bạn KHÔNG THỂ hủy đơn cũ để nhận đơn mới được nữa! Vui lòng bấm TỪ CHỐI đơn này.`, 'ae');
-          return; // Chặn đứng thao tác ghi đè
-      }
-      // ========================================================
-
-      const cf = confirm(`⚠️ CẢNH BÁO TRÙNG LỊCH:\nBạn đã đồng ý đi thay ca cho Đ/c ${oldReq.name} vào ngày ${fmtDate(req.ngayDoi)} rồi.\n\nBạn có muốn HỦY đơn của ${oldReq.name} để nhận lời đi thay cho ${req.name} không?`);
-      if (!cf) return;
-
-      // Gửi lệnh hủy đơn cũ trước khi đồng ý đơn mới
-      if(btn){ btn.disabled=true; btn.innerHTML='⏳ Đang hủy đơn cũ...'; btn.style.opacity='0.6'; btn.style.cursor='not-allowed'; }
-      showAlert('app', 'Đang hủy đơn cũ...', 'ai');
-      try {
-          await api({action:"updateStatus", id: oldReq.id, status:"cancelled", by:CU.name});
-          // Cập nhật tạm thời trên giao diện để Lính gác an toàn không bị chặn
-          oldReq.status = 'cancelled';
-      } catch(e) {
-          if(btn){ btn.disabled=false; btn.innerHTML='Đồng ý'; btn.style.opacity='1'; btn.style.cursor='pointer'; }
-          showAlert('app', 'Lỗi mạng khi hủy đơn cũ!', 'ae');
-          return;
-      }
-  }
-  // -----------------------------------------------------------------
-
   const err = validateExistingReq(req); 
   if(err) { showAlert('app', `Hệ thống chặn: ${err}`, 'ae'); return; } 
   
