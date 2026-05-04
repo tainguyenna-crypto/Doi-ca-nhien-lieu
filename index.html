@@ -393,7 +393,7 @@ textarea{resize:none;height:80px}
           <select id="f-fst" onchange="renderHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
             <option value="">Tất cả trạng thái</option>
             <option value="pending_partner">Chờ xác nhận</option>
-            <option value="pending_ld">Chờ LD duyệt</option>
+            <option value="pending_ld">Chờ LĐ duyệt</option>
             <option value="approved">Đã duyệt</option>
             <option value="rejected">Từ chối</option>
           </select>
@@ -845,7 +845,7 @@ function switchTab(t){
 
 function fmtDate(d){ if(!d) return ''; const p=d.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : d; }
 function caLabel(k){return CA[k]?CA[k].label:k;}
-function badge(s){ return {pending_partner:'<span class="badge bp">Chờ xác nhận</span>',pending_ld:'<span class="badge bld">Chờ LD duyệt</span>',approved:'<span class="badge bok">Đã duyệt</span>',rejected:'<span class="badge bno">Từ chối</span>'}[s]||''; }
+function badge(s){ return {pending_partner:'<span class="badge bp">Chờ xác nhận</span>',pending_ld:'<span class="badge bld">Chờ LĐ duyệt</span>',approved:'<span class="badge bok">Đã duyệt</span>',rejected:'<span class="badge bno">Từ chối</span>'}[s]||''; }
 function flowBar(s){ const steps=[['pending_partner','Xác nhận'],['pending_ld','Duyệt PX'],['approved','Xong']]; const cur={pending_partner:0,pending_ld:1,approved:2}[s]??0; return`<div class="flow">${steps.map(([,l],i)=>`<div class="fs${s!=='rejected'&&i<cur?' done':s!=='rejected'&&i===cur?' active':''}">${l}</div>`).join('')}</div>`; }
 // Thêm hàm "khử mã độc" (Sanitize)
 function escapeHTML(str) {
