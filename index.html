@@ -1237,7 +1237,8 @@ async function ldNo(id, btn){
   if(btn){ btn.disabled=true; btn.innerHTML='⏳ Đang xử lý...'; btn.style.opacity='0.6'; btn.style.cursor='not-allowed'; } 
   showAlert('app', 'Đang xử lý...', 'ai'); 
   try{ 
-    await api({action:"updateStatus", id: currentApproveId, status:"approved", by:CU.name, imgUrl: imgRes.url, verifyPin: currentApprovePin}); 
+    // ĐÃ SỬA: Gửi đúng 'id', đổi trạng thái thành 'rejected', và truyền lý do từ chối 'rejectReason: rs'
+    await api({action:"updateStatus", id: id, status:"rejected", by:CU.name, rejectReason: rs}); 
     await loadAll(); 
     renderPheDuyet(); 
     showAlert('app', 'Đã từ chối.', 'ae'); 
