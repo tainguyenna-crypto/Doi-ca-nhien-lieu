@@ -1434,6 +1434,8 @@ function getLechHienTai(userName, monthStr) {
   let count = 0;
   
   allReqs.forEach(r => {
+    if (r.partner === 'CÔNG TÁC HC') return;
+    if (r.reason && r.reason.match(/^\[/)) return;
     if (r.status === 'approved') {
       const ngayDoiStr = r.ngayDoi ? r.ngayDoi.toString().substring(0, 10) : "";
       const ngayTraStr = r.ngayTra ? r.ngayTra.toString().substring(0, 10) : "";
@@ -1622,7 +1624,7 @@ async function deleteReq(id, btn){
 
 function renderSummary() {
   const reqs = CU.role === 'ld' ? allReqs : allReqs.filter(r => r.name === CU.name || r.partner === CU.name);
-  const validReqs = reqs.filter(r => r.status !== 'cancelled'); // Lọc sạch đơn rác khỏi thống kê
+  const validReqs = reqs.filter(r => r.status !== 'cancelled' && r.partner !== 'CÔNG TÁC HC' && !(r.reason && r.reason.match(/^\[/)));
   document.getElementById('st-total').textContent = validReqs.length; 
   document.getElementById('st-approved').textContent = validReqs.filter(r=>r.status==='approved').length; 
   document.getElementById('st-pending').textContent = validReqs.filter(r=>r.status.includes('pending')).length;
@@ -1634,7 +1636,7 @@ function renderDayTable(){
   if(!mv) return; 
   
   const [yr, mo] = mv.split('-').map(Number);
-  let approved = allReqs.filter(r => r.status === 'approved');
+  let approved = allReqs.filter(r => r.status === 'approved' && r.partner !== 'CÔNG TÁC HC');
   
   // Nếu không phải lãnh đạo, chỉ xem đơn liên quan đến mình
   if (CU.role !== 'ld') { 
@@ -1725,6 +1727,8 @@ function renderWarn() {
   
   allReqs.forEach(r=>{ 
     if (CU.role !== 'ld' && r.name !== CU.name && r.partner !== CU.name) return;
+    if (r.partner === 'CÔNG TÁC HC') return;
+    if (r.reason && r.reason.match(/^\[/)) return;
     ensure(r.name, r.kip); ensure(r.partner, r.partnerKip||'');
     if(r.status==='approved'){
       const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0];
@@ -1808,6 +1812,8 @@ function renderStaffStats() {
 
   allReqs.forEach(r=>{ 
     if (CU.role !== 'ld' && r.name !== CU.name && r.partner !== CU.name) return;
+    if (r.partner === 'CÔNG TÁC HC') return;
+    if (r.reason && r.reason.match(/^\[/)) return;
     ensure(r.name, r.kip); ensure(r.partner, r.partnerKip||'');
     if(r.status==='approved'){
       const yDoi = r.ngayDoi ? parseInt(r.ngayDoi.toString().substring(0,4)) : 0; const yTra = r.ngayTra ? parseInt(r.ngayTra.toString().substring(0,4)) : 0;
