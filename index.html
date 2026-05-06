@@ -522,6 +522,7 @@ function setupDynamicFields(settings) {
     APP_CONFIG.lechWarn = parseInt(settings.configs.SO_CA_LECH_CANH_BAO) || (APP_CONFIG.lechMax - 2); 
     APP_CONFIG.configs = settings.configs;
     APP_CONFIG.kipList = settings.kips; // THÊM DÒNG NÀY
+    APP_CONFIG.priorityOrder = settings.chucDanhs; // THÊM DÒNG NÀY
     document.getElementById('page-title').textContent = "Quản lý đổi ca – " + APP_CONFIG.tenPX; 
     document.getElementById('tb-ten-px').textContent = APP_CONFIG.tenPX;
   }
@@ -1952,7 +1953,9 @@ function renderScheduleTable() {
     return { ...u, displayKip: currentKip };
   });
 
-  const priorityOrder = ["Quản đốc", "Phó quản đốc", "Kỹ thuật Phân xưởng", "Trưởng kíp nhiên liệu", "Trực chính nhiên liệu", "Vận hành Băng tải", "Vận hành Máy đánh phá đống", "Vận hành Cẩu trục và xe cơ giới", "Tiếp nhận nhiên liệu"];
+  const priorityOrder = APP_CONFIG.priorityOrder?.length > 0
+  ? APP_CONFIG.priorityOrder
+  : ["Quản đốc", "Phó quản đốc", "Kỹ thuật Phân xưởng", "Trưởng kíp nhiên liệu", "Trực chính nhiên liệu", "Vận hành Băng tải", "Vận hành Máy đánh phá đống", "Vận hành Cẩu trục và xe cơ giới", "Tiếp nhận nhiên liệu"];
   displayList.sort((a, b) => {
     let idxA = priorityOrder.indexOf(a.chucDanh); let idxB = priorityOrder.indexOf(b.chucDanh);
     let valA = idxA === -1 ? 999 : idxA; let valB = idxB === -1 ? 999 : idxB;
