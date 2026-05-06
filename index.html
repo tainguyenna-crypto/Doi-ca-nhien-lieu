@@ -484,7 +484,6 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjb6nn9Y5thaK1tj6FD
 
 // CẤU HÌNH BIẾN ĐỘNG TRÊN GIAO DIỆN
 let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 10 };
-let APP_SETTINGS = { kips: [] }; // Lưu settings từ sheet settings
 let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
 let autoRefreshTimer = null;
 async function api(p) {
@@ -515,7 +514,6 @@ async function api(p) {
 }
 
 function setupDynamicFields(settings) {
-  APP_SETTINGS = settings; // Lưu vào biến global để dùng ở các hàm khác
   if(settings.configs) {
     APP_CONFIG.tenPX = settings.configs.TEN_PHAN_XUONG || "Phân xưởng"; 
     // Lấy Max từ Excel, mặc định là 10
@@ -523,6 +521,7 @@ function setupDynamicFields(settings) {
     // Lấy Cảnh báo từ Excel, nếu quên chưa nhập thì tự động lấy mức Max - 2
     APP_CONFIG.lechWarn = parseInt(settings.configs.SO_CA_LECH_CANH_BAO) || (APP_CONFIG.lechMax - 2); 
     APP_CONFIG.configs = settings.configs;
+    APP_CONFIG.kipList = settings.kips; // THÊM DÒNG NÀY
     document.getElementById('page-title').textContent = "Quản lý đổi ca – " + APP_CONFIG.tenPX; 
     document.getElementById('tb-ten-px').textContent = APP_CONFIG.tenPX;
   }
@@ -2585,10 +2584,9 @@ let allTransfers = []; // Biến lưu trữ lịch sử điều chuyển
 // Khởi tạo Form Điều chuyển
 function initTransferForm() {
   const roles = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
-  // Lấy danh sách kíp từ sheet settings (cột kip) thay vì từ sheet users
-  const kips = (APP_SETTINGS.kips && APP_SETTINGS.kips.length > 0)
-    ? APP_SETTINGS.kips
-    : [...new Set(NV_LIST.map(u => u.kip))].filter(Boolean);
+  const kips = APP_CONFIG.kipList?.length > 0 
+  ? APP_CONFIG.kipList 
+  : [...new Set(NV_LIST.map(u => u.kip))].filter(Boolean);
   const patterns = Object.keys(MAU_LICH); 
   
   document.getElementById('tc-role').innerHTML = '<option value="">-- Tất cả --</option>' + roles.map(r=>`<option>${r}</option>`).join('');
