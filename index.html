@@ -1464,6 +1464,7 @@ async function submitRequest(){
   const partnerKip = document.getElementById('f-partner-kip').value, partnerRole = document.getElementById('f-partner-role').value, reason = document.getElementById('f-reason').value.trim();
 
   if(!name || !kip || !partner || !partnerKip || !partnerRole){ showAlert('app','Thiếu thông tin người xin nghỉ hoặc người đi thay.','ae'); return; }
+  if(!reason){ showAlert('app','Vui lòng nhập lý do đổi ca!','ae'); return; }
   if(name === partner){ showAlert('app','Người đổi và người đi thay không được trùng nhau.','ae'); return; }
   
   if((!caDoi || !ngayDoi) && (!caTra || !ngayTra)) {
