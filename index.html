@@ -1331,13 +1331,21 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
           }
           else if (r.partner === userName && r.ngayTra === dateStr && (!isSpecial)) { tempCa = 'OFF'; matched = true; }
           else if (r.name === userName && r.ngayTra === dateStr && (!isSpecial)) { tempCa = r.caTra; matched = true; }
+          // Lệnh điều động ngày trả ca: r.name (Hiền) vào ca thật, r.partner (Đăng) về OFF
+          else if (r.name === userName && r.ngayTra === dateStr && isSpecial && r.caTra && r.caTra !== 'HC' && r.caTra !== 'OFF') { tempCa = r.caTra; matched = true; }
+          else if (r.partner === userName && r.ngayTra === dateStr && isSpecial && r.caTra && r.caTra !== 'HC' && r.caTra !== 'OFF') { tempCa = 'OFF'; matched = true; }
           else if (r.partner === userName && r.ngayDoi === dateStr) { tempCa = r.caDoi; matched = true; }
           
           // 2. LOGIC ƯU TIÊN TUYỆT ĐỐI & ÉP LÊN MÀU TÍM
           if (matched) {
-             if (isSpecial && r.status === 'approved') {
+             if (isSpecial && r.name === userName && r.status === 'approved') {
+                // Người đi HC/Nghỉ phép: ưu tiên tuyệt đối
                 isCommandFound = true; ca = tempCa; currentStatus = 'approved'; 
-             } 
+             }
+             else if (isSpecial && r.partner === userName && r.status === 'approved') {
+                // Người đi thay trong lệnh điều động: cũng ưu tiên tuyệt đối
+                isCommandFound = true; ca = tempCa; currentStatus = 'approved';
+             }
              else if (!isCommandFound) {
                 ca = tempCa;
                 // Ép trạng thái về 'pending_ld' để bảng tự động kích hoạt viền Tím
