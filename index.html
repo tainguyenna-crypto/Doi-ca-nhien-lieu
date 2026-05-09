@@ -748,7 +748,7 @@ async function doLogin(){
     document.getElementById('ub-name').textContent=CU.name; 
     const myInfo = NV_LIST.find(u => u.name === CU.name); 
     document.getElementById('ub-role').textContent = (myInfo && myInfo.chucDanh) ? myInfo.chucDanh : (CU.role==='ld'?'Lãnh đạo PX':'Vận hành');
-    document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none'; document.getElementById('hist-search-wrap').style.display = CU.role==='ld' ? 'block' : 'none'; document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = CU.admin?'':'none'; document.getElementById('f-name').value = CU.name; 
+    document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none'; document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = CU.admin?'':'none'; document.getElementById('f-name').value = CU.name; 
     if(myInfo && myInfo.kip) { document.getElementById('f-kip').value = myInfo.kip; }
     let isLd = CU.role === 'ld' ? 'inline-flex' : 'none'; document.getElementById('btn-export-excel').style.display = isLd; document.getElementById('btn-export-day').style.display = isLd; document.getElementById('btn-export-warn').style.display = isLd;
     const now = new Date(); const curYear = now.getFullYear(); const curMonthStr = curYear + '-' + String(now.getMonth()+1).padStart(2,'0'); 
@@ -1581,14 +1581,14 @@ function renderHistory(){
   let yr = 0, mo = 0; 
   if(hm) { const p = hm.split('-'); yr = parseInt(p[0]); mo = parseInt(p[1]); }
   
-  const searchText = CU.role === 'ld' ? (document.getElementById('f-hist-search')?.value || '').trim().toLowerCase() : '';
+  const searchText = (document.getElementById('f-hist-search')?.value || '').trim().toLowerCase();
 
   const items = allReqs.filter(r => {
     if (r.status === 'cancelled') return false; 
     if (CU.role !== 'ld' && !CU.admin) {
         if (r.name !== CU.name && r.partner !== CU.name) return false;
     }
-    // Lọc theo tên tìm kiếm (chỉ lãnh đạo)
+    // Lọc theo tên tìm kiếm
     if (searchText) {
       const nameMatch = (r.name || '').toLowerCase().includes(searchText) || 
                         (r.partner || '').toLowerCase().includes(searchText);
