@@ -387,8 +387,11 @@ textarea{resize:none;height:80px}
     </div>
     <div id="tab-lich-su" class="section">
       <div class="card">
-        <div class="sec-title" style="margin-bottom:12px;">Lịch sử đổi ca</div>
-        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+  <div class="sec-title">Lịch sử đổi ca</div>
+  <button id="btn-export-history" class="btn btn-success" style="display:none; height:38px; font-size:13px;" onclick="exportExcelHistory()">⬇ Tải Excel</button>
+</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           <input type="month" id="f-hist-month" onchange="renderHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
           <select id="f-fst" onchange="renderHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
             <option value="">Tất cả trạng thái</option>
@@ -399,7 +402,10 @@ textarea{resize:none;height:80px}
           </select>
           <select id="f-fkp" onchange="renderHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;"><option value="">Tất cả kíp</option></select>
         </div>
-        <div id="hist-search-wrap" style="margin-bottom:12px;">
+        <div id="fcd-wrap" style="display:none; gap:8px; margin-bottom:8px;">
+          <select id="f-fcd" onchange="renderHistory()" style="flex:1; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none; width:100%;"><option value="">Tất cả chức danh</option></select>
+        </div>
+        <div style="margin-bottom:12px;">
           <input type="text" id="f-hist-search" oninput="renderHistory()" placeholder="🔍 Tìm theo tên người nghỉ hoặc người đi thay..." style="width:100%; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none; box-sizing:border-box;">
         </div>
         <div id="list-lich-su"></div>
@@ -748,9 +754,26 @@ async function doLogin(){
     document.getElementById('ub-name').textContent=CU.name; 
     const myInfo = NV_LIST.find(u => u.name === CU.name); 
     document.getElementById('ub-role').textContent = (myInfo && myInfo.chucDanh) ? myInfo.chucDanh : (CU.role==='ld'?'Lãnh đạo PX':'Vận hành');
-    document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none'; document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = CU.admin?'':'none'; document.getElementById('f-name').value = CU.name; 
-    if(myInfo && myInfo.kip) { document.getElementById('f-kip').value = myInfo.kip; }
-    let isLd = CU.role === 'ld' ? 'inline-flex' : 'none'; document.getElementById('btn-export-excel').style.display = isLd; document.getElementById('btn-export-day').style.display = isLd; document.getElementById('btn-export-warn').style.display = isLd;
+    document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none'; 
+    if (CU.role === 'ld') {
+      document.getElementById('fcd-wrap').style.display = 'flex';
+      const cdList = [...new Set(NV_LIST.map(u => u.chucDanh).filter(Boolean))].sort();
+      document.getElementById('f-fcd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
+    }
+   document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = CU.admin?'':'none';      document.getElementById('f-name').value = CU.name; 
+    if(myInfo) {
+  // Lấy kíp thực tế sau điều động
+  let displayKip = myInfo.kip;
+  if (typeof allTransfers !== 'undefined' && allTransfers.length > 0) {
+    const today = new Date().toISOString().substring(0, 10);
+    const sorted = allTransfers
+      .filter(t => t.name === CU.name && t.date <= today)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    if (sorted.length > 0 && sorted[0].newKip) displayKip = sorted[0].newKip;
+  }
+  document.getElementById('f-kip').value = displayKip;
+}
+    let isLd = CU.role === 'ld' ? 'inline-flex' : 'none'; document.getElementById('btn-export-excel').style.display = isLd; document.getElementById('btn-export-history').style.display = isLd; document.getElementById('btn-export-day').style.display = isLd; document.getElementById('btn-export-warn').style.display = isLd;
     const now = new Date(); const curYear = now.getFullYear(); const curMonthStr = curYear + '-' + String(now.getMonth()+1).padStart(2,'0'); 
     document.getElementById('f-month').value = curMonthStr; document.getElementById('f-warn-month').value = curMonthStr; document.getElementById('f-hist-month').value = curMonthStr; 
     const yrSelect = document.getElementById('f-stat-year'); yrSelect.innerHTML = '';
@@ -1201,7 +1224,6 @@ function getCaTrucGoc(userName, defaultKip, dateStr) {
   let currentPattern = "3 ca 5 kíp";
   let currentRef = 0;
   let isNgoaiLe = false;
-
   // Lấy giá trị mặc định từ hồ sơ gốc (sheet users)
   const uConf = NV_LIST.find(u => u.name === userName);
   if (uConf) {
@@ -1594,7 +1616,14 @@ function renderHistory(){
                         (r.partner || '').toLowerCase().includes(searchText);
       if (!nameMatch) return false;
     }
-    // Lọc theo Trạng thái
+    // Lọc theo chức danh (chỉ lãnh đạo)
+    const fcd = CU.role === 'ld' ? (document.getElementById('f-fcd')?.value || '') : '';
+    if (fcd) {
+      const nameUser = NV_LIST.find(u => u.name === r.name);
+      const namePartner = NV_LIST.find(u => u.name === r.partner);
+      if ((nameUser?.chucDanh !== fcd) && (namePartner?.chucDanh !== fcd)) return false;
+    }
+   // Lọc theo Trạng thái
     if (fs && r.status !== fs) return false;
     
     // Lọc theo Kíp
@@ -2844,6 +2873,86 @@ function validateRealtimeTra() {
         }
     }
     updatePartnerListRealtime(); // Kích hoạt bộ lọc danh sách
+}
+function exportExcelHistory() {
+  if (!CU || (CU.role !== 'ld' && !CU.admin)) return;
+
+  const fs = document.getElementById('f-fst').value;
+  const hm = document.getElementById('f-hist-month').value;
+  const fkp = document.getElementById('f-fkp').value;
+  const fcd = document.getElementById('f-fcd')?.value || '';
+  const searchText = (document.getElementById('f-hist-search')?.value || '').trim().toLowerCase();
+
+  // Lọc đúng như renderHistory
+  const items = allReqs.filter(r => {
+    if (r.status === 'cancelled') return false;
+    if (fs && r.status !== fs) return false;
+    if (fkp && r.kip !== fkp && r.partnerKip !== fkp) return false;
+    if (fcd) {
+      const nameInfo = NV_LIST.find(u => u.name === r.name);
+      const partnerInfo = NV_LIST.find(u => u.name === r.partner);
+      if (nameInfo?.chucDanh !== fcd && partnerInfo?.chucDanh !== fcd) return false;
+    }
+    if (hm) {
+      const [yr, mo] = hm.split('-').map(Number);
+      const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0,10).split('-').map(Number) : [0,0];
+      const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0,10).split('-').map(Number) : [0,0];
+      if (!((yDoi === yr && mDoi === mo) || (yTra === yr && mTra === mo))) return false;
+    }
+    if (searchText) {
+      if (!r.name?.toLowerCase().includes(searchText) && !r.partner?.toLowerCase().includes(searchText)) return false;
+    }
+    return true;
+  });
+
+  if (!items.length) { showAlert('app', 'Không có dữ liệu để tải!', 'ae'); return; }
+
+  // Tạo bảng HTML để xuất Excel
+ const rows = items.map((r, idx) => `
+    <tr>
+      <td>${idx + 1}</td>
+      <td>${r.name || ''}</td>
+      <td>${NV_LIST.find(u=>u.name===r.name)?.chucDanh || ''}</td>
+      <td>${r.kip || ''}</td>
+      <td>${r.caDoi || ''}</td>
+      <td>${fmtDate(r.ngayDoi)}</td>
+      <td>${r.partner || ''}</td>
+      <td>${NV_LIST.find(u=>u.name===r.partner)?.chucDanh || ''}</td>
+      <td>${NV_LIST.find(u=>u.name===r.partner)?.kip || ''}</td>
+      <td>${r.caTra || ''}</td>
+      <td>${fmtDate(r.ngayTra)}</td>
+      <td>${r.status === 'approved' ? 'Đã duyệt' : r.status === 'pending_ld' ? 'Chờ LĐ duyệt' : r.status === 'pending_partner' ? 'Chờ xác nhận' : 'Từ chối'}</td>
+      <td>${r.approvedBy || ''}</td>
+      <td>${r.reason || ''}</td>
+    </tr>
+  `).join('');
+
+  const table = `
+    <table border="1">
+      <thead>
+        <tr>
+          <th>STT</th>
+          <th>Người xin đổi</th>
+          <th>Chức danh</th>
+          <th>Kíp</th>
+          <th>Ca đổi</th>
+          <th>Ngày đổi</th>
+          <th>Người đi thay</th>
+          <th>Chức danh người thay</th>
+          <th>Kíp người thay</th>
+          <th>Ca trả</th>
+          <th>Ngày trả</th>
+          <th>Trạng thái</th>
+          <th>Người duyệt</th>
+          <th>Lý do</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  const tenFile = `Lich_su_doi_ca${hm ? '_' + hm : ''}${fcd ? '_' + fcd : ''}.xls`;
+  downloadExcel(table, tenFile, 'LichSu');
 }
 </script>
 </body>
