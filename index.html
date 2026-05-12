@@ -385,9 +385,19 @@ textarea{resize:none;height:80px}
       </div>
     </div>
     <div id="tab-lich-su" class="section">
-      <div class="card">
+      <div class="sg">
+  <div class="sc"><div class="sn" id="hist-total">—</div><div class="sl">Tổng đơn</div></div>
+  <div class="sc"><div class="sn" id="hist-approved">—</div><div class="sl">Đã duyệt</div></div>
+  <div class="sc"><div class="sn" id="hist-pending">—</div><div class="sl">Đang chờ</div></div>
+</div>
+<div style="font-size:11px; color:#94a3b8; text-align:center; margin-bottom:8px;">
+  * Đơn có ngày đổi hoặc ngày trả trong tháng đều được tính — tổng tháng có thể lớn hơn tổng cả năm.
+</div>
+        <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-  <div class="sec-title">Lịch sử đổi ca</div>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+  <div class="sec-title" style="margin:0;">Lịch sử đổi ca</div>
+</div>
   <button id="btn-export-history" class="btn btn-success" style="display:none; height:38px; font-size:13px;" onclick="exportExcelHistory()">⬇ Tải Excel</button>
 </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
@@ -413,7 +423,7 @@ textarea{resize:none;height:80px}
     
     <div id="tab-thong-ke" class="section">
       <div class="sg">
-        <div class="sc"><div class="sn" id="st-total">—</div><div class="sl">Tổng ca</div></div>
+        <div class="sc"><div class="sn" id="st-total">—</div><div class="sl">Tổng đơn</div></div>
         <div class="sc"><div class="sn" id="st-approved">—</div><div class="sl">Đã duyệt</div></div>
         <div class="sc"><div class="sn" id="st-pending">—</div><div class="sl">Đang chờ</div></div>
       </div>
@@ -446,6 +456,21 @@ textarea{resize:none;height:80px}
           <div style="display:flex; gap:8px; align-items:center;">
             <button id="btn-export-excel" class="btn btn-success" style="display:none; height:38px; font-size:13px;" onclick="exportExcel()">⬇ Tải Excel</button>
             <select id="f-stat-year" onchange="renderStaffStats()" style="width: auto; padding:8px 12px; font-size:15px; border-radius:6px; background:#f8fafc; font-weight:600; color:#1a56a0; border-color:#1a56a0;"></select>
+<select id="f-stat-month" onchange="renderStaffStats()" style="width: auto; padding:8px 12px; font-size:15px; border-radius:6px; background:#f8fafc; font-weight:600; color:#1a56a0; border-color:#1a56a0;">
+  <option value="">Cả năm</option>
+  <option value="1">Tháng 1</option>
+  <option value="2">Tháng 2</option>
+  <option value="3">Tháng 3</option>
+  <option value="4">Tháng 4</option>
+  <option value="5">Tháng 5</option>
+  <option value="6">Tháng 6</option>
+  <option value="7">Tháng 7</option>
+  <option value="8">Tháng 8</option>
+  <option value="9">Tháng 9</option>
+  <option value="10">Tháng 10</option>
+  <option value="11">Tháng 11</option>
+  <option value="12">Tháng 12</option>
+</select>
           </div>
         </div>
         <div class="table-wrapper">
@@ -1605,7 +1630,10 @@ function renderHistory(){
   const searchText = (document.getElementById('f-hist-search')?.value || '').trim().toLowerCase();
 
   const items = allReqs.filter(r => {
-    if (r.status === 'cancelled') return false; 
+    if (r.status === 'cancelled') return false;
+// Bỏ lệnh điều động khỏi lịch sử đổi ca thường
+if (r.partner === 'CÔNG TÁC HC') return false;
+if (r.reason && r.reason.match(/^\[/)) return false; 
     if (CU.role !== 'ld' && !CU.admin) {
         if (r.name !== CU.name && r.partner !== CU.name) return false;
     }
@@ -1636,7 +1664,13 @@ function renderHistory(){
     } 
     return true;
   });
-  
+  // Cập nhật thẻ thống kê
+  const total = items.filter(r => r.status !== 'cancelled').length;
+  const approved = items.filter(r => r.status === 'approved').length;
+  const pending = items.filter(r => r.status === 'pending_partner' || r.status === 'pending_ld').length;
+  document.getElementById('hist-total').textContent = total;
+  document.getElementById('hist-approved').textContent = approved;
+  document.getElementById('hist-pending').textContent = pending;
   document.getElementById('list-lich-su').innerHTML = items.length ? items.map(r => {
     let action = '';
     // Cho phép Hủy đơn nếu mình tạo và chưa ai xác nhận
@@ -1848,6 +1882,7 @@ function renderWarn() {
 
 function renderStaffStats() {
   const yr = parseInt(document.getElementById('f-stat-year').value); if(!yr) return;
+  const mo = parseInt(document.getElementById('f-stat-month')?.value || '0') || 0;
   const staffMap={}; 
   if (CU.role === 'ld') { NV_LIST.forEach(u => { staffMap[u.name] = {kip: '', tao:0, dongY:0, lech:0}; }); } else { staffMap[CU.name] = {kip: '', tao:0, dongY:0, lech:0}; }
   function ensure(name,kip){ if(!staffMap[name]) staffMap[name]={kip:kip||'',tao:0,dongY:0,lech:0}; if(kip && !staffMap[name].kip) staffMap[name].kip = kip; }
@@ -1859,14 +1894,17 @@ function renderStaffStats() {
     ensure(r.name, r.kip); ensure(r.partner, r.partnerKip||'');
     if(r.status==='approved'){
       const yDoi = r.ngayDoi ? parseInt(r.ngayDoi.toString().substring(0,4)) : 0; const yTra = r.ngayTra ? parseInt(r.ngayTra.toString().substring(0,4)) : 0;
-      if(yDoi === yr || yTra === yr) { staffMap[r.name].tao++; staffMap[r.partner].dongY++; }
+      const matchDoi = mo ? (yDoi === yr && parseInt(r.ngayDoi?.toString().substring(5,7)) === mo) : yDoi === yr;
+      const matchTra = mo ? (yTra === yr && parseInt(r.ngayTra?.toString().substring(5,7)) === mo) : yTra === yr;
+      if(matchDoi || matchTra) { staffMap[r.name].tao++; staffMap[r.partner].dongY++; }
       
      // BỘ LỌC TÍNH SỐ LỆCH CA NĂM
       let thucTeDoi = getCaThucTe(r.partner, r.partnerKip, r.ngayDoi);
-      if(yDoi === yr && thucTeDoi === r.caDoi && thucTeDoi !== getCaTrucGoc(r.partner, r.partnerKip, r.ngayDoi)) { staffMap[r.partner].lech++; }
+      const mDoi = parseInt(r.ngayDoi?.toString().substring(5,7));
+      if(matchDoi && thucTeDoi === r.caDoi && thucTeDoi !== getCaTrucGoc(r.partner, r.partnerKip, r.ngayDoi)) { staffMap[r.partner].lech++; }
       
       let thucTeTra = getCaThucTe(r.name, r.kip, r.ngayTra);
-      if(yTra === yr && thucTeTra === r.caTra && thucTeTra !== getCaTrucGoc(r.name, r.kip, r.ngayTra)) { staffMap[r.name].lech++; }
+      if(matchTra && thucTeTra === r.caTra && thucTeTra !== getCaTrucGoc(r.name, r.kip, r.ngayTra)) { staffMap[r.name].lech++; }
     }
   });
 
