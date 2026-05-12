@@ -1248,13 +1248,6 @@ function getCaTrucGoc(userName, defaultKip, dateStr) {
   let currentPattern = "3 ca 5 kíp";
   let currentRef = 0;
   let isNgoaiLe = false;
-  // Lấy giá trị mặc định từ hồ sơ gốc (sheet users)
-  const uConf = NV_LIST.find(u => u.name === userName);
-  if (uConf) {
-    currentPattern = uConf.isNgoaiLe ? uConf.tenMau : "3 ca 5 kíp";
-    currentRef = parseInt(uConf.viTriMoc) || 0;
-    isNgoaiLe = uConf.isNgoaiLe;
-  }
 
   // MẮT THẦN: Quét lịch sử điều chuyển để ghi đè nếu ngày xét >= ngày áp dụng lệnh
   if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
