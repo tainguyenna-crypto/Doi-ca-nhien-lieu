@@ -719,7 +719,19 @@ document.addEventListener('click',e=>{
     ss.querySelector('.ss-btn').classList.remove('ph'); o.closest('.ss-drop').classList.remove('open'); 
     if(ss.id === 'ss-partner') {
       const pInfo = NV_LIST.find(u => u.name === val);
-      if(pInfo) { if(pInfo.kip) document.getElementById('f-partner-kip').value = pInfo.kip; if(pInfo.chucDanh) document.getElementById('f-partner-role').value = pInfo.chucDanh; }
+      if(pInfo) {
+        // Lấy kíp thực tế của người đi thay theo lệnh điều động
+        let partnerKipThucTe = pInfo.kip;
+        if (allTransfers && allTransfers.length > 0) {
+          const today = new Date().toISOString().substring(0,10);
+          const sorted = allTransfers
+          .filter(t => t.name === val && t.date <= today && t.newKip)
+            .sort((a,b) => b.date.localeCompare(a.date));
+          if (sorted.length > 0) partnerKipThucTe = sorted[0].newKip;
+        }
+        if(partnerKipThucTe) document.getElementById('f-partner-kip').value = partnerKipThucTe;
+        if(pInfo.chucDanh) document.getElementById('f-partner-role').value = pInfo.chucDanh;
+      }
     } return; 
   }
   if(!e.target.closest('.ss-drop')) document.querySelectorAll('.ss-drop').forEach(d=>d.classList.remove('open'));
@@ -1786,10 +1798,20 @@ function renderWarn() {
   const [yr, mo] = mv.split('-').map(Number);
   
   const staffMap={}; 
+  // Hàm lấy kíp thực tế có tính đến lệnh điều động
+  function getKipThucTe(name, defaultKip) {
+    if (!allTransfers || !allTransfers.length) return defaultKip;
+    const now = new Date().toISOString().substring(0,10);
+    const sorted = allTransfers
+      .filter(t => t.name === name && t.date <= now && t.newKip)
+      .sort((a,b) => b.date.localeCompare(a.date));
+    return sorted.length > 0 ? sorted[0].newKip : defaultKip;
+  }
+
   if (CU.role === 'ld') { 
-    NV_LIST.forEach(u => { staffMap[u.name] = {kip: '', lech:0, hist:[]}; }); 
+    NV_LIST.forEach(u => { staffMap[u.name] = {kip: getKipThucTe(u.name, u.kip), lech:0, hist:[]}; }); 
   } else { 
-    staffMap[CU.name] = {kip: '', lech:0, hist:[]}; 
+    staffMap[CU.name] = {kip: getKipThucTe(CU.name, CU.kip||''), lech:0, hist:[]}; 
   }
   
   function ensure(name,kip){ 
@@ -1880,7 +1902,16 @@ function renderStaffStats() {
   const yr = parseInt(document.getElementById('f-stat-year').value); if(!yr) return;
   const mo = parseInt(document.getElementById('f-stat-month')?.value || '0') || 0;
   const staffMap={}; 
-  if (CU.role === 'ld') { NV_LIST.forEach(u => { staffMap[u.name] = {kip: '', tao:0, dongY:0, lech:0}; }); } else { staffMap[CU.name] = {kip: '', tao:0, dongY:0, lech:0}; }
+  // Hàm lấy kíp thực tế theo lệnh điều động gần nhất
+  function getKipThucTe(name, defaultKip) {
+    if (!allTransfers || !allTransfers.length) return defaultKip;
+    const today = new Date().toISOString().substring(0,10);
+    const sorted = allTransfers
+      .filter(t => t.name === name && t.date <= today && t.newKip)
+      .sort((a,b) => b.date.localeCompare(a.date));
+    return sorted.length > 0 ? sorted[0].newKip : defaultKip;
+  }
+  if (CU.role === 'ld') { NV_LIST.forEach(u => { staffMap[u.name] = {kip: getKipThucTe(u.name, u.kip), tao:0, dongY:0, lech:0}; }); } else { staffMap[CU.name] = {kip: getKipThucTe(CU.name, CU.kip||''), tao:0, dongY:0, lech:0}; }
   function ensure(name,kip){ if(!staffMap[name]) staffMap[name]={kip:kip||'',tao:0,dongY:0,lech:0}; if(kip && !staffMap[name].kip) staffMap[name].kip = kip; }
 
   allReqs.forEach(r=>{ 
