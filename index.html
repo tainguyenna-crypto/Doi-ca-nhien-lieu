@@ -478,7 +478,7 @@ textarea{resize:none;height:80px}
         </div>
         <div class="table-wrapper">
           <table class="dt" id="table-thong-ke">
-            <thead><tr><th>Họ tên</th><th>Kíp</th><th>Tạo đổi ca</th><th>Đồng ý đổi ca</th><th>Lệch ca</th></tr></thead>
+           <thead><tr><th>Họ tên</th><th>Chức danh</th><th>Kíp</th><th>Tạo đổi ca</th><th>Đồng ý đổi ca</th><th>Lệch ca</th></tr></thead>
             <tbody id="staff-body"></tbody>
           </table>
         </div>
@@ -1868,19 +1868,19 @@ function renderWarn() {
   // 1. NHÓM ĐỎ
   if(critList.length){ 
     wHtml+=`<p style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:8px">❌ Đã chạm/vượt định mức (≥ ${lMax} ca)</p>`; 
-    wHtml+=critList.map(([n,v])=>`<div class="wcard crit"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:700;color:#dc2626">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
+    wHtml+=critList.map(([n,v])=>`<div class="wcard crit"><div style="display:flex;justify-content:space-between"><span style=\"font-weight:600\">${n} <small>(${NV_LIST.find(u=>u.name===n)?.chucDanh||''} - ${v.kip})</small></span><span style="font-weight:700;color:#dc2626">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
   }
   
   // 2. NHÓM CAM
   if(warnList.length){ 
     wHtml+=`<p style="font-size:12px;font-weight:700;color:#c2410c;margin:12px 0 8px">⚠️ Mức Cảnh báo (Từ ${lWarn} đến ${lMax - 1} ca)</p>`; 
-    wHtml+=warnList.map(([n,v])=>`<div class="wcard" style="background:#fff7ed; border-color:#fb923c;"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:700;color:#ea580c">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
+    wHtml+=warnList.map(([n,v])=>`<div class="wcard" style="background:#fff7ed; border-color:#fb923c;"><div style="display:flex;justify-content:space-between"><span style=\"font-weight:600\">${n} <small>(${NV_LIST.find(u=>u.name===n)?.chucDanh||''} - ${v.kip})</small></span><span style="font-weight:700;color:#ea580c">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
   }
 
   // 3. NHÓM VÀNG
   if(monList.length){ 
     wHtml+=`<p style="font-size:12px;font-weight:600;color:#64748b;margin:12px 0 8px">📋 Mức an toàn (< ${lWarn} ca)</p>`; 
-    wHtml+=monList.map(([n,v])=>`<div class="wcard"><div style="display:flex;justify-content:space-between"><span style="font-weight:600">${n} <small>(${v.kip})</small></span><span style="font-weight:600;color:#d97706">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
+    wHtml+=monList.map(([n,v])=>`<div class="wcard"><div style="display:flex;justify-content:space-between"><span style=\"font-weight:600\">${n} <small>(${NV_LIST.find(u=>u.name===n)?.chucDanh||''} - ${v.kip})</small></span><span style="font-weight:600;color:#d97706">+${v.lech} lần</span></div><div style="font-size:12px;color:#666;margin-top:4px">${v.hist.join('<br>')}</div></div>`).join(''); 
   } 
 
   // =======================================================
@@ -1948,7 +1948,8 @@ function renderStaffStats() {
     totalLech += v.lech;
 
     let clr = v.lech > lMax ? '#dc2626' : (v.lech > 0 ? '#d97706' : '#4b5563'); 
-    return `<tr><td>${n}</td><td>${v.kip}</td><td>${v.tao}</td><td>${v.dongY}</td><td style="font-weight:600; color:${clr}">+${v.lech}</td></tr>`;
+    const chucDanh = NV_LIST.find(u => u.name === n)?.chucDanh || '';
+    return `<tr><td>${n}</td><td>${chucDanh}</td><td>${v.kip}</td><td>${v.tao}</td><td>${v.dongY}</td><td style=\"font-weight:600; color:${clr}\">+${v.lech}</td></tr>`;
   }).join('');
   
   if (!tableHtml) {
@@ -2001,8 +2002,13 @@ function exportExcelWarn() {
   });
   const sortedWarn = Object.entries(staffMap).filter(([,v])=>v.lech > 0).sort((a,b)=>b[1].lech - a[1].lech);
   if(sortedWarn.length === 0) { showAlert('app', 'Không có dữ liệu cảnh báo để tải!', 'ae'); return; }
-  let tableHTML = `<thead><tr><th>Họ tên</th><th>Kíp</th><th>Số ca lệch</th><th>Chi tiết lịch sử</th></tr></thead><tbody>`;
-  sortedWarn.forEach(([n, v]) => { let histText = v.hist.join(' | '); tableHTML += `<tr><td>${n}</td><td>${v.kip}</td><td>+${v.lech}</td><td>${histText}</td></tr>`; }); tableHTML += `</tbody>`;
+  let tableHTML = `<thead><tr><th>Họ tên</th><th>Chức danh</th><th>Kíp</th><th>Số ca lệch</th><th>Chi tiết lịch sử</th></tr></thead><tbody>`;
+sortedWarn.forEach(([n, v]) => { 
+  const chucDanh = NV_LIST.find(u => u.name === n)?.chucDanh || '';
+  let histText = v.hist.join(' | '); 
+  tableHTML += `<tr><td>${n}</td><td>${chucDanh}</td><td>${v.kip}</td><td>+${v.lech}</td><td>${histText}</td></tr>`; 
+}); 
+tableHTML += `</tbody>`;
   downloadExcel(tableHTML, `Canh_Bao_Lech_Ca_${mv}.xls`, `CanhBao`);
 }
 // ===============================================================
