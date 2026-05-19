@@ -478,8 +478,20 @@ textarea{resize:none;height:80px}
         </div>
         <div class="table-wrapper">
           <table class="dt" id="table-thong-ke">
-           <thead><tr><th>Họ tên</th><th>Chức danh</th><th>Kíp</th><th>Tạo đổi ca</th><th>Đồng ý đổi ca</th><th>Lệch ca</th></tr></thead>
+            <thead><tr><th>Họ tên</th><th>Chức danh</th><th>Kíp</th><th>Tạo đổi ca</th><th>Đồng ý đổi ca</th><th>Lệch ca</th></tr></thead>
             <tbody id="staff-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="card-no-ca">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div class="sec-title" style="margin:0;">💳 Bảng nợ ca</div>
+        </div>
+        <div class="table-wrapper">
+          <table class="dt" id="table-no-ca">
+            <thead><tr><th>Họ tên</th><th>Chức danh</th><th>Kíp</th><th>Số ca nợ</th><th>Ghi chú</th></tr></thead>
+            <tbody id="no-ca-body"></tbody>
           </table>
         </div>
       </div>
@@ -902,7 +914,7 @@ function switchTab(t){
   if(t==='phe-duyet') renderPheDuyet(); 
   if(t==='lich-su') renderHistory(); 
   if(t==='bang-di-ca') renderScheduleTable(); // Dòng mới thêm
-  if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); }
+  if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); }
   if(t==='admin-hc') { 
     renderAdminHCHist(); 
     initTransferForm(); // Dòng mới
@@ -1974,6 +1986,86 @@ function downloadExcel(htmlTable, filename, worksheetName) {
   const uri = 'data:application/vnd.ms-excel;base64,'; const template = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"></head><body><table border="1">{table}</table></body></html>';
   const base64 = function(s) { return window.btoa(unescape(encodeURIComponent(s))) }; const format = function(s, c) { return s.replace(/{(\w+)}/g, function(m, p) { return c[p]; }) };
   const ctx = { worksheet: worksheetName, table: htmlTable }; const link = document.createElement("a"); link.download = filename; link.href = uri + base64(format(template, ctx)); document.body.appendChild(link); link.click(); document.body.removeChild(link);
+}
+function renderNoCa() {
+  const body = document.getElementById('no-ca-body');
+  const card = document.getElementById('card-no-ca');
+  if (!body) return;
+
+  // Chỉ nhân viên thấy, lãnh đạo ẩn bảng này
+  if (CU.role === 'ld') { if(card) card.style.display='none'; return; }
+  if(card) card.style.display='';
+
+  // Chỉ tính đơn pending_ld và approved, loại CÔNG TÁC HC
+  const validReqs = allReqs.filter(r => 
+    (r.status === 'approved' || r.status === 'pending_ld') && 
+    r.partner !== 'CÔNG TÁC HC' &&
+    !(r.reason && r.reason.startsWith('['))
+  );
+
+  // Tính nợ theo từng cặp: pairMap[A][B] = số ca A nợ B
+  // Chỉ tính nợ khi đơn chưa có ca trả (caTra trống hoặc OFF)
+  const pairMap = {};
+  validReqs.forEach(r => {
+    const name = r.name;
+    const partner = r.partner;
+    if (!name || !partner) return;
+
+    // Chỉ tính nợ nếu chưa có ca trả
+    if (!r.caTra || r.caTra === '' || r.caTra === 'OFF') {
+      if (!pairMap[name]) pairMap[name] = {};
+      pairMap[name][partner] = (pairMap[name][partner] || 0) + 1;
+    }
+  });
+
+  // Tính nợ ròng giữa từng cặp (trừ đi nếu đã trả ngược)
+  // Ông A nợ ông B: pairMap[A][B] - pairMap[B][A]
+  const myName = CU.name;
+  const rows = [];
+
+  NV_LIST.forEach(u => {
+    if (u.name === myName) return;
+    const other = u.name;
+
+    const toiNoHo = (pairMap[myName] && pairMap[myName][other]) || 0;   // tôi nghỉ, họ đi thay
+    const hoNoToi = (pairMap[other] && pairMap[other][myName]) || 0;     // họ nghỉ, tôi đi thay
+    const soRong = toiNoHo - hoNoToi; // dương = tôi nợ họ, âm = họ nợ tôi
+
+    if (soRong === 0) return; // hòa thì không hiện
+
+    const info = NV_LIST.find(u2 => u2.name === other) || {};
+    rows.push({ other, info, soRong });
+  });
+
+  rows.sort((a, b) => b.soRong - a.soRong);
+
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:20px;">Không có nợ ca với ai</td></tr>';
+    return;
+  }
+
+  body.innerHTML = rows.map(({ other, info, soRong }) => {
+    const laNoDuong = soRong > 0;
+    const soHienThi = Math.abs(soRong);
+    const trangThai = laNoDuong
+      ? `<span style="color:#dc2626;font-weight:600;">🔴 Bạn đang nợ</span>`
+      : `<span style="color:#16a34a;font-weight:600;">🟢 Họ đang nợ bạn</span>`;
+    const mauSo = laNoDuong ? '#dc2626' : '#16a34a';
+    return `<tr>
+      <td>${other}</td>
+      <td>${info.chucDanh || ''}</td>
+      <td>${info.kip || ''}</td>
+      <td style="font-weight:700;color:${mauSo};text-align:center;">${soHienThi}</td>
+      <td>${trangThai}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('btn-export-no-ca').style.display = isLD ? 'inline-flex' : 'none';
+}
+
+function exportNoCa() {
+  const table = document.getElementById('table-no-ca').innerHTML;
+  downloadExcel(`<table border="1">${table}</table>`, 'Bang_No_Ca.xls', 'NoCa');
 }
 function exportExcel() { if (!CU || CU.role !== 'ld') return; const year = document.getElementById('f-stat-year').value; const table = document.getElementById('table-thong-ke').innerHTML; downloadExcel(table, `Thong_Ke_Doi_Ca_Nam_${year}.xls`, `ThongKe_${year}`); }
 function exportExcelDay() { if (!CU || CU.role !== 'ld') return; const mv = document.getElementById('f-month').value; const tableEl = document.getElementById('table-day'); if(!tableEl) { showAlert('app', 'Không có dữ liệu để tải!', 'ae'); return; } downloadExcel(tableEl.innerHTML, `Lich_Doi_Ca_Chi_Tiet_${mv}.xls`, `LichDoiCa`); }
