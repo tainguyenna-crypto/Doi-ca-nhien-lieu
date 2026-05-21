@@ -990,8 +990,15 @@ function reqCard(r, a = '') {
         pSuffix = (pR.main === shared) ? "" : " (Dự phòng)";
       }
     }
-    const uKip = uInfo?.kip ? ` - ${uInfo.kip}` : '';
-    const pKip = pInfo?.kip ? ` - ${pInfo.kip}` : '';
+    // Lấy kíp thực tế theo lệnh điều động
+    function getKipTT(name, defaultKip) {
+      if (!allTransfers || !allTransfers.length) return defaultKip;
+      const today = new Date().toISOString().substring(0,10);
+      const sorted = allTransfers.filter(t => t.name === name && t.date <= today && t.newKip).sort((a,b) => b.date.localeCompare(a.date));
+      return sorted.length > 0 ? sorted[0].newKip : defaultKip;
+    }
+    const uKip = uInfo?.kip ? ` - ${getKipTT(r.name, uInfo.kip)}` : '';
+    const pKip = pInfo?.kip ? ` - ${getKipTT(r.partner, pInfo.kip)}` : '';
     uRoleDisplay = ` <small style="color:#64748b; font-weight:500;">(${commonRole}${uSuffix}${uKip})</small>`;
     pRoleDisplay = ` <small style="color:#64748b; font-weight:500;">(${commonRole}${pSuffix}${pKip})</small>`;
   }
