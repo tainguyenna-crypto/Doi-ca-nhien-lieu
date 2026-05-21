@@ -495,7 +495,26 @@ textarea{resize:none;height:80px}
           </table>
         </div>
       </div>
+    <!-- BẢNG NỢ CA TOÀN PX — CHỈ LÃNH ĐẠO -->
+<div class="card" id="card-no-ca-ld" style="display:none; margin-top:16px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div class="sec-title" style="margin:0;">💳 Bảng nợ ca toàn Phân xưởng</div>
+    <button class="btn btn-success" style="height:36px; font-size:13px;" onclick="exportNoCaLD()">⬇ Tải Excel</button>
+  </div>
+  <table class="dt" id="table-no-ca-ld">
+    <thead><tr>
+      <th>Người nợ</th>
+      <th>Chức danh</th>
+      <th>Kíp</th>
+      <th>Người được nợ</th>
+      <th>Chức danh</th>
+      <th>Kíp</th>
+      <th style="text-align:center;">Số ca nợ</th>
+    </tr></thead>
+    <tbody id="no-ca-ld-body"></tbody>
+  </table>
     </div>
+   </div>
   </div>
 </div>
 
@@ -914,7 +933,7 @@ function switchTab(t){
   if(t==='phe-duyet') renderPheDuyet(); 
   if(t==='lich-su') renderHistory(); 
   if(t==='bang-di-ca') renderScheduleTable(); // Dòng mới thêm
-  if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); }
+  if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); renderNoCaLD(); }
   if(t==='admin-hc') { 
     renderAdminHCHist(); 
     initTransferForm(); // Dòng mới
@@ -2069,9 +2088,91 @@ function renderNoCa() {
     </tr>`;
   }).join('');
 
-  document.getElementById('btn-export-no-ca').style.display = isLD ? 'inline-flex' : 'none';
+ // Dùng đúng biến CU.role của hệ thống và kiểm tra an toàn
+  const btnExportNoCa = document.getElementById('btn-export-no-ca');
+  if (btnExportNoCa) {
+      btnExportNoCa.style.display = (CU.role === 'ld') ? 'inline-flex' : 'none';
+  }
+}
+function renderNoCaLD() {
+  const card = document.getElementById('card-no-ca-ld');
+  const body = document.getElementById('no-ca-ld-body');
+  if (!card || !body) return;
+
+  // Chỉ hiện với lãnh đạo
+  if (CU.role !== 'ld') { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const validReqs = allReqs.filter(r =>
+    (r.status === 'approved' || r.status === 'pending_ld') &&
+    r.partner !== 'CÔNG TÁC HC' &&
+    !(r.reason && r.reason.startsWith('['))
+  );
+
+  // Tính nợ theo từng cặp
+  const pairMap = {};
+  validReqs.forEach(r => {
+    const name = r.name;
+    const partner = r.partner;
+    if (!name || !partner) return;
+    if (!r.caTra || r.caTra === '' || r.caTra === 'OFF') {
+      if (!pairMap[name]) pairMap[name] = {};
+      pairMap[name][partner] = (pairMap[name][partner] || 0) + 1;
+    }
+  });
+
+  // Tính nợ ròng toàn bộ các cặp
+  const rows = [];
+  const checked = new Set();
+
+  NV_LIST.forEach(u => {
+    NV_LIST.forEach(v => {
+      if (u.name === v.name) return;
+      const key = [u.name, v.name].sort().join('|');
+      if (checked.has(key)) return;
+      checked.add(key);
+
+      const aNoB = (pairMap[u.name] && pairMap[u.name][v.name]) || 0;
+      const bNoA = (pairMap[v.name] && pairMap[v.name][u.name]) || 0;
+      const soRong = aNoB - bNoA;
+
+      if (soRong === 0) return;
+
+      const nguoiNo = soRong > 0 ? u.name : v.name;
+      const nguoiDuocNo = soRong > 0 ? v.name : u.name;
+      const soHienThi = Math.abs(soRong);
+
+      const infoNo = NV_LIST.find(x => x.name === nguoiNo) || {};
+      const infoDuocNo = NV_LIST.find(x => x.name === nguoiDuocNo) || {};
+
+      rows.push({ nguoiNo, nguoiDuocNo, infoNo, infoDuocNo, soHienThi });
+    });
+  });
+
+  rows.sort((a, b) => b.soHienThi - a.soHienThi);
+
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">Không có nợ ca trong Phân xưởng</td></tr>';
+    return;
+  }
+
+  body.innerHTML = rows.map(({ nguoiNo, nguoiDuocNo, infoNo, infoDuocNo, soHienThi }) => `
+    <tr>
+      <td style="color:#dc2626;font-weight:600;">${nguoiNo}</td>
+      <td>${infoNo.chucDanh || ''}</td>
+      <td>${infoNo.kip || ''}</td>
+      <td style="color:#16a34a;font-weight:600;">${nguoiDuocNo}</td>
+      <td>${infoDuocNo.chucDanh || ''}</td>
+      <td>${infoDuocNo.kip || ''}</td>
+      <td style="text-align:center;font-weight:700;color:#dc2626;">${soHienThi}</td>
+    </tr>
+  `).join('');
 }
 
+function exportNoCaLD() {
+  const table = document.getElementById('table-no-ca-ld').innerHTML;
+  downloadExcel(`<table border="1">${table}</table>`, 'Bang_No_Ca_Toan_PX.xls', 'NoCaToànPX');
+}
 function exportNoCa() {
   const table = document.getElementById('table-no-ca').innerHTML;
   downloadExcel(`<table border="1">${table}</table>`, 'Bang_No_Ca.xls', 'NoCa');
