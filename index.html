@@ -990,8 +990,10 @@ function reqCard(r, a = '') {
         pSuffix = (pR.main === shared) ? "" : " (Dự phòng)";
       }
     }
-    uRoleDisplay = ` <small style="color:#64748b; font-weight:500;">(${commonRole}${uSuffix})</small>`;
-    pRoleDisplay = ` <small style="color:#64748b; font-weight:500;">(${commonRole}${pSuffix})</small>`;
+    const uKip = uInfo?.kip ? ` - ${uInfo.kip}` : '';
+    const pKip = pInfo?.kip ? ` - ${pInfo.kip}` : '';
+    uRoleDisplay = ` <small style="color:#64748b; font-weight:500;">(${commonRole}${uSuffix}${uKip})</small>`;
+    pRoleDisplay = ` <small style="color:#64748b; font-weight:500;">(${commonRole}${pSuffix}${pKip})</small>`;
   }
 
   const imgLink = r.minhChung ? `<br>🖼️ <a href="${r.minhChung}" target="_blank" style="color:#2563eb; font-weight:600; text-decoration:none;">Xem ảnh minh chứng</a>` : '';
