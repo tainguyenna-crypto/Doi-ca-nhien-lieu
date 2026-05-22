@@ -215,6 +215,10 @@ textarea{resize:none;height:80px}
           <div><label>Ngày trả lại</label><input type="date" id="f-ngay-tra" onchange="validateRealtimeTra()"></div>
         </div>
         <div id="err-ca-tra" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:12px; display:none; background:#fee2e2; padding:8px 12px; border-radius:6px; border:1px dashed #fca5a5;"></div>
+<label style="display:flex; align-items:center; font-weight:700; color:#dc2626; margin-bottom:12px; cursor:pointer; background:#fee2e2; padding:8px 12px; border-radius:6px; border:1px dashed #fca5a5;">
+  <input type="checkbox" id="f-no-return" onchange="toggleNoReturn()" style="width:18px; height:18px; margin:0 8px 0 0; appearance:auto; -webkit-appearance:auto;">
+  KHÔNG CẦN TRẢ CA
+</label>
         <div class="form-row three">
           <div><label>Người đi thay</label>
             <div class="ss" id="ss-partner"><button class="ss-btn ph"><span id="ss-partner-lbl">-- Chọn --</span><span>▾</span></button><div class="ss-drop" id="ss-partner-drop"><input class="ss-inp" oninput="filterSS('ss-partner',this.value)" placeholder="Tìm..."><div class="ss-list" id="ss-partner-list"></div></div></div>
@@ -1024,7 +1028,12 @@ function reqCard(r, a = '') {
 
   const imgLink = r.minhChung ? `<br>🖼️ <a href="${r.minhChung}" target="_blank" style="color:#2563eb; font-weight:600; text-decoration:none;">Xem ảnh minh chứng</a>` : '';
   const textDoi = r.ngayDoi ? `📅 Đổi ${caLabel(r.caDoi)} - ${fmtDate(r.ngayDoi)}` : `📅 Đổi: <i>Chưa xác định</i>`;
-  const textTra = r.ngayTra ? `🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}` : `🔄 Trả: <i>Chưa xác định</i>`;
+  let textTra = `🔄 Trả: <i>Chưa xác định</i>`;
+if (r.caTra === 'NONE') {
+  textTra = `🔄 Trả: <b style="color:#dc2626;">Không yêu cầu trả ca</b>`;
+} else if (r.ngayTra) {
+  textTra = `🔄 Trả ${caLabel(r.caTra)} - ${fmtDate(r.ngayTra)}`;
+}
 
   let timeLogs = '';
   if (r.createdAt) timeLogs += `🔸 <b>Tạo đơn:</b> ${fmtDateTime(r.createdAt)}<br>`;
@@ -1561,13 +1570,35 @@ function getLechHienTai(userName, monthStr) {
   });
   return count;
 }
-
+function toggleNoReturn() {
+  const chk = document.getElementById('f-no-return').checked;
+  const fCaTra = document.getElementById('f-ca-tra');
+  const fNgayTra = document.getElementById('f-ngay-tra');
+  
+  if(chk) {
+    fCaTra.value = ''; fCaTra.disabled = true; fCaTra.style.opacity = '0.5';
+    fNgayTra.value = ''; fNgayTra.disabled = true; fNgayTra.style.opacity = '0.5';
+    document.getElementById('err-ca-tra').style.display = 'none';
+  } else {
+    fCaTra.disabled = false; fCaTra.style.opacity = '1';
+    fNgayTra.disabled = false; fNgayTra.style.opacity = '1';
+  }
+  updatePartnerListRealtime();
+}
 // ===============================================================
 // HÀM GỬI YÊU CẦU ĐỔI CA (CHO PHÉP ĐỂ TRỐNG NGÀY ĐỔI/TRẢ)
 // ===============================================================
 async function submitRequest(){
   const name = CU.name, kip = document.getElementById('f-kip').value, caDoi = document.getElementById('f-ca-doi').value, ngayDoi = document.getElementById('f-ngay-doi').value;
-  const caTra = document.getElementById('f-ca-tra').value, ngayTra = document.getElementById('f-ngay-tra').value, partner = document.getElementById('f-partner').value.trim();
+  let caTra = document.getElementById('f-ca-tra').value;
+let ngayTra = document.getElementById('f-ngay-tra').value;
+const partner = document.getElementById('f-partner').value.trim();
+
+// Nếu tích chọn Không trả ca, gán mã ngầm 'NONE'
+if (document.getElementById('f-no-return').checked) {
+  caTra = 'NONE';
+  ngayTra = '';
+}
   const partnerKip = document.getElementById('f-partner-kip').value, partnerRole = document.getElementById('f-partner-role').value, reason = document.getElementById('f-reason').value.trim();
 
   if(!name || !kip || !partner || !partnerKip || !partnerRole){ showAlert('app','Thiếu thông tin người xin nghỉ hoặc người đi thay.','ae'); return; }
@@ -1580,9 +1611,9 @@ async function submitRequest(){
   if((caDoi && !ngayDoi) || (!caDoi && ngayDoi)) {
       showAlert('app','Thông tin chiều ĐỔI CA chưa đầy đủ!','ae'); return;
   }
-  if((caTra && !ngayTra) || (!caTra && ngayTra)) {
-      showAlert('app','Thông tin chiều TRẢ CA chưa đầy đủ!','ae'); return;
-  }
+  if((caTra && !ngayTra && caTra !== 'NONE') || (!caTra && ngayTra)) {
+    showAlert('app','Thông tin chiều TRẢ CA chưa đầy đủ!','ae'); return;
+}
 
   // --- LẤY THÔNG SỐ VÀ ĐẾM CA LỆCH ---
   const monthDoi = ngayDoi ? ngayDoi.substring(0, 7) : null; 
@@ -1662,6 +1693,7 @@ async function submitRequest(){
     await api({ action: "add", data: JSON.stringify({name, kip, caDoi, ngayDoi, caTra, ngayTra, partner, partnerKip, partnerRole, reason}) }); 
     await loadAll(); showAlert('app','Đã gửi đơn thành công!','as'); 
     ['f-ca-doi','f-ca-tra','f-partner-kip','f-partner-role','f-ngay-doi','f-ngay-tra','f-reason','f-partner'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-no-return').checked = false; toggleNoReturn();
     document.getElementById('ss-partner-lbl').textContent='-- Chọn --'; document.querySelector('#ss-partner .ss-btn').classList.add('ph'); switchTab('lich-su'); 
   } catch(e){ showAlert('app','Lỗi kết nối. Vui lòng thử lại.','ae'); } btn.disabled = false; btn.textContent = 'Gửi yêu cầu';
 }
