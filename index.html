@@ -2057,29 +2057,33 @@ function renderNoCa() {
   if(card) card.style.display='';
 
   // Chỉ tính đơn pending_ld và approved, loại CÔNG TÁC HC
-  const validReqs = allReqs.filter(r => 
-    (r.status === 'approved' || r.status === 'pending_ld') && 
+  const validReqs = allReqs.filter(r =>
+    r.status === 'approved' &&
     r.partner !== 'CÔNG TÁC HC' &&
     !(r.reason && r.reason.startsWith('['))
   );
 
-  // Tính nợ theo từng cặp: pairMap[A][B] = số ca A nợ B
-  // Chỉ tính nợ khi đơn chưa có ca trả (caTra trống hoặc OFF)
-  const pairMap = {};
+  // Tính số ca mỗi người đã đi cho người kia
+  // goMap[A][B] = số ca A đã đi cho B (gồm cả đi ca đổi lẫn đi ca trả)
+  const goMap = {};
+  const addGo = (nguoiDi, nguoiNghi) => {
+    if (!nguoiDi || !nguoiNghi) return;
+    if (!goMap[nguoiDi]) goMap[nguoiDi] = {};
+    goMap[nguoiDi][nguoiNghi] = (goMap[nguoiDi][nguoiNghi] || 0) + 1;
+  };
   validReqs.forEach(r => {
     const name = r.name;
     const partner = r.partner;
     if (!name || !partner) return;
-
-    // Chỉ tính nợ nếu chưa có ca trả
-    if (!r.caTra || r.caTra === '' || r.caTra === 'OFF') {
-      if (!pairMap[name]) pairMap[name] = {};
-      pairMap[name][partner] = (pairMap[name][partner] || 0) + 1;
-    }
+    // Đơn không cần trả ca: không tính nợ
+    if (r.caTra === 'NONE') return;
+    // partner đi ca đổi cho name → name nợ partner
+    if (r.ngayDoi) addGo(partner, name);
+    // name đi ca trả cho partner → partner nợ name
+    if (r.ngayTra && r.caTra) addGo(name, partner);
   });
 
-  // Tính nợ ròng giữa từng cặp (trừ đi nếu đã trả ngược)
-  // Ông A nợ ông B: pairMap[A][B] - pairMap[B][A]
+  // Tính nợ ròng: A nợ B = số ca B đi cho A - số ca A đi cho B
   const myName = CU.name;
   const rows = [];
 
@@ -2087,9 +2091,9 @@ function renderNoCa() {
     if (u.name === myName) return;
     const other = u.name;
 
-    const toiNoHo = (pairMap[myName] && pairMap[myName][other]) || 0;   // tôi nghỉ, họ đi thay
-    const hoNoToi = (pairMap[other] && pairMap[other][myName]) || 0;     // họ nghỉ, tôi đi thay
-    const soRong = toiNoHo - hoNoToi; // dương = tôi nợ họ, âm = họ nợ tôi
+    const hoDidChoToi = (goMap[other] && goMap[other][myName]) || 0;  // họ đi cho tôi
+    const toiDidChoHo = (goMap[myName] && goMap[myName][other]) || 0; // tôi đi cho họ
+    const soRong = hoDidChoToi - toiDidChoHo; // dương = tôi nợ họ, âm = họ nợ tôi
 
     if (soRong === 0) return; // hòa thì không hiện
 
@@ -2136,21 +2140,29 @@ function renderNoCaLD() {
   card.style.display = '';
 
   const validReqs = allReqs.filter(r =>
-    (r.status === 'approved' || r.status === 'pending_ld') &&
+    r.status === 'approved' &&
     r.partner !== 'CÔNG TÁC HC' &&
     !(r.reason && r.reason.startsWith('['))
   );
 
-  // Tính nợ theo từng cặp
-  const pairMap = {};
+  // Tính số ca mỗi người đã đi cho người kia
+  // goMap[A][B] = số ca A đã đi cho B (gồm cả đi ca đổi lẫn đi ca trả)
+  const goMap = {};
+  const addGo = (nguoiDi, nguoiNghi) => {
+    if (!nguoiDi || !nguoiNghi) return;
+    if (!goMap[nguoiDi]) goMap[nguoiDi] = {};
+    goMap[nguoiDi][nguoiNghi] = (goMap[nguoiDi][nguoiNghi] || 0) + 1;
+  };
   validReqs.forEach(r => {
     const name = r.name;
     const partner = r.partner;
     if (!name || !partner) return;
-    if (!r.caTra || r.caTra === '' || r.caTra === 'OFF') {
-      if (!pairMap[name]) pairMap[name] = {};
-      pairMap[name][partner] = (pairMap[name][partner] || 0) + 1;
-    }
+    // Đơn không cần trả ca: không tính nợ
+    if (r.caTra === 'NONE') return;
+    // partner đi ca đổi cho name → name nợ partner
+    if (r.ngayDoi) addGo(partner, name);
+    // name đi ca trả cho partner → partner nợ name
+    if (r.ngayTra && r.caTra) addGo(name, partner);
   });
 
   // Tính nợ ròng toàn bộ các cặp
@@ -2164,9 +2176,9 @@ function renderNoCaLD() {
       if (checked.has(key)) return;
       checked.add(key);
 
-      const aNoB = (pairMap[u.name] && pairMap[u.name][v.name]) || 0;
-      const bNoA = (pairMap[v.name] && pairMap[v.name][u.name]) || 0;
-      const soRong = aNoB - bNoA;
+      const bDidChoA = (goMap[v.name] && goMap[v.name][u.name]) || 0;
+      const aDidChoB = (goMap[u.name] && goMap[u.name][v.name]) || 0;
+      const soRong = bDidChoA - aDidChoB; // dương = A nợ B
 
       if (soRong === 0) return;
 
