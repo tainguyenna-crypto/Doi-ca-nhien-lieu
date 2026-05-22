@@ -2057,25 +2057,29 @@ function renderNoCa() {
   if(card) card.style.display='';
 
   // Chỉ tính đơn pending_ld và approved, loại CÔNG TÁC HC
-  const validReqs = allReqs.filter(r =>
-    r.status === 'approved' &&
+  const validReqs = allReqs.filter(r => 
+    (r.status === 'approved' || r.status === 'pending_ld') && 
     r.partner !== 'CÔNG TÁC HC' &&
     !(r.reason && r.reason.startsWith('['))
   );
 
-  // Tính nợ theo từng cặp: pairMap[A][B] = số ca B đã đi thay cho A
-  // Mỗi đơn approved: partner đi 1 ca cho name, không phân biệt đổi hay trả
+  // Tính nợ theo từng cặp: pairMap[A][B] = số ca A nợ B
+  // Chỉ tính nợ khi đơn chưa có ca trả (caTra trống hoặc OFF)
   const pairMap = {};
   validReqs.forEach(r => {
     const name = r.name;
     const partner = r.partner;
     if (!name || !partner) return;
-    if (!pairMap[name]) pairMap[name] = {};
-    pairMap[name][partner] = (pairMap[name][partner] || 0) + 1;
+
+    // Chỉ tính nợ nếu chưa có ca trả
+    if (!r.caTra || r.caTra === '' || r.caTra === 'OFF') {
+      if (!pairMap[name]) pairMap[name] = {};
+      pairMap[name][partner] = (pairMap[name][partner] || 0) + 1;
+    }
   });
 
-  // Tính nợ ròng giữa từng cặp
-  // A nợ B = số ca B đi thay A - số ca A đi thay B
+  // Tính nợ ròng giữa từng cặp (trừ đi nếu đã trả ngược)
+  // Ông A nợ ông B: pairMap[A][B] - pairMap[B][A]
   const myName = CU.name;
   const rows = [];
 
@@ -2132,20 +2136,21 @@ function renderNoCaLD() {
   card.style.display = '';
 
   const validReqs = allReqs.filter(r =>
-    r.status === 'approved' &&
+    (r.status === 'approved' || r.status === 'pending_ld') &&
     r.partner !== 'CÔNG TÁC HC' &&
     !(r.reason && r.reason.startsWith('['))
   );
 
-  // Tính nợ theo từng cặp: pairMap[A][B] = số ca B đã đi thay cho A
-  // Mỗi đơn approved: partner đi 1 ca cho name, không phân biệt đổi hay trả
+  // Tính nợ theo từng cặp
   const pairMap = {};
   validReqs.forEach(r => {
     const name = r.name;
     const partner = r.partner;
     if (!name || !partner) return;
-    if (!pairMap[name]) pairMap[name] = {};
-    pairMap[name][partner] = (pairMap[name][partner] || 0) + 1;
+    if (!r.caTra || r.caTra === '' || r.caTra === 'OFF') {
+      if (!pairMap[name]) pairMap[name] = {};
+      pairMap[name][partner] = (pairMap[name][partner] || 0) + 1;
+    }
   });
 
   // Tính nợ ròng toàn bộ các cặp
