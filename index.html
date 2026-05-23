@@ -2765,7 +2765,7 @@ function renderAdminHCHist() {
   const [yr, mo] = mv.split('-').map(Number);
   const hcReqs = allReqs.filter(r => {
     if (r.status !== 'approved') return false;
-    const isDispatch = (r.partner === 'CÔNG TÁC HC' || (r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]'))));
+    const isDispatch = (r.partner === 'CÔNG TÁC HC' || (r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]') || r.reason.includes('[VIỆC RIÊNG]') || r.reason.includes('[NGHỈ ỐM]'))));
     if (!isDispatch) return false;
     const [yDoi, mDoi] = r.ngayDoi ? r.ngayDoi.toString().substring(0, 10).split('-').map(Number) : [0,0];
     const [yTra, mTra] = r.ngayTra ? r.ngayTra.toString().substring(0, 10).split('-').map(Number) : [0,0];
