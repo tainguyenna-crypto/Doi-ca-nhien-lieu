@@ -3043,21 +3043,24 @@ function renderTransferLog() {
       <td style="font-weight:600;">${t.name}</td>
       <td><span class="dp">${t.newKip}</span></td>
       <td style="text-align:center;">
-        <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteTransfer('${t.id}')">Xóa</button>
+        <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteTransfer('${t.id}', this)">Xóa</button>
       </td>
     </tr>
   `).join('');
 }
-
-async function deleteTransfer(id) {
+async function deleteTransfer(id, btn) {
   if(!confirm("Xóa bản ghi này? Người này sẽ quay lại Kíp cũ nếu không còn lệnh điều chuyển nào khác.")) return;
+  if(btn) { btn.disabled = true; btn.textContent = '⏳ Đang xóa...'; }
   try {
     await api({ action: "deleteTransfer", id });
     await loadTransfers();
     renderTransferLog();
     renderScheduleTable();
     showAlert('app','Đã xóa!','as');
-  } catch(e) { showAlert('app','Lỗi!','ae'); }
+  } catch(e) {
+    if(btn) { btn.disabled = false; btn.textContent = 'Xóa'; }
+    showAlert('app','Lỗi!','ae');
+  }
 }
 
 function exportExcelTransfer() {
