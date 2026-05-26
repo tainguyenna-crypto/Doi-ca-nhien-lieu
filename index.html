@@ -1309,7 +1309,9 @@ function getCaTrucGoc(userName, defaultKip, dateStr) {
 
   // --- 1. TÌM TRẠNG THÁI THỰC TẾ TẠI NGÀY ĐANG XÉT ---
   let currentKip = defaultKip;
-  let currentPattern = "3 ca 5 kíp";
+  let currentPattern = (APP_CONFIG.configs && APP_CONFIG.configs.MAU_LICH_MAC_DINH) 
+                     ? APP_CONFIG.configs.MAU_LICH_MAC_DINH 
+                     : "3 ca 5 kíp";
   let currentRef = 0;
   let isNgoaiLe = false;
 
@@ -1325,7 +1327,10 @@ function getCaTrucGoc(userName, defaultKip, dateStr) {
       if (latest.newPattern) {
         currentPattern = latest.newPattern;
         currentRef = parseInt(latest.newViTriMoc) || 0;
-        isNgoaiLe = (latest.newPattern !== "3 ca 5 kíp");
+        const defaultPattern = (APP_CONFIG.configs && APP_CONFIG.configs.MAU_LICH_MAC_DINH) 
+                       ? APP_CONFIG.configs.MAU_LICH_MAC_DINH 
+                       : "3 ca 5 kíp";
+         isNgoaiLe = (latest.newPattern !== defaultPattern);
       }
     }
   }
