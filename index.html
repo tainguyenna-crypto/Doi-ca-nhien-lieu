@@ -329,6 +329,7 @@ textarea{resize:none;height:80px}
         </div>
       </div>
       <button class="btn" style="width:100%; padding:12px; background:#f97316; color:white; font-weight:700; margin-top:10px;" onclick="submitTransfer()">⚡ XÁC NHẬN ĐIỀU CHUYỂN</button>
+      <div id="transfer-msg" class="alert" style="margin-top:10px; display:none"></div>
     </div>
 
       <div class="card" style="margin-bottom: 20px; border-top: 4px solid #1a56a0;">
@@ -914,7 +915,15 @@ async function doResetPin(){
   if(!n||!p){return;} try{ const r=await api({action:"resetPin",name:n,newPin:p}); if(r.error){return;} showAlert('app','Đã reset PIN cho '+n,'as'); }catch(ex){}
 }
 function showAlert(sc,m,cl){ const el=document.getElementById(sc==='app'?'alert-app':'alert-gl'); el.className='alert '+cl; el.textContent=m; el.style.display='block'; setTimeout(()=>el.style.display='none',4000); }
-
+function showLocalAlert(elId, msg, cl) {
+  const el = document.getElementById(elId);
+  if (!el) { showAlert('app', msg, cl); return; }
+  el.className = 'alert ' + cl;
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  setTimeout(() => el.style.display = 'none', 4000);
+}
 async function doArchive() {
   const yr = document.getElementById('f-archive-year').value;
   if(!yr || yr < 2024) { showAlert('app','Vui lòng nhập năm hợp lệ (VD: 2025)!','ae'); return; }
@@ -2934,7 +2943,7 @@ async function submitBatchHC() {
   });
 
   if (hasError) return; 
-  if (allReqsHC.length === 0) { showAlert('app', 'Chưa chọn nhân sự nào.', 'ae'); return; }
+  if (allReqsHC.length === 0) { showLocalAlert('batchhc-msg', 'Chưa chọn nhân sự nào.', 'ae'); return; }
   
   let confirmMsg = `Xác nhận PHÊ DUYỆT ${allReqsHC.length} lệnh điều động?`;
   if (cancelIds.size > 0) confirmMsg += `\n\n⚠️ LƯU Ý: Phát hiện có ${cancelIds.size} đơn xin đổi ca đang chờ duyệt bị TRÙNG LỊCH. Hệ thống sẽ TỰ ĐỘNG HỦY các đơn đó!`;
@@ -2947,10 +2956,10 @@ async function submitBatchHC() {
     for(let id of cancelArr) await api({action: "updateStatus", id: id, status: "cancelled", by: "Hệ thống (Auto)"});
     for(let data of allReqsHC) await api({ action: "add", data: JSON.stringify(data) }); 
     
-    await loadAll(); showAlert('app', 'Đã ban hành lệnh thành công!', 'as');
+    await loadAll(); showLocalAlert('batchhc-msg', 'Đã ban hành lệnh thành công!', 'as');
     document.getElementById('hc-table-body').innerHTML = ''; document.getElementById('hc-group-reason').value = '';
     renderAdminHCHist(); renderScheduleTable(); 
-  } catch(e) { showAlert('app', 'Lỗi mạng!', 'ae'); }
+  } catch(e) { showLocalAlert('batchhc-msg', 'Lỗi mạng!', 'ae'); }
   btn.disabled = false; btn.innerHTML = '⚡ PHÊ DUYỆT LỆNH';
 }
 let allTransfers = []; // Biến lưu trữ lịch sử điều chuyển
@@ -3005,10 +3014,10 @@ async function submitTransfer() {
   const newViTriMoc = document.getElementById('tc-newvitri').value;
   const users = Array.from(document.querySelectorAll('.tc-user-val:checked')).map(cb => cb.value);
 
-  if(!date || users.length === 0) { showAlert('app','Vui lòng chọn ngày và nhân viên!','ae'); return; }
+  if(!date || users.length === 0) { showLocalAlert('transfer-msg','Vui lòng chọn ngày và nhân viên!','ae'); return; }
   if(!confirm(`Xác nhận chuyển ${users.length} người sang trạng thái mới kể từ ${fmtDate(date)}?`)) return;
 
-  showAlert('app','Đang xử lý...','ai');
+  showLocalAlert('transfer-msg','Đang xử lý...','ai')
   try {
     for(let name of users) {
       await api({ action: "addTransfer", data: JSON.stringify({ name, date, newKip, newPattern, newViTriMoc }) });
@@ -3016,9 +3025,9 @@ async function submitTransfer() {
     await loadTransfers(); 
     renderTransferLog();
     renderScheduleTable(); 
-    showAlert('app','Điều chuyển thành công!','as');
+    showLocalAlert('transfer-msg','Điều chuyển thành công!','as')
     document.getElementById('tc-date').value = '';
-  } catch(e) { showAlert('app','Lỗi kết nối!','ae'); }
+  } catch(e) { showLocalAlert('transfer-msg','Lỗi kết nối!','ae'); }
 }
 
 async function loadTransfers() {
