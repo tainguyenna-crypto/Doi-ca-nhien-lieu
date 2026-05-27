@@ -229,6 +229,7 @@ textarea{resize:none;height:80px}
         <div class="form-row full"><label>Chức danh người đi thay</label><select id="f-partner-role"><option value="">-- Chọn --</option></select></div>
         <div class="form-row full"><label>Lý do</label><textarea id="f-reason" placeholder="Lý do đổi ca..."></textarea></div>
         <button class="btn btn-primary" id="btn-submit" style="width:100%; padding:12px;" onclick="submitRequest()">Gửi yêu cầu</button>
+        <div id="submit-msg" class="alert" style="margin-top:10px; display:none"></div>
       </div>
     </div>
 <div id="tab-bang-di-ca" class="section">
@@ -922,6 +923,10 @@ function showLocalAlert(elId, msg, cl) {
   el.className = 'alert ' + cl;
   el.textContent = msg;
   el.style.display = 'block';
+  const rect = el.getBoundingClientRect();
+  if (rect.bottom > window.innerHeight || rect.top < 0) {
+    window.scrollTo({ top: window.scrollY + rect.top - 80, behavior: 'smooth' });
+  }
   setTimeout(() => el.style.display = 'none', 4000);
 }
 async function doArchive() {
@@ -1615,18 +1620,18 @@ if (document.getElementById('f-no-return').checked) {
 }
   const partnerKip = document.getElementById('f-partner-kip').value, partnerRole = document.getElementById('f-partner-role').value, reason = document.getElementById('f-reason').value.trim();
 
-  if(!name || !kip || !partner || !partnerKip || !partnerRole){ showAlert('app','Thiếu thông tin người xin nghỉ hoặc người đi thay.','ae'); return; }
-  if(!reason){ showAlert('app','Vui lòng nhập lý do đổi ca!','ae'); return; }
-  if(name === partner){ showAlert('app','Người đổi và người đi thay không được trùng nhau.','ae'); return; }
+  if(!name || !kip || !partner || !partnerKip || !partnerRole){ showLocalAlert('submit-msg','Thiếu thông tin người xin nghỉ hoặc người đi thay.','ae'); return; }
+  if(!reason){ showLocalAlert('submit-msg','Vui lòng nhập lý do đổi ca!','ae'); return; }
+  if(name === partner){ showLocalAlert('submit-msg','Người đổi và người đi thay không được trùng nhau.','ae'); return; }
   
   if((!caDoi || !ngayDoi) && (!caTra || !ngayTra)) {
-      showAlert('app','Phải nhập đầy đủ Ca và Ngày cho ÍT NHẤT 1 chiều (Đổi hoặc Trả)!','ae'); return;
+      showLocalAlert('submit-msg','Phải nhập đầy đủ Ca và Ngày cho ÍT NHẤT 1 chiều (Đổi hoặc Trả)!','ae'); return;
   }
   if((caDoi && !ngayDoi) || (!caDoi && ngayDoi)) {
-      showAlert('app','Thông tin chiều ĐỔI CA chưa đầy đủ!','ae'); return;
+      showLocalAlert('submit-msg','Thông tin chiều ĐỔI CA chưa đầy đủ!','ae'); return;
   }
   if((caTra && !ngayTra && caTra !== 'NONE') || (!caTra && ngayTra)) {
-    showAlert('app','Thông tin chiều TRẢ CA chưa đầy đủ!','ae'); return;
+    showLocalAlert('submit-msg','Thông tin chiều TRẢ CA chưa đầy đủ!','ae'); return;
 }
 
   // --- LẤY THÔNG SỐ VÀ ĐẾM CA LỆCH ---
@@ -1640,11 +1645,11 @@ if (document.getElementById('f-no-return').checked) {
 
   // 1. CHẶN CỨNG
   if (monthDoi && lechCuaDoiTac >= lMax) {
-    showAlert('app', `Đồng chí ${partner} đã đạt giới hạn lệch ca (${lMax} ca) trong tháng ${monthDoi.split('-')[1]}. Vui lòng chọn người khác!`, 'ae'); 
+    showLocalAlert('submit-msg', `Đồng chí ${partner} đã đạt giới hạn lệch ca (${lMax} ca) trong tháng ${monthDoi.split('-')[1]}. Vui lòng chọn người khác!`, 'ae'); 
     return;
   }
   if (monthTra && lechCuaToi >= lMax) {
-    showAlert('app', `Bạn đã đạt giới hạn lệch ca (${lMax} ca) trong tháng ${monthTra.split('-')[1]} (tháng đi trả ca). Không thể tạo đơn!`, 'ae'); 
+    showLocalAlert('submit-msg', `Bạn đã đạt giới hạn lệch ca (${lMax} ca) trong tháng ${monthTra.split('-')[1]} (tháng đi trả ca). Không thể tạo đơn!`, 'ae'); 
     return;
   }
 
@@ -1655,7 +1660,7 @@ if (document.getElementById('f-no-return').checked) {
       if (infoA.status === 'pending_ld') {
           const isSwapIn = allReqs.find(r => r.status === 'pending_ld' && r.partner === name && r.ngayDoi === ngayDoi);
           if (isSwapIn) {
-              showAlert('app', `LỖI: Ca trực này bạn đang đi thay và chưa được duyệt chính thức. Bạn chưa có quyền dùng ca này để đổi tiếp!`, 'ae');
+              showLocalAlert('submit-msg', `LỖI: Ca trực này bạn đang đi thay và chưa được duyệt chính thức. Bạn chưa có quyền dùng ca này để đổi tiếp!`, 'ae');
               return;
           }
       }
@@ -1665,31 +1670,31 @@ if (document.getElementById('f-no-return').checked) {
       const caThucTeB_NgayDoi = getCaThucTe(partner, partnerKip, ngayDoi);
       
       if (caThucTeA_NgayDoi !== caDoi) {
-        showAlert('app', `Ngày ${fmtDate(ngayDoi)} đồng chí không có lịch ca ${caDoi} để xin nghỉ!`, 'ae'); return;
+        showLocalAlert('submit-msg', `Ngày ${fmtDate(ngayDoi)} đồng chí không có lịch ca ${caDoi} để xin nghỉ!`, 'ae'); return;
       }
       if (caThucTeB_NgayDoi !== 'OFF' && ngayDoi !== ngayTra) {
-        showAlert('app', `Ngày ${fmtDate(ngayDoi)} đồng chí ${partner} đang có lịch ca ${caThucTeB_NgayDoi}. Người đi thay phải rảnh!`, 'ae'); return;
+        showLocalAlert('submit-msg', `Ngày ${fmtDate(ngayDoi)} đồng chí ${partner} đang có lịch ca ${caThucTeB_NgayDoi}. Người đi thay phải rảnh!`, 'ae'); return;
       }
       const loiNguoiThay = checkViPhamAnToan(partner, partnerKip, ngayDoi, caDoi);
-      if (loiNguoiThay) { showAlert('app', `LỖI NGƯỜI ĐI THAY: ${loiNguoiThay}`, 'ae'); return; }
+      if (loiNguoiThay) { showLocalAlert('submit-msg', `LỖI NGƯỜI ĐI THAY: ${loiNguoiThay}`, 'ae'); return; }
   }
 
   if (ngayTra) {
       const caThucTeA_NgayTra = getCaThucTe(name, kip, ngayTra);
       const caThucTeB_NgayTra = getCaThucTe(partner, partnerKip, ngayTra);
       if (caThucTeB_NgayTra !== caTra) {
-        showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí ${partner} không có lịch ca ${caTra} để trả lại!`, 'ae'); return;
+        showLocalAlert('submit-msg', `Ngày ${fmtDate(ngayTra)} đồng chí ${partner} không có lịch ca ${caTra} để trả lại!`, 'ae'); return;
       }
       if (caThucTeA_NgayTra !== 'OFF' && ngayDoi !== ngayTra) {
-        showAlert('app', `Ngày ${fmtDate(ngayTra)} đồng chí đang có lịch ca ${caThucTeA_NgayTra}. Chỉ được trả ca vào ngày nghỉ!`, 'ae'); return;
+        showLocalAlert('submit-msg', `Ngày ${fmtDate(ngayTra)} đồng chí đang có lịch ca ${caThucTeA_NgayTra}. Chỉ được trả ca vào ngày nghỉ!`, 'ae'); return;
       }
       const loiNguoiDoi = checkViPhamAnToan(name, kip, ngayTra, caTra);
-      if (loiNguoiDoi) { showAlert('app', `LỖI NGƯỜI TRẢ CA: ${loiNguoiDoi}`, 'ae'); return; }
+      if (loiNguoiDoi) { showLocalAlert('submit-msg', `LỖI NGƯỜI TRẢ CA: ${loiNguoiDoi}`, 'ae'); return; }
   }
 
   if (ngayDoi && ngayTra && ngayDoi === ngayTra) {
     if (caDoi === caTra) {
-      showAlert('app', `Đổi ca trong cùng 1 ngày thì 2 ca phải khác nhau!`, 'ae'); return;
+      showLocalAlert('submit-msg', `Đổi ca trong cùng 1 ngày thì 2 ca phải khác nhau!`, 'ae'); return;
     }
   }
 
@@ -1705,11 +1710,11 @@ if (document.getElementById('f-no-return').checked) {
   const btn = document.getElementById('btn-submit'); btn.disabled = true; btn.textContent = 'Đang gửi...';
   try{ 
     await api({ action: "add", data: JSON.stringify({name, kip, caDoi, ngayDoi, caTra, ngayTra, partner, partnerKip, partnerRole, reason}) }); 
-    await loadAll(); showAlert('app','Đã gửi đơn thành công!','as'); 
+    await loadAll(); showLocalAlert('submit-msg','Đã gửi đơn thành công!','as'); 
     ['f-ca-doi','f-ca-tra','f-partner-kip','f-partner-role','f-ngay-doi','f-ngay-tra','f-reason','f-partner'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('f-no-return').checked = false; toggleNoReturn();
     document.getElementById('ss-partner-lbl').textContent='-- Chọn --'; document.querySelector('#ss-partner .ss-btn').classList.add('ph'); switchTab('lich-su'); 
-  } catch(e){ showAlert('app','Lỗi kết nối. Vui lòng thử lại.','ae'); } btn.disabled = false; btn.textContent = 'Gửi yêu cầu';
+  } catch(e){ showLocalAlert('submit-msg','Lỗi kết nối. Vui lòng thử lại.','ae'); } btn.disabled = false; btn.textContent = 'Gửi yêu cầu';
 }
 
 
