@@ -2833,13 +2833,13 @@ async function deleteAdminHC(id, btn) {
 
 async function submitBatchHC() {
   const rows = document.querySelectorAll('#hc-table-body tr');
-  if(rows.length === 0) { showAlert('app', 'Vui lòng chèn ít nhất 1 hàng để điều động!', 'ae'); return; }
+ if(rows.length === 0) { showLocalAlert('batchhc-msg', 'Vui lòng chèn ít nhất 1 hàng để điều động!', 'ae'); return; }
   const reason = document.getElementById('hc-group-reason').value;
-  if(!reason) { showAlert('app','Vui lòng nhập nội dung công việc/lý do nghỉ!','ae'); return; }
+  if(!reason) { showLocalAlert('batchhc-msg','Vui lòng nhập nội dung công việc/lý do nghỉ!','ae'); return; }
 
   const realtimeErrors = document.querySelectorAll('.realtime-err');
   if (realtimeErrors.length > 0) {
-      showAlert('app', '❌ LỆNH ĐANG SAI LUẬT! Vui lòng sửa các cảnh báo màu đỏ trước.', 'ae'); return;
+      showLocalAlert('batchhc-msg', '❌ LỆNH ĐANG SAI LUẬT! Vui lòng sửa các cảnh báo màu đỏ trước.', 'ae'); return;
   }
   
   let hasError = false; 
@@ -2866,11 +2866,11 @@ async function submitBatchHC() {
 
     // --- BỘ LỌC ĐIỀU KIỆN GỬI FORM ---
     if (!isLeave && !isNoReplace) {
-        if (selectedNames.length !== selectedPartners.length) { hasError = true; showAlert('app', `LỖI: Số người đi KHÁC số người thay!`, 'ae'); return; }
-        if (!pkip || (!retDate && !noRetRequired)) { hasError = true; showAlert('app', `Vui lòng chọn Kíp thay và Ngày trả ca!`, 'ae'); return; }
+        if (selectedNames.length !== selectedPartners.length) { hasError = true; showLocalAlert('batchhc-msg', `LỖI: Số người đi KHÁC số người thay!`, 'ae'); return; }
+        if (!pkip || (!retDate && !noRetRequired)) { hasError = true; showLocalAlert('batchhc-msg', `Vui lòng chọn Kíp thay và Ngày trả ca!`, 'ae'); return; }
     } else if (isLeave && !isNoReplace) {
-        if (selectedNames.length !== selectedPartners.length) { hasError = true; showAlert('app', `LỖI: Số người đi KHÁC số người thay!`, 'ae'); return; }
-        if (!pkip) { hasError = true; showAlert('app', `Vui lòng chọn Kíp thay!`, 'ae'); return; }
+        if (selectedNames.length !== selectedPartners.length) { hasError = true; showLocalAlert('batchhc-msg', `LỖI: Số người đi KHÁC số người thay!`, 'ae'); return; }
+        if (!pkip) { hasError = true; showLocalAlert('batchhc-msg', `Vui lòng chọn Kíp thay!`, 'ae'); return; }
     }
 
     let reasonPrefix = '';
@@ -2900,7 +2900,7 @@ async function submitBatchHC() {
             finalPartnerKip = pInfo ? pInfo.kip : pkip;
             
             const loi = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caThucTeA);
-            if(loi) { hasError = true; showAlert('app', `LỖI AN TOÀN: Đ/c ${finalPartner} vi phạm - ${loi}`, 'ae'); return; }
+            if(loi) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN: Đ/c ${finalPartner} vi phạm - ${loi}`, 'ae'); return; }
         } else { 
             finalPartner = selectedPartners[idx]; 
             
@@ -2913,10 +2913,10 @@ async function submitBatchHC() {
             
             // ĐÃ SỬA: Đổi pkip thành finalPartnerKip
             const loiThay = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caThucTeA);
-            if(loiThay) { hasError = true; showAlert('app', `LỖI NGƯỜI THAY: ${loiThay}`, 'ae'); return; }
+            if(loiThay) { hasError = true; showLocalAlert('batchhc-msg', `LỖI NGƯỜI THAY: ${loiThay}`, 'ae'); return; }
             
             const loiTra = checkViPhamAnToan(n, kip, retDate, autoCaTra);
-            if(loiTra) { hasError = true; showAlert('app', `LỖI TRẢ CA: ${loiTra}`, 'ae'); return; }
+            if(loiTra) { hasError = true; showLocalAlert('batchhc-msg', `LỖI TRẢ CA: ${loiTra}`, 'ae'); return; }
         }
       }
 
