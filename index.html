@@ -11,7 +11,7 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6fb;color:#1a1a2e;font-size:14px; -webkit-tap-highlight-color: transparent;}
 .topbar{background:#1a56a0;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
 .topbar-sub{font-size:12px;opacity:.8;margin-top:2px}
-.wrap{max-width:720px;margin:0 auto;padding:14px 12px 40px}
+.wrap{max-width:1100px;margin:0 auto;padding:14px 12px 40px}
 .card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
 .sec-title{font-size:16px;font-weight:600;color:#0f172a}
 .ubar{background:#ebf3ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px; flex-wrap: wrap;}
@@ -192,6 +192,9 @@ textarea{resize:none;height:80px}
       <button class="tab" id="tab-ld" style="display:none" onclick="switchTab('phe-duyet')">Duyệt PX</button>
       <button class="tab" id="btn-admin" style="display:none" onclick="switchTab('admin')">Quản trị</button>
       <button class="tab" id="tab-btn-admin-hc" style="display:none; background:#fef3c7; border-color:#f59e0b; color:#b45309;" onclick="switchTab('admin-hc')">⚡ Lệnh Điều Động</button>
+      <button class="tab" onclick="switchTab('nghi-phep')">🏖️ Nghỉ phép</button>
+      <button class="tab" id="tab-btn-duyet-np" style="display:none" onclick="switchTab('duyet-np')">✅ Duyệt NP</button>
+      <button class="tab" onclick="switchTab('lich-su-np')">Lịch sử NP</button>
       <button class="tab" onclick="switchTab('lich-su')">Lịch sử</button>
       <button class="tab" onclick="switchTab('thong-ke')">Thống kê</button>
       <button class="tab" onclick="switchTab('bang-di-ca')">Bảng đi ca</button>
@@ -394,7 +397,95 @@ textarea{resize:none;height:80px}
         <div id="batchhc-msg" class="alert" style="margin-top:10px; display:none"></div>
       </div>
     </div>
-    <div id="tab-lich-su" class="section">
+    <!-- ===== TAB NGHỈ PHÉP ===== -->
+    <div id="tab-nghi-phep" class="section">
+      <div class="card">
+        <div class="sec-title" style="margin-bottom:16px;">🏖️ Đăng ký nghỉ phép</div>
+        <div id="leave-balance-box" style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; gap:16px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:120px; text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:#0284c7;" id="lb-annual">—</div>
+            <div style="font-size:12px; color:#64748b;">Phép năm</div>
+          </div>
+          <div style="flex:1; min-width:120px; text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:#16a34a;" id="lb-remaining">—</div>
+            <div style="font-size:12px; color:#64748b;">Còn lại</div>
+          </div>
+          <div style="flex:1; min-width:120px; text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:#dc2626;" id="lb-selected">0</div>
+            <div style="font-size:12px; color:#64748b;">Đang chọn</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-weight:600; color:#374151; display:block; margin-bottom:8px;">Chọn ngày nghỉ (bấm vào ngày để chọn/bỏ)</label>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px;">
+            <button onclick="changeLeaveMonth(-1)" style="padding:6px 14px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; cursor:pointer; font-size:18px; font-weight:700; color:#1a56a0;">‹</button>
+            <span id="leave-cal-title" style="font-weight:700; color:#1a56a0; font-size:15px;"></span>
+            <button onclick="changeLeaveMonth(1)" style="padding:6px 14px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; cursor:pointer; font-size:18px; font-weight:700; color:#1a56a0;">›</button>
+          </div>
+          <div id="leave-calendar" style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:8px;"></div>
+          <div id="leave-selected-dates" style="font-size:13px; color:#64748b; margin-top:4px;"></div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-weight:600; color:#374151;">Lý do nghỉ <span style="color:#dc2626">*</span></label>
+          <input type="text" id="f-leave-reason" placeholder="Ví dụ: Việc cá nhân, Du lịch gia đình..." style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; margin-top:6px; box-sizing:border-box;">
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-weight:600; color:#374151;">Nơi nghỉ <span style="color:#dc2626">*</span></label>
+          <input type="text" id="f-leave-location" placeholder="Ví dụ: Tại nhà, Quê ngoại, TP.HCM..." style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; margin-top:6px; box-sizing:border-box;">
+        </div>
+
+        <div id="leave-warn" style="display:none; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:10px 14px; color:#dc2626; font-weight:600; margin-bottom:12px;"></div>
+
+        <button id="btn-submit-leave" class="btn btn-success" style="width:100%; padding:12px; font-weight:700;" onclick="submitLeaveForm()">📨 Gửi đơn nghỉ phép</button>
+        <div id="leave-msg" class="alert" style="margin-top:10px; display:none;"></div>
+      </div>
+
+      <!-- Danh sách đơn nghỉ phép của tôi đang chờ -->
+      <div class="card" style="margin-top:12px;">
+        <div class="sec-title" style="margin-bottom:12px;">Đơn đang chờ duyệt</div>
+        <div id="leave-pending-list"></div>
+      </div>
+    </div>
+
+    <!-- ===== TAB LỊCH SỬ NGHỈ PHÉP ===== -->
+    <div id="tab-lich-su-np" class="section">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div class="sec-title" style="margin:0;">📋 Lịch sử nghỉ phép</div>
+        </div>
+        <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input type="month" id="f-leave-hist-month" onchange="renderLeaveHistory()" style="flex:1; min-width:160px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
+          <select id="f-leave-hist-status" onchange="renderLeaveHistory()" style="flex:1; min-width:160px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
+            <option value="">Tất cả trạng thái</option>
+            <option value="pending_ld">Chờ duyệt</option>
+            <option value="approved">Đã duyệt</option>
+            <option value="rejected">Từ chối</option>
+            <option value="cancelled">Đã hủy</option>
+          </select>
+          <select id="f-leave-hist-kip" onchange="renderLeaveHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;"><option value="">Tất cả kíp</option></select>
+        </div>
+        <div id="f-leave-hist-cd-wrap" style="display:none; margin-bottom:8px;">
+          <select id="f-leave-hist-cd" onchange="renderLeaveHistory()" style="width:100%; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;"><option value="">Tất cả chức danh</option></select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <input type="text" id="f-leave-hist-search" oninput="renderLeaveHistory()" placeholder="🔍 Tìm theo tên người nghỉ..." style="width:100%; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none; box-sizing:border-box;">
+        </div>
+        <div id="leave-history-list"></div>
+      </div>
+    </div>
+
+  <!-- ===== TAB DUYỆT NGHỈ PHÉP (LÃNH ĐẠO) ===== -->
+  <div id="tab-duyet-np" class="section">
+    <div class="card">
+      <div class="sec-title" style="margin-bottom:12px;">✅ Phê duyệt nghỉ phép</div>
+      <div id="leave-approve-list"></div>
+    </div>
+  </div>
+
+  <div id="tab-lich-su" class="section">
       <div class="sg">
   <div class="sc"><div class="sn" id="hist-total">—</div><div class="sl">Tổng đơn</div></div>
   <div class="sc"><div class="sn" id="hist-approved">—</div><div class="sl">Đã duyệt</div></div>
@@ -521,6 +612,33 @@ textarea{resize:none;height:80px}
     <tbody id="no-ca-ld-body"></tbody>
   </table>
     </div>
+
+    <!-- BẢNG THỐNG KÊ NGHỈ PHÉP -->
+    <div class="card" id="card-leave-stat" style="margin-top:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+        <div class="sec-title" style="margin:0;">🏖️ Thống kê ngày nghỉ phép</div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="btn-export-leave-stat" class="btn btn-success" style="display:none; height:38px; font-size:13px;" onclick="exportLeaveStatExcel()">⬇ Tải Excel</button>
+          <select id="f-leave-stat-year" onchange="renderLeaveStats()" style="width:auto; padding:8px 12px; font-size:15px; border-radius:6px; background:#f8fafc; font-weight:600; color:#1a56a0; border-color:#1a56a0;"></select>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="dt" id="table-leave-stat">
+          <thead>
+            <tr>
+              <th>Họ tên</th>
+              <th>Chức danh</th>
+              <th>Kíp</th>
+              <th style="text-align:center; color:#0284c7;">Số ngày phép</th>
+              <th style="text-align:center; color:#dc2626;">Đã nghỉ</th>
+              <th style="text-align:center; color:#64748b;">Những ngày nghỉ</th>
+              <th style="text-align:center; color:#16a34a;">Còn lại</th>
+            </tr>
+          </thead>
+          <tbody id="leave-stat-body"></tbody>
+        </table>
+      </div>
+    </div>
    </div>
   </div>
 </div>
@@ -550,6 +668,40 @@ textarea{resize:none;height:80px}
     </div>
   </div>
 </div>
+<div class="overlay" id="leave-approve-modal" style="display:none">
+  <div class="pbox">
+    <div class="plogo" style="font-size:18px; color:#16a34a;">🏖️ Phê duyệt nghỉ phép</div>
+    <div class="psub" style="margin-bottom:12px;" id="leave-approve-modal-info"></div>
+    <div class="pfield">
+      <label style="font-weight:600; color:#374151;">Mã PIN xác nhận</label>
+      <input type="password" id="leave-approve-pin-inp" placeholder="Nhập PIN cá nhân..." minlength="4" maxlength="12" style="border-color:#16a34a; font-weight:bold; text-align:center; font-size:18px; letter-spacing:4px;" onkeydown="if(event.key==='Enter') doApproveLeaveWithPin()">
+    </div>
+    <div class="perr" id="leave-approve-err"></div>
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button class="btn btn-success" onclick="doApproveLeaveWithPin()" style="flex:2;">✅ Xác nhận duyệt</button>
+      <button class="btn" onclick="closeLeaveApproveModal()" style="flex:1; background:#f1f5f9; color:#475569; border-color:#cbd5e1;">Hủy</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="leave-reject-modal" style="display:none">
+  <div class="pbox">
+    <div class="plogo" style="font-size:18px; color:#dc2626;">❌ Từ chối nghỉ phép</div>
+    <div class="psub" style="margin-bottom:12px;" id="leave-reject-modal-info"></div>
+    <div class="pfield">
+      <label style="font-weight:600; color:#374151;">Lý do từ chối <span style="color:#dc2626">*</span></label>
+      <input type="text" id="leave-reject-reason-inp" placeholder="Nhập lý do từ chối..." style="border-color:#dc2626;" onkeydown="if(event.key==='Enter') doRejectLeaveConfirm()">
+    </div>
+    <div class="pfield" style="margin-top:10px;">
+      <label style="font-weight:600; color:#374151;">Mã PIN xác nhận <span style="color:#dc2626">*</span></label>
+      <input type="password" id="leave-reject-pin-inp" placeholder="Nhập PIN cá nhân..." minlength="4" maxlength="12" style="border-color:#dc2626; font-weight:bold; text-align:center; font-size:18px; letter-spacing:4px;" onkeydown="if(event.key==='Enter') doRejectLeaveConfirm()">
+    </div>
+    <div class="perr" id="leave-reject-err"></div>
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button class="btn btn-danger" onclick="doRejectLeaveConfirm()" style="flex:2;">❌ Xác nhận từ chối</button>
+      <button class="btn" onclick="closeLeaveRejectModal()" style="flex:1; background:#f1f5f9; color:#475569; border-color:#cbd5e1;">Hủy</button>
+    </div>
+  </div>
+</div>
 <script>
 // =============================================
 // DÁN LINK WEB APP CỦA BẠN VÀO DÒNG BÊN DƯỚI:
@@ -558,7 +710,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjb6nn9Y5thaK1tj6FD
 
 // CẤU HÌNH BIẾN ĐỘNG TRÊN GIAO DIỆN
 let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 10 };
-let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
+let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[], allLeaves=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
 let autoRefreshTimer = null;
 async function api(p) {
   // SỬA LỖI 2: Tự động đính kèm Token (Thẻ bài) vào mọi gói tin gửi lên máy chủ
@@ -602,6 +754,8 @@ function setupDynamicFields(settings) {
   }
   let kipHtml = '<option value="">-- Kíp --</option>' + settings.kips.map(k => `<option>${k}</option>`).join('');
   document.getElementById('f-kip').innerHTML = kipHtml; document.getElementById('f-partner-kip').innerHTML = kipHtml; document.getElementById('f-fkp').innerHTML = '<option value="">Tất cả kíp</option>' + settings.kips.map(k => `<option>${k}</option>`).join('');
+  const kipFilterHtml = '<option value="">Tất cả kíp</option>' + settings.kips.map(k => `<option>${k}</option>`).join('');
+  document.getElementById('f-leave-hist-kip').innerHTML = kipFilterHtml;
   document.getElementById('f-partner-role').innerHTML = '<option value="">-- Chọn --</option>' + settings.chucDanhs.map(c => `<option>${c}</option>`).join('');
   let caHtml = '<option value="">-- Chọn ca --</option>' + settings.cas.map(c => `<option value="${c.ma}">${c.ten}</option>`).join('');
   document.getElementById('f-ca-doi').innerHTML = caHtml; document.getElementById('f-ca-tra').innerHTML = caHtml;
@@ -626,10 +780,19 @@ window.onload = async () => {
   }
 };
 
-async function loadAll(){ 
-  const d = await api({action:"getAll"}); 
-  allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()})); 
-  await loadTransfers(); }
+async function loadAll(){
+const d = await api({action:"getAll"});
+allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()}));
+const tasks = [loadTransfers(), loadLeaves()];
+if (CU && (CU.role === 'ld' || CU.admin)) tasks.push(loadLeaveBalances());
+await Promise.all(tasks); }
+async function loadLeaves() {
+try {
+const res = await api({ action: 'getLeaves' });
+allLeaves = res.leaves || [];
+} catch(e) { allLeaves = []; }
+}
+
 
 // ===============================================================
 // 1. PHỄU LỌC THÔNG MINH: CHỈ HIỆN NGƯỜI ĐI THAY PHÙ HỢP
@@ -831,11 +994,14 @@ async function doLogin(){
     document.getElementById('ub-name').textContent=CU.name; 
     const myInfo = NV_LIST.find(u => u.name === CU.name); 
     document.getElementById('ub-role').textContent = (myInfo && myInfo.chucDanh) ? myInfo.chucDanh : (CU.role==='ld'?'Lãnh đạo PX':'Vận hành');
-    document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none'; 
+    document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none';
+    document.getElementById('tab-btn-duyet-np').style.display = CU.role==='ld'?'':'none';
     if (CU.role === 'ld') {
       document.getElementById('fcd-wrap').style.display = 'flex';
       const cdList = [...new Set(NV_LIST.map(u => u.chucDanh).filter(Boolean))].sort();
       document.getElementById('f-fcd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
+      document.getElementById('f-leave-hist-cd-wrap').style.display = 'block';
+      document.getElementById('f-leave-hist-cd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
     }
    document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = CU.admin?'':'none';      document.getElementById('f-name').value = CU.name; 
     if(myInfo) {
@@ -851,10 +1017,15 @@ async function doLogin(){
   document.getElementById('f-kip').value = displayKip;
 }
     let isLd = CU.role === 'ld' ? 'inline-flex' : 'none'; document.getElementById('btn-export-excel').style.display = isLd; document.getElementById('btn-export-history').style.display = isLd; document.getElementById('btn-export-day').style.display = isLd; document.getElementById('btn-export-warn').style.display = isLd;
+    document.getElementById('btn-export-leave-stat').style.display = isLd;
     const now = new Date(); const curYear = now.getFullYear(); const curMonthStr = curYear + '-' + String(now.getMonth()+1).padStart(2,'0'); 
-    document.getElementById('f-month').value = curMonthStr; document.getElementById('f-warn-month').value = curMonthStr; document.getElementById('f-hist-month').value = curMonthStr; 
+    document.getElementById('f-month').value = curMonthStr; document.getElementById('f-warn-month').value = curMonthStr; document.getElementById('f-hist-month').value = curMonthStr; document.getElementById('f-leave-hist-month').value = curMonthStr;
     const yrSelect = document.getElementById('f-stat-year'); yrSelect.innerHTML = '';
-    for(let y = curYear - 2; y <= curYear + 2; y++) { yrSelect.innerHTML += `<option value="${y}" ${y===curYear ? 'selected':''}>Năm ${y}</option>`; }
+    const lsYrSelect = document.getElementById('f-leave-stat-year'); lsYrSelect.innerHTML = '';
+    for(let y = curYear - 2; y <= curYear + 2; y++) { 
+      yrSelect.innerHTML += `<option value="${y}" ${y===curYear ? 'selected':''}>Năm ${y}</option>`;
+      lsYrSelect.innerHTML += `<option value="${y}" ${y===curYear ? 'selected':''}>Năm ${y}</option>`;
+    }
     await loadAll(); 
   } catch(ex){e.style.color='#dc2626'; e.textContent='Lỗi kết nối mạng';}
   
@@ -867,7 +1038,7 @@ async function doLogin(){
       const activeBtn = document.querySelector('.tab.active');
       if (activeBtn) {
         const t = activeBtn.getAttribute('onclick').match(/'([^']+)'/)[1];
-        if (['dong-y', 'phe-duyet', 'lich-su'].includes(t)) switchTab(t);
+        if (['dong-y', 'phe-duyet', 'lich-su', 'duyet-np'].includes(t)) switchTab(t);
       }
     }
   }, 60000);
@@ -943,15 +1114,18 @@ async function doArchive() {
 }
 
 function switchTab(t){
-  ['dang-ky','dong-y','phe-duyet','admin','admin-hc','lich-su','thong-ke','bang-di-ca'].forEach(s=>{
-    const btn=document.querySelector(`.tab[onclick="switchTab('${s}')"]`); if(btn) btn.classList.toggle('active',s===t);
+['dang-ky','dong-y','phe-duyet','admin','admin-hc','nghi-phep','lich-su-np','duyet-np','lich-su','thong-ke','bang-di-ca'].forEach(s=>{
+const btn=document.querySelector(`.tab[onclick="switchTab('${s}')"]`); if(btn) btn.classList.toggle('active',s===t);
     const sec=document.getElementById('tab-'+s); if(sec) sec.classList.toggle('active',s===t);
   });
   if(t==='dong-y') renderDongY(); 
   if(t==='phe-duyet') renderPheDuyet(); 
   if(t==='lich-su') renderHistory(); 
-  if(t==='bang-di-ca') renderScheduleTable(); // Dòng mới thêm
-  if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); renderNoCaLD(); }
+  if(t==='bang-di-ca') renderScheduleTable();
+  if(t==='nghi-phep') initLeaveTab();
+  if(t==='lich-su-np') renderLeaveHistory();
+  if(t==='duyet-np') renderLeaveApproveList();
+  if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); renderNoCaLD(); renderLeaveStats(); }
   if(t==='admin-hc') { 
     renderAdminHCHist(); 
     initTransferForm(); // Dòng mới
@@ -959,7 +1133,7 @@ function switchTab(t){
   }
 }
 
-function fmtDate(d){ if(!d) return ''; const p=d.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : d; }
+function fmtDate(d){ if(!d) return ''; const s = d.toString().trim().substring(0,10); const p=s.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : d; }
 function caLabel(k){return CA[k]?CA[k].label:k;}
 function badge(s){ return {pending_partner:'<span class="badge bp">Chờ xác nhận</span>',pending_ld:'<span class="badge bld">Chờ LĐ duyệt</span>',approved:'<span class="badge bok">Đã duyệt</span>',rejected:'<span class="badge bno">Từ chối</span>'}[s]||''; }
 function flowBar(s){ const steps=[['pending_partner','Xác nhận'],['pending_ld','Duyệt PX'],['approved','Xong']]; const cur={pending_partner:0,pending_ld:1,approved:2}[s]??0; return`<div class="flow">${steps.map(([,l],i)=>`<div class="fs${s!=='rejected'&&i<cur?' done':s!=='rejected'&&i===cur?' active':''}">${l}</div>`).join('')}</div>`; }
@@ -1556,7 +1730,19 @@ function validateExistingReq(req) {
       if(l2) return `Người trả ca - ${l2}`;
   }
   
-  return null;
+  // Kiểm tra nghỉ phép được duyệt
+if (typeof allLeaves !== 'undefined' && allLeaves.length > 0) {
+const hasLeave = allLeaves.some(lv =>
+lv.name === userName &&
+lv.status === 'approved' &&
+lv.dates && lv.dates.split(',').map(d => d.trim()).includes(dateStr)
+);
+if (hasLeave) {
+if (returnFullObj) return { ca: 'P', status: 'approved_leave' };
+return 'P';
+}
+}
+return null;
 }
 // ===============================================================
 // 1. HÀM BỔ TRỢ: ĐẾM SỐ CA LỆCH THỰC TẾ TRONG THÁNG (BẢN CHUẨN)
@@ -2315,7 +2501,8 @@ function renderScheduleTable() {
     headHtml += `<th style="${thStyle}"><div style="font-size:14px;">${d}</div><div style="font-size:11px; font-weight:500; margin-top:2px; opacity:0.85;">${tenThu}</div></th>`; 
   }
   headHtml += `<th style="text-align:center; width:55px; background:#f0fdf4; color:#166534;">Công ca K</th>`;
-  headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th></tr>`;
+headHtml += `<th style="text-align:center; width:45px; background:#f0f9ff; color:#0284c7;">Công P</th>`;
+headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th></tr>`;
   document.getElementById('sched-head').innerHTML = headHtml;
 
   // 3. LẤY DANH SÁCH NHÂN SỰ VÀ TÍNH KÍP HIỆN TẠI (ĐÃ FIX LỖI SẮP XẾP)
@@ -2370,7 +2557,7 @@ function renderScheduleTable() {
     if (CU.role === 'ld') { row += `<td>${u.chucDanh || ''}</td><td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`; } 
     else { row += `<td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`; }
 
-    let totalHours = 0, countK = 0;
+    let totalHours = 0, countK = 0, countP = 0;
     for(let d=1; d<=daysInMonth; d++) {
       const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const caInfo = getCaThucTe(u.name, u.kip, dateStr, null, true);
@@ -2381,8 +2568,15 @@ function renderScheduleTable() {
       if(ca === 'K') { totalHours += hK; countK++; }
       else if(ca === 'N') totalHours += hN; 
       else if(ca === 'C') totalHours += hC; 
-      else if(ca === 'HC' || ca === 'H' || ca === 'P') totalHours += hHC;
+      else if(ca === 'HC' || ca === 'H') totalHours += hHC;
       else if(ca === 'HC/2') totalHours += (hHC / 2);
+      // P không tính vào tổng công
+      // Đếm P: lệnh điều động có ca P HOẶC nghỉ phép được duyệt từ sheet leaves (chỉ tính 1 lần)
+      const hasLeavePCell = typeof allLeaves !== 'undefined' && allLeaves.some(lv =>
+        lv.name === u.name && lv.status === 'approved' && lv.dates &&
+        lv.dates.split(',').map(s => s.trim()).includes(dateStr)
+      );
+      if(ca === 'P' || hasLeavePCell) countP++;
       
       let isLe = mangLe.includes(dateStr);
       let style = "";
@@ -2423,6 +2617,7 @@ function renderScheduleTable() {
     grandTotalK += countK; grandTotalCong += parseFloat(totalCong);
 
     row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0284c7;">${countP > 0 ? countP : '-'}</td>`;
     row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0369a1;">${totalCong}</td></tr>`;
     return row;
   }).join('');
@@ -2434,9 +2629,11 @@ function renderScheduleTable() {
         <td colspan="${CU.role === 'ld' ? 3 : 2}" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
         <td colspan="${daysInMonth}"></td>
         <td style="text-align:center; color:#15803d; font-size:14px;">${grandTotalK}</td>
+        <td></td>
         <td style="text-align:center; color:#1a56a0; font-size:14px;">${grandTotalCong.toFixed(2)}</td>
       </tr>
     `;
+
   }
 
   document.getElementById('sched-body').innerHTML = bodyHtml || '<tr><td colspan="45" class="empty">Không có dữ liệu phù hợp</td></tr>';
@@ -3291,6 +3488,399 @@ function exportExcelHistory() {
 
   const tenFile = `Lich_su_doi_ca${hm ? '_' + hm : ''}${fcd ? '_' + fcd : ''}.xls`;
   downloadExcel(table, tenFile, 'LichSu');
+}
+// ===============================================================
+// TÍNH NĂNG NGHỈ PHÉP
+// ===============================================================
+let selectedLeaveDates = [];
+let leaveCalYear = new Date().getFullYear();
+let leaveCalMonth = new Date().getMonth() + 1;
+
+async function initLeaveTab() {
+  // Load số ngày phép
+  try {
+    const res = await api({ action: 'getLeaveBalance', name: CU.name });
+    document.getElementById('lb-annual').textContent = res.annual ?? '—';
+    document.getElementById('lb-remaining').textContent = res.remaining ?? '—';
+  } catch(e) {}
+  selectedLeaveDates = [];
+  leaveCalYear = new Date().getFullYear();
+  leaveCalMonth = new Date().getMonth() + 1;
+  renderLeaveCalendar();
+  renderLeavePending();
+}
+
+function changeLeaveMonth(dir) {
+  leaveCalMonth += dir;
+  if (leaveCalMonth > 12) { leaveCalMonth = 1; leaveCalYear++; }
+  if (leaveCalMonth < 1) { leaveCalMonth = 12; leaveCalYear--; }
+  renderLeaveCalendar();
+}
+
+function renderLeaveCalendar() {
+const yr = leaveCalYear, mo = leaveCalMonth;
+const daysInMonth = new Date(yr, mo, 0).getDate();
+const firstDay = new Date(yr, mo - 1, 1).getDay(); // 0=CN
+const dayNames = ['CN','T2','T3','T4','T5','T6','T7'];
+let html = dayNames.map(d => `<div style="text-align:center; font-size:11px; font-weight:700; color:#64748b; padding:4px;">${d}</div>`).join('');
+// Ô trống đầu tháng
+for (let i = 0; i < firstDay; i++) html += `<div></div>`;
+const today = new Date().toISOString().substring(0, 10);
+const titleEl = document.getElementById('leave-cal-title');
+if (titleEl) titleEl.textContent = `Tháng ${mo}/${yr}`;
+for (let d = 1; d <= daysInMonth; d++) {
+const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+const isPast = dateStr < today;
+const isSelected = selectedLeaveDates.includes(dateStr);
+const isLeaved = typeof allLeaves !== 'undefined' && allLeaves.some(lv =>
+lv.name === CU.name && lv.status === 'approved' && lv.dates && lv.dates.split(',').map(s=>s.trim()).includes(dateStr)
+);
+let bg = '#f8fafc', color = '#374151', border = '1px solid #e2e8f0', cursor = 'pointer';
+if (isPast) { bg = '#f1f5f9'; color = '#cbd5e1'; cursor = 'default'; }
+else if (isLeaved) { bg = '#dcfce7'; color = '#16a34a'; border = '1px solid #86efac'; cursor = 'default'; }
+else if (isSelected) { bg = '#0284c7'; color = '#fff'; border = '1px solid #0284c7'; }
+const onclick = (!isPast && !isLeaved) ? `onclick="toggleLeaveDate('${dateStr}')"` : '';
+html += `<div ${onclick} style="text-align:center; padding:6px 2px; border-radius:6px; font-size:13px; font-weight:600; background:${bg}; color:${color}; border:${border}; cursor:${cursor};">${d}</div>`;
+}
+document.getElementById('leave-calendar').innerHTML = html;
+updateLeaveSelectedInfo();
+}
+function toggleLeaveDate(dateStr) {
+const idx = selectedLeaveDates.indexOf(dateStr);
+if (idx >= 0) selectedLeaveDates.splice(idx, 1);
+else selectedLeaveDates.push(dateStr);
+selectedLeaveDates.sort();
+renderLeaveCalendar();
+}
+function updateLeaveSelectedInfo() {
+const count = selectedLeaveDates.length;
+document.getElementById('lb-selected').textContent = count;
+const remaining = parseInt(document.getElementById('lb-remaining').textContent) || 0;
+const warn = document.getElementById('leave-warn');
+const btn = document.getElementById('btn-submit-leave');
+if (count === 0) {
+document.getElementById('leave-selected-dates').textContent = 'Chưa chọn ngày nào';
+warn.style.display = 'none';
+btn.disabled = false;
+} else if (count > remaining) {
+document.getElementById('leave-selected-dates').textContent = 'Đã chọn: ' + selectedLeaveDates.map(d => fmtDate(d)).join(', ');
+warn.style.display = 'block';
+warn.textContent = `⚠️ Bạn chọn ${count} ngày nhưng chỉ còn ${remaining} ngày phép!`;
+btn.disabled = true;
+} else {
+document.getElementById('leave-selected-dates').textContent = 'Đã chọn: ' + selectedLeaveDates.map(d => fmtDate(d)).join(', ');
+warn.style.display = 'none';
+btn.disabled = false;
+}
+}
+async function submitLeaveForm() {
+if (selectedLeaveDates.length === 0) { showLocalAlert('leave-msg', 'Vui lòng chọn ít nhất 1 ngày nghỉ!', 'ae'); return; }
+const reason = document.getElementById('f-leave-reason').value.trim();
+if (!reason) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập lý do nghỉ phép!', 'ae'); document.getElementById('f-leave-reason').focus(); return; }
+const location = document.getElementById('f-leave-location').value.trim();
+if (!location) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập nơi nghỉ!', 'ae'); document.getElementById('f-leave-location').focus(); return; }
+const myInfo = NV_LIST.find(u => u.name === CU.name);
+const data = {
+name: CU.name,
+role: myInfo ? myInfo.chucDanh : '',
+kip: myInfo ? myInfo.kip : '',
+dates: selectedLeaveDates,
+days_count: selectedLeaveDates.length,
+reason: reason,
+location: location
+};
+const btn = document.getElementById('btn-submit-leave');
+btn.disabled = true; btn.textContent = '⏳ Đang gửi...';
+try {
+const res = await api({ action: 'submitLeave', data: JSON.stringify(data) });
+if (res.error) { showLocalAlert('leave-msg', res.error, 'ae'); }
+else {
+showLocalAlert('leave-msg', '✅ Đã gửi đơn nghỉ phép thành công! Chờ Lãnh đạo phê duyệt.', 'as');
+selectedLeaveDates = [];
+document.getElementById('f-leave-reason').value = '';
+document.getElementById('f-leave-location').value = '';
+await loadLeaves();
+renderLeaveCalendar();
+renderLeavePending();
+}
+} catch(e) { showLocalAlert('leave-msg', 'Lỗi kết nối!', 'ae'); }
+btn.disabled = false; btn.textContent = '📨 Gửi đơn nghỉ phép';
+}
+function renderLeaveApproveList() {
+  const el = document.getElementById('leave-approve-list');
+  if (!el) return;
+  const pending = allLeaves.filter(lv => lv.status === 'pending_ld');
+  if (pending.length === 0) {
+    el.innerHTML = '<div class="empty">Không có đơn nghỉ phép nào chờ duyệt</div>';
+    return;
+  }
+  el.innerHTML = pending.map(lv => {
+    const dates = lv.dates ? lv.dates.toString().split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
+    return `<div class="req">
+      <div class="req-hd">
+        <div class="req-name">${lv.name}</div>
+        <span class="badge bp">⏳ Chờ duyệt</span>
+      </div>
+      <div class="req-meta">
+        🏖️ <b>Ngày nghỉ:</b> ${dates}<br>
+        🔢 <b>Số ngày:</b> ${lv.days_count} ngày<br>
+        👤 <b>Chức danh:</b> ${lv.role || '—'} — Kíp ${lv.kip || '—'}<br>
+        💬 <b>Lý do:</b> ${lv.reason || 'Không có'}<br>
+        ${lv.location ? `📍 <b>Nơi nghỉ:</b> ${lv.location}<br>` : ''}
+        🕐 <b>Gửi lúc:</b> ${fmtDateTime(lv.createdAt) || '—'}
+      </div>
+      <div class="req-acts">
+        <button class="btn btn-success" onclick="approveLeaveWeb('${lv.id}', this)">✅ Phê duyệt</button>
+        <button class="btn btn-danger" onclick="rejectLeaveWeb('${lv.id}', this)">❌ Từ chối</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Biến lưu id đơn đang xử lý ──
+let _pendingLeaveActionId = null;
+
+function approveLeaveWeb(id, btn) {
+  const lv = allLeaves.find(l => l.id === id);
+  if (!lv) return;
+  _pendingLeaveActionId = id;
+  const dates = lv.dates ? lv.dates.split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
+  document.getElementById('leave-approve-modal-info').innerHTML =
+    `<b>${lv.name}</b> — ${dates} (${lv.days_count} ngày)`;
+  document.getElementById('leave-approve-pin-inp').value = '';
+  document.getElementById('leave-approve-err').textContent = '';
+  document.getElementById('leave-approve-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('leave-approve-pin-inp').focus(), 100);
+}
+function closeLeaveApproveModal() {
+  document.getElementById('leave-approve-modal').style.display = 'none';
+  _pendingLeaveActionId = null;
+}
+async function doApproveLeaveWithPin() {
+  const pin = document.getElementById('leave-approve-pin-inp').value.trim();
+  const err = document.getElementById('leave-approve-err');
+  if (!pin) { err.textContent = '⚠️ Vui lòng nhập mã PIN!'; return; }
+  const btn = document.querySelector('#leave-approve-modal .btn-success');
+  btn.disabled = true; btn.textContent = '⏳ Đang xử lý...';
+  try {
+    const res = await api({ action: 'approveLeaveWeb', id: _pendingLeaveActionId, approver: CU.name, verifyPin: pin });
+    if (res && res.error) { err.textContent = '❌ ' + res.error; }
+    else {
+      closeLeaveApproveModal();
+      showAlert('app', '✅ Đã phê duyệt nghỉ phép!', 'as');
+      await loadLeaves(); renderLeaveApproveList(); renderScheduleTable();
+    }
+  } catch(e) { err.textContent = 'Lỗi kết nối!'; }
+  btn.disabled = false; btn.textContent = '✅ Xác nhận duyệt';
+}
+
+function rejectLeaveWeb(id, btn) {
+  const lv = allLeaves.find(l => l.id === id);
+  if (!lv) return;
+  _pendingLeaveActionId = id;
+  const dates = lv.dates ? lv.dates.split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
+  document.getElementById('leave-reject-modal-info').innerHTML =
+    `<b>${lv.name}</b> — ${dates} (${lv.days_count} ngày)`;
+  document.getElementById('leave-reject-reason-inp').value = '';
+  document.getElementById('leave-reject-pin-inp').value = '';
+  document.getElementById('leave-reject-err').textContent = '';
+  document.getElementById('leave-reject-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('leave-reject-reason-inp').focus(), 100);
+}
+function closeLeaveRejectModal() {
+  document.getElementById('leave-reject-modal').style.display = 'none';
+  _pendingLeaveActionId = null;
+}
+async function doRejectLeaveConfirm() {
+  const reason = document.getElementById('leave-reject-reason-inp').value.trim();
+  const pin = document.getElementById('leave-reject-pin-inp').value.trim();
+  const err = document.getElementById('leave-reject-err');
+  if (!reason) { err.textContent = '⚠️ Vui lòng nhập lý do từ chối!'; document.getElementById('leave-reject-reason-inp').focus(); return; }
+  if (!pin) { err.textContent = '⚠️ Vui lòng nhập mã PIN!'; document.getElementById('leave-reject-pin-inp').focus(); return; }
+  const btn = document.querySelector('#leave-reject-modal .btn-danger');
+  btn.disabled = true; btn.textContent = '⏳ Đang xử lý...';
+  try {
+    const res = await api({ action: 'rejectLeaveWeb', id: _pendingLeaveActionId, approver: CU.name, rejectReason: reason, verifyPin: pin });
+    if (res && res.error) { err.textContent = '❌ ' + res.error; }
+    else {
+      closeLeaveRejectModal();
+      showAlert('app', '❌ Đã từ chối nghỉ phép!', 'as');
+      await loadLeaves(); renderLeaveApproveList();
+    }
+  } catch(e) { err.textContent = 'Lỗi kết nối!'; }
+  btn.disabled = false; btn.textContent = '❌ Xác nhận từ chối';
+}
+
+function renderLeavePending() {
+const myLeaves = allLeaves.filter(lv => lv.name === CU.name && lv.status === 'pending_ld');
+const el = document.getElementById('leave-pending-list');
+if (myLeaves.length === 0) {
+el.innerHTML = '<div class="empty">Không có đơn nào đang chờ duyệt</div>';
+return;
+}
+el.innerHTML = myLeaves.map(lv => {
+const dates = lv.dates ? lv.dates.toString().split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
+return `<div style="border:1px solid #fde68a; border-radius:8px; padding:12px; margin-bottom:8px; background:#fffbeb;"> <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;"> <div> <div style="font-weight:700; color:#374151;">📅 ${dates}</div> <div style="font-size:13px; color:#64748b; margin-top:4px;">Số ngày: <b>${lv.days_count}</b> | Lý do: ${lv.reason || 'Không có'}</div> <div style="margin-top:6px;"><span style="background:#fef3c7; color:#b45309; font-size:12px; font-weight:700; padding:2px 8px; border-radius:12px;">⏳ Chờ duyệt</span></div> </div> <button class="btn btn-danger" style="padding:4px 10px; font-size:12px; white-space:nowrap;" onclick="cancelLeaveForm('${lv.id}')">Hủy đơn</button> </div> </div>`;
+}).join('');
+}
+async function cancelLeaveForm(id) {
+if (!confirm('Bạn có chắc muốn hủy đơn nghỉ phép này không?')) return;
+try {
+const res = await api({ action: 'cancelLeave', id, reqName: CU.name });
+if (res.error) { showAlert('app', res.error, 'ae'); }
+else { showAlert('app', 'Đã hủy đơn!', 'as'); await loadLeaves(); renderLeavePending(); renderLeaveCalendar(); }
+} catch(e) { showAlert('app', 'Lỗi kết nối!', 'ae'); }
+}
+function renderLeaveHistory() {
+  const mv = document.getElementById('f-leave-hist-month').value;
+  const fst = document.getElementById('f-leave-hist-status')?.value || '';
+  const fkp = document.getElementById('f-leave-hist-kip')?.value || '';
+  const fcd = document.getElementById('f-leave-hist-cd')?.value || '';
+  const searchText = (document.getElementById('f-leave-hist-search')?.value || '').trim().toLowerCase();
+  const el = document.getElementById('leave-history-list');
+  const isLD = CU && (CU.role === 'ld' || CU.admin);
+  // Lãnh đạo thấy tất cả, nhân viên chỉ thấy của mình
+  let leaves = isLD ? [...allLeaves] : allLeaves.filter(lv => lv.name === CU.name);
+  if (fst) leaves = leaves.filter(lv => lv.status === fst);
+  if (fkp) leaves = leaves.filter(lv => lv.kip === fkp);
+  if (fcd) leaves = leaves.filter(lv => lv.role === fcd);
+  if (searchText) leaves = leaves.filter(lv => (lv.name || '').toLowerCase().includes(searchText));
+  if (mv) {
+    const [yr, mo] = mv.split('-').map(Number);
+    leaves = leaves.filter(lv => {
+      if (!lv.dates) return false;
+      return lv.dates.split(',').some(d => {
+        const parts = d.trim().split('-').map(Number);
+        return parts[0] === yr && parts[1] === mo;
+      });
+    });
+  }
+  if (leaves.length === 0) { el.innerHTML = '<div class="empty">Không có dữ liệu</div>'; return; }
+  const statusMap = {
+    pending_ld: { label: '⏳ Chờ duyệt', style: 'background:#fef3c7; color:#b45309;' },
+    approved: { label: '✅ Đã duyệt', style: 'background:#dcfce7; color:#16a34a;' },
+    rejected: { label: '❌ Từ chối', style: 'background:#fee2e2; color:#dc2626;' },
+    cancelled: { label: '🚫 Đã hủy', style: 'background:#f1f5f9; color:#94a3b8;' }
+  };
+  el.innerHTML = leaves.map(lv => {
+    const safeDates = lv.dates ? lv.dates.toString() : '';
+    const dates = safeDates ? safeDates.split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
+    const st = statusMap[lv.status] || { label: lv.status, style: '' };
+    const nameTag = isLD ? `<div style="font-size:13px; font-weight:700; color:#1a56a0;">${lv.name} <span style="font-weight:400; color:#64748b;">(${lv.role || ''} — ${lv.kip || ''})</span></div>` : '';
+    const timeLogs = [
+      lv.createdAt ? `🔸 <b>Tạo đơn:</b> ${fmtDateTime(lv.createdAt)}` : '',
+      lv.approvedAt && lv.status !== 'pending_ld' ? `🔸 <b>${lv.status === 'rejected' ? 'LĐ từ chối' : 'LĐ duyệt'}:</b> ${fmtDateTime(lv.approvedAt)}${lv.approver ? ` (${lv.status === 'rejected' ? 'Từ chối' : 'Duyệt'} bởi: ${lv.approver})` : ''}` : ''
+    ].filter(Boolean).join('<br>');
+    return `<div style="border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:200px;">
+          ${nameTag}
+          <div style="font-weight:700; color:#374151;">📅 ${dates}</div>
+          <div style="font-size:13px; color:#64748b; margin-top:4px;">Số ngày: <b>${lv.days_count}</b> | Lý do: ${lv.reason || 'Không có'}</div>
+          ${lv.location ? `<div style="font-size:13px; color:#64748b;">📍 Nơi nghỉ: ${lv.location}</div>` : ''}
+          ${lv.rejectReason ? `<div style="font-size:13px; color:#dc2626;">💬 Lý do từ chối: ${lv.rejectReason}</div>` : ''}
+          ${timeLogs ? `<div style="font-size:12px; color:#94a3b8; margin-top:6px; border-top:1px solid #f1f5f9; padding-top:6px;">${timeLogs}</div>` : ''}
+        </div>
+        <span style="${st.style} font-size:12px; font-weight:700; padding:3px 10px; border-radius:12px; white-space:nowrap;">${st.label}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===============================================================
+// THỐNG KÊ NGÀY NGHỈ PHÉP
+// ===============================================================
+let allLeaveBalances = {}; // Cache balances cho lãnh đạo
+
+async function loadLeaveBalances() {
+  if (CU && (CU.role === 'ld' || CU.admin)) {
+    try {
+      const res = await api({ action: 'getAllLeaveBalances' });
+      allLeaveBalances = res || {};
+    } catch(e) { allLeaveBalances = {}; }
+  }
+}
+
+async function renderLeaveStats() {
+  const yr = parseInt(document.getElementById('f-leave-stat-year')?.value || new Date().getFullYear());
+  const body = document.getElementById('leave-stat-body');
+  const isLD = CU && (CU.role === 'ld' || CU.admin);
+
+  // Với lãnh đạo: load balances nếu chưa có
+  if (isLD && Object.keys(allLeaveBalances).length === 0) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b; padding:20px;"><div class="spin" style="margin:0 auto;"></div></td></tr>';
+    await loadLeaveBalances();
+  }
+
+  // Danh sách người cần hiển thị
+  const targetList = isLD ? NV_LIST : NV_LIST.filter(u => u.name === CU.name);
+
+  // Tính ngày đã nghỉ từ allLeaves (chỉ đơn approved trong năm yr)
+  const usedDatesMap = {}; // name -> mảng ngày đã nghỉ (approved)
+  allLeaves.forEach(lv => {
+    if (lv.status !== 'approved') return;
+    if (!lv.dates) return;
+    const daysInYear = lv.dates.split(',').map(d => d.trim()).filter(d => {
+      const parts = d.split('-').map(Number);
+      return parts[0] === yr;
+    });
+    if (!usedDatesMap[lv.name]) usedDatesMap[lv.name] = [];
+    usedDatesMap[lv.name].push(...daysInYear);
+  });
+
+  let totalAnnual = 0, totalUsed = 0, totalRemain = 0;
+
+  const rows = targetList.map(u => {
+    const bal = isLD ? (allLeaveBalances[u.name] || { annual: 0, remaining: 0 })
+                     : { annual: parseInt(document.getElementById('lb-annual').textContent) || 0,
+                         remaining: parseInt(document.getElementById('lb-remaining').textContent) || 0 };
+    const usedDates = usedDatesMap[u.name] || [];
+    const usedCount = usedDates.length;
+    const annual = bal.annual;
+    const remaining = bal.remaining;
+
+    totalAnnual += annual;
+    totalUsed += usedCount;
+    totalRemain += remaining;
+
+    // Định dạng danh sách ngày
+    const datesStr = usedDates.length > 0
+      ? usedDates.sort().map(d => fmtDate(d)).join(', ')
+      : '<span style="color:#cbd5e1;">—</span>';
+
+    const remainColor = remaining <= 0 ? '#dc2626' : remaining <= 3 ? '#d97706' : '#16a34a';
+
+    return `<tr>
+      <td style="font-weight:600;">${u.name}</td>
+      <td>${u.chucDanh || ''}</td>
+      <td>${u.kip || ''}</td>
+      <td style="text-align:center; font-weight:700; color:#0284c7; font-size:16px;">${annual}</td>
+      <td style="text-align:center; font-weight:700; color:#dc2626; font-size:16px;">${usedCount}</td>
+      <td style="font-size:12px; color:#475569; max-width:200px; white-space:normal; line-height:1.6;">${datesStr}</td>
+      <td style="text-align:center; font-weight:800; color:${remainColor}; font-size:16px;">${remaining}</td>
+    </tr>`;
+  });
+
+  // Hàng tổng cộng chỉ cho lãnh đạo
+  if (isLD && targetList.length > 0) {
+    rows.push(`<tr style="background:#ebf3ff; font-weight:700; color:#1a56a0; border-top:2px solid #bfdbfe;">
+      <td colspan="3" style="text-align:center;">TỔNG CỘNG TOÀN PX:</td>
+      <td style="text-align:center; font-size:15px;">${totalAnnual}</td>
+      <td style="text-align:center; font-size:15px; color:#dc2626;">${totalUsed}</td>
+      <td></td>
+      <td style="text-align:center; font-size:15px; color:#16a34a;">${totalRemain}</td>
+    </tr>`);
+  }
+
+  body.innerHTML = rows.join('') || '<tr><td colspan="7" class="empty">Không có dữ liệu</td></tr>';
+}
+
+function exportLeaveStatExcel() {
+  if (!CU || (CU.role !== 'ld' && !CU.admin)) return;
+  const yr = document.getElementById('f-leave-stat-year')?.value || new Date().getFullYear();
+  const tableEl = document.getElementById('table-leave-stat');
+  if (!tableEl) return;
+  downloadExcel(tableEl.innerHTML, `Thong_Ke_Nghi_Phep_${yr}.xls`, `NghiPhep_${yr}`);
 }
 </script>
 </body>
