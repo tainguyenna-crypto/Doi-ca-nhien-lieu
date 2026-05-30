@@ -192,9 +192,9 @@ textarea{resize:none;height:80px}
       <button class="tab" id="tab-ld" style="display:none" onclick="switchTab('phe-duyet')">Duyệt PX</button>
       <button class="tab" id="btn-admin" style="display:none" onclick="switchTab('admin')">Quản trị</button>
       <button class="tab" id="tab-btn-admin-hc" style="display:none; background:#fef3c7; border-color:#f59e0b; color:#b45309;" onclick="switchTab('admin-hc')">⚡ Lệnh Điều Động</button>
-      <button class="tab" onclick="switchTab('nghi-phep')">🏖️ Nghỉ phép</button>
-      <button class="tab" id="tab-btn-duyet-np" style="display:none" onclick="switchTab('duyet-np')">✅ Duyệt NP</button>
-      <button class="tab" onclick="switchTab('lich-su-np')">Lịch sử NP</button>
+      <button class="tab" onclick="switchTab('nghi-phep')">🏖️ Nghỉ cá nhân</button>
+      <button class="tab" id="tab-btn-duyet-np" style="display:none" onclick="switchTab('duyet-np')">✅ Duyệt Nghỉ cá nhân</button>
+      <button class="tab" onclick="switchTab('lich-su-np')">Lịch sử Nghỉ cá nhân</button>
       <button class="tab" onclick="switchTab('lich-su')">Lịch sử</button>
       <button class="tab" onclick="switchTab('thong-ke')">Thống kê</button>
       <button class="tab" onclick="switchTab('bang-di-ca')">Bảng đi ca</button>
@@ -400,7 +400,7 @@ textarea{resize:none;height:80px}
     <!-- ===== TAB NGHỈ PHÉP ===== -->
     <div id="tab-nghi-phep" class="section">
       <div class="card">
-        <div class="sec-title" style="margin-bottom:16px;">🏖️ Đăng ký nghỉ phép</div>
+        <div class="sec-title" style="margin-bottom:16px;">🏖️ Đăng ký nghỉ</div>
         <div id="leave-balance-box" style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; gap:16px; flex-wrap:wrap;">
           <div style="flex:1; min-width:120px; text-align:center;">
             <div style="font-size:24px; font-weight:800; color:#0284c7;" id="lb-annual">—</div>
@@ -416,6 +416,30 @@ textarea{resize:none;height:80px}
           </div>
         </div>
 
+        <!-- LOẠI NGHỈ -->
+        <div style="margin-bottom:12px;">
+          <label style="font-weight:600; color:#374151; display:block; margin-bottom:6px;">Loại nghỉ <span style="color:#dc2626">*</span></label>
+          <select id="f-leave-type" onchange="onLeaveTypeChange()" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; font-weight:600; color:#1a56a0; background:#f8fafc;">
+            <option value="P">🏖️ Nghỉ phép năm (Công P)</option>
+            <option value="VR">🏠 Nghỉ việc riêng hưởng nguyên lương (Công VR)</option>
+            <option value="TS">🤱 Nghỉ thai sản (Công TS)</option>
+            <option value="O_m">🏥 Nghỉ ốm (Công Ô)</option>
+            <option value="O">⛔ Nghỉ không hưởng lương (Công O)</option>
+          </select>
+        </div>
+
+        <!-- LOẠI VIỆC RIÊNG (chỉ hiện khi chọn VR) -->
+        <div id="vr-subtype-wrap" style="display:none; margin-bottom:12px;">
+          <label style="font-weight:600; color:#7e22ce; display:block; margin-bottom:6px;">Lý do việc riêng <span style="color:#dc2626">*</span></label>
+          <select id="f-vr-subtype" onchange="onVrSubtypeChange()" style="width:100%; padding:10px 12px; border:1px solid #c4b5fd; border-radius:8px; font-size:14px; color:#7e22ce; background:#fdf4ff;">
+            <option value="">-- Chọn lý do --</option>
+            <option value="ket_hon">💍 Kết hôn (tối đa 3 ngày)</option>
+            <option value="con_ket_hon">👨‍👩‍👦 Con đẻ/con nuôi kết hôn (tối đa 1 ngày)</option>
+            <option value="than_qua_doi">🕯️ Người thân qua đời (tối đa 3 ngày)</option>
+          </select>
+          <div id="vr-subtype-note" style="font-size:12px; color:#7e22ce; margin-top:4px; font-style:italic;"></div>
+        </div>
+
         <div style="margin-bottom:12px;">
           <label style="font-weight:600; color:#374151; display:block; margin-bottom:8px;">Chọn ngày nghỉ (bấm vào ngày để chọn/bỏ)</label>
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px;">
@@ -428,7 +452,7 @@ textarea{resize:none;height:80px}
         </div>
 
         <div style="margin-bottom:12px;">
-          <label style="font-weight:600; color:#374151;">Lý do nghỉ <span style="color:#dc2626">*</span></label>
+          <label style="font-weight:600; color:#374151;">Lý do <span style="color:#dc2626">*</span></label>
           <input type="text" id="f-leave-reason" placeholder="Ví dụ: Việc cá nhân, Du lịch gia đình..." style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:14px; margin-top:6px; box-sizing:border-box;">
         </div>
 
@@ -439,7 +463,7 @@ textarea{resize:none;height:80px}
 
         <div id="leave-warn" style="display:none; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:10px 14px; color:#dc2626; font-weight:600; margin-bottom:12px;"></div>
 
-        <button id="btn-submit-leave" class="btn btn-success" style="width:100%; padding:12px; font-weight:700;" onclick="submitLeaveForm()">📨 Gửi đơn nghỉ phép</button>
+        <button id="btn-submit-leave" class="btn btn-success" style="width:100%; padding:12px; font-weight:700;" onclick="submitLeaveForm()">📨 Gửi đơn đăng ký nghỉ</button>
         <div id="leave-msg" class="alert" style="margin-top:10px; display:none;"></div>
       </div>
 
@@ -454,7 +478,7 @@ textarea{resize:none;height:80px}
     <div id="tab-lich-su-np" class="section">
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <div class="sec-title" style="margin:0;">📋 Lịch sử nghỉ phép</div>
+          <div class="sec-title" style="margin:0;">📋 Lịch sử nghỉ cá nhân</div>
         </div>
         <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <input type="month" id="f-leave-hist-month" onchange="renderLeaveHistory()" style="flex:1; min-width:160px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
@@ -480,7 +504,7 @@ textarea{resize:none;height:80px}
   <!-- ===== TAB DUYỆT NGHỈ PHÉP (LÃNH ĐẠO) ===== -->
   <div id="tab-duyet-np" class="section">
     <div class="card">
-      <div class="sec-title" style="margin-bottom:12px;">✅ Phê duyệt nghỉ phép</div>
+      <div class="sec-title" style="margin-bottom:12px;">✅ Phê duyệt nghỉ cá nhân</div>
       <div id="leave-approve-list"></div>
     </div>
   </div>
@@ -1606,7 +1630,7 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
    for (let i = 0; i < reqs.length; i++) {
       let r = reqs[i];
       // Nhận diện Lệnh cấp cao (Điều động, Nghỉ phép, Việc riêng...)
-      const isSpecial = r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]') || r.reason.includes('[VIỆC RIÊNG]') || r.reason.includes('[NGHỈ ỐM]'));
+      const isSpecial = r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]') || r.reason.includes('[VIỆC RIÊNG]') || r.reason.includes('[NGHỈ ỐM]') || r.reason.includes('[NGHỈ THAI SẢN]') || r.reason.includes('[NGHỈ KHÔNG LƯƠNG]'));
       
       let matched = false;
       let tempCa = ca;
@@ -1622,6 +1646,8 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
                   if (r.reason.includes('[NGHỈ PHÉP]')) tempCa = 'P';
                   else if (r.reason.includes('[VIỆC RIÊNG]')) tempCa = 'VR';
                   else if (r.reason.includes('[NGHỈ ỐM]')) tempCa = 'Ô';
+                  else if (r.reason.includes('[NGHỈ THAI SẢN]')) tempCa = 'TS';
+                  else if (r.reason.includes('[NGHỈ KHÔNG LƯƠNG]')) tempCa = 'O';
                   else if (r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]')) tempCa = 'HC/2';
                   else tempCa = 'HC';
                   finalOverride = tempCa;
@@ -1653,6 +1679,24 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
           }
    }
    const resCa = finalOverride !== null ? finalOverride : ca;
+
+   // ── Kiểm tra nghỉ phép/các chế độ được duyệt từ sheet leaves ──
+   // Ưu tiên thấp nhất: chỉ áp dụng nếu chưa có lệnh điều động nào override
+   if (!isCommandFound && typeof allLeaves !== 'undefined' && allLeaves.length > 0) {
+     const approvedLeave = allLeaves.find(lv =>
+       lv.name === userName &&
+       lv.status === 'approved' &&
+       lv.dates &&
+       lv.dates.split(',').map(s => s.trim()).includes(dateStr)
+     );
+     if (approvedLeave) {
+       const leaveType = approvedLeave.leaveType || 'P';
+       const leaveCa = leaveType === 'VR' ? 'VR' : leaveType === 'TS' ? 'TS' : leaveType === 'O_m' ? 'Ô' : leaveType === 'O' ? 'O' : 'P';
+       if (returnFullObj) return { ca: leaveCa, status: 'approved_leave' };
+       return leaveCa;
+     }
+   }
+
    return returnFullObj ? { ca: resCa, status: currentStatus } : resCa;
 }
 // 2. LÍNH GÁC AN TOÀN (TỰ ĐỘNG QUÉT LUẬT TỪ EXCEL)
@@ -2500,8 +2544,11 @@ function renderScheduleTable() {
     const thStyle = isLe ? "text-align:center; width:35px; background:#fecaca; color:#dc2626; font-weight:700;" : "text-align:center; width:35px;";
     headHtml += `<th style="${thStyle}"><div style="font-size:14px;">${d}</div><div style="font-size:11px; font-weight:500; margin-top:2px; opacity:0.85;">${tenThu}</div></th>`; 
   }
-  headHtml += `<th style="text-align:center; width:55px; background:#f0fdf4; color:#166534;">Công ca K</th>`;
-headHtml += `<th style="text-align:center; width:45px; background:#f0f9ff; color:#0284c7;">Công P</th>`;
+headHtml += `<th style="text-align:center; width:55px; background:#f0fdf4; color:#166534;">Công ca K</th>`;
+headHtml += `<th style="text-align:center; width:40px; background:#f0f9ff; color:#0284c7;">Công P</th>`;
+headHtml += `<th style="text-align:center; width:40px; background:#fdf4ff; color:#7e22ce;">Công VR</th>`;
+headHtml += `<th style="text-align:center; width:40px; background:#fff7ed; color:#c2410c;">Công Ô</th>`;
+headHtml += `<th style="text-align:center; width:40px; background:#f0fdf4; color:#065f46;">Công TS</th>`;
 headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color:#1a56a0;">Tổng công</th></tr>`;
   document.getElementById('sched-head').innerHTML = headHtml;
 
@@ -2557,7 +2604,7 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
     if (CU.role === 'ld') { row += `<td>${u.chucDanh || ''}</td><td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`; } 
     else { row += `<td style="font-weight:700; color:#ea580c;">${displayKip || ''}</td>`; }
 
-    let totalHours = 0, countK = 0, countP = 0;
+    let totalHours = 0, countK = 0, countP = 0, countVR = 0, countO = 0, countTS = 0;
     for(let d=1; d<=daysInMonth; d++) {
       const dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const caInfo = getCaThucTe(u.name, u.kip, dateStr, null, true);
@@ -2570,13 +2617,11 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
       else if(ca === 'C') totalHours += hC; 
       else if(ca === 'HC' || ca === 'H') totalHours += hHC;
       else if(ca === 'HC/2') totalHours += (hHC / 2);
-      // P không tính vào tổng công
-      // Đếm P: lệnh điều động có ca P HOẶC nghỉ phép được duyệt từ sheet leaves (chỉ tính 1 lần)
-      const hasLeavePCell = typeof allLeaves !== 'undefined' && allLeaves.some(lv =>
-        lv.name === u.name && lv.status === 'approved' && lv.dates &&
-        lv.dates.split(',').map(s => s.trim()).includes(dateStr)
-      );
-      if(ca === 'P' || hasLeavePCell) countP++;
+      else if(ca === 'VR') { totalHours += hHC; countVR++; } // VR tính vào tổng công
+      else if(ca === 'P') countP++;   // P không tính vào tổng công
+      else if(ca === 'Ô') countO++;   // Ô không tính
+      else if(ca === 'TS') countTS++; // TS không tính
+      else if(ca === 'O') {}          // Không hưởng lương, không tính
       
       let isLe = mangLe.includes(dateStr);
       let style = "";
@@ -2599,9 +2644,18 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
       } else if (ca === 'HC/2') {
          // 5. HC NỬA NGÀY (Cam đậm)
          style = "color:#d97706; font-weight:700;";
-      } else if (ca === 'VR' || ca === 'Ô') {
-         // 6. VIỆC RIÊNG / ỐM ĐAU (Xám in nghiêng)
-         style = "color:#94a3b8; font-style:italic; font-weight:700;";
+      } else if (ca === 'VR') {
+         // 6. VIỆC RIÊNG hưởng lương (Tím)
+         style = "color:#7e22ce; font-style:italic; font-weight:700;";
+      } else if (ca === 'Ô') {
+         // 7. NGHỈ ỐM (Cam xám)
+         style = "color:#c2410c; font-style:italic; font-weight:700;";
+      } else if (ca === 'TS') {
+         // 8. THAI SẢN (Xanh lá đậm)
+         style = "color:#065f46; font-style:italic; font-weight:700;";
+      } else if (ca === 'O') {
+         // 9. KHÔNG HƯỞNG LƯƠNG (Xám nhạt)
+         style = "color:#94a3b8; font-style:italic;";
       } else if (ca === 'OFF') {
          // 7. NGÀY NGHỈ BÌNH THƯỜNG
          style = isLe ? "background:#fecaca; color:#cbd5e1;" : "color:#cbd5e1;";
@@ -2618,6 +2672,9 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
 
     row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
     row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0284c7;">${countP > 0 ? countP : '-'}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#fdf4ff; color:#7e22ce;">${countVR > 0 ? countVR : '-'}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#fff7ed; color:#c2410c;">${countO > 0 ? countO : '-'}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#065f46;">${countTS > 0 ? countTS : '-'}</td>`;
     row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0369a1;">${totalCong}</td></tr>`;
     return row;
   }).join('');
@@ -2629,7 +2686,7 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
         <td colspan="${CU.role === 'ld' ? 3 : 2}" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
         <td colspan="${daysInMonth}"></td>
         <td style="text-align:center; color:#15803d; font-size:14px;">${grandTotalK}</td>
-        <td></td>
+        <td colspan="3"></td>
         <td style="text-align:center; color:#1a56a0; font-size:14px;">${grandTotalCong.toFixed(2)}</td>
       </tr>
     `;
@@ -2674,6 +2731,8 @@ function addRowHC() {
         <option value="P">🏖️ Nghỉ Phép (P)</option>
         <option value="VR">🏠 Việc riêng (VR)</option>
         <option value="Ô">🏥 Nghỉ ốm (Ô)</option>
+        <option value="TS">🤱 Nghỉ thai sản (TS)</option>
+        <option value="O">⛔ Không hưởng lương (O)</option>
       </select>
       <label style="font-size:12px; font-weight:600; color:#dc2626; display:flex; align-items:center; gap:4px; margin-top:4px; cursor:pointer;">
         <input type="checkbox" class="h-no-replace" onchange="checkShiftStatus(${id}); validateHCDates(${id})" style="width:18px; height:18px; margin:0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> KHÔNG bố trí người thay
@@ -2708,21 +2767,52 @@ function syncHCFilters(id) {
   const row = document.getElementById(`hc-r-${id}`);
   const r = row.querySelector('.h-role').value;
   const k = row.querySelector('.h-kip').value;
-  const d = row.querySelector('.h-date').value; // Lấy ngày để tính ca thực tế
+  const d = row.querySelector('.h-date').value;
+  const type = row.querySelector('.h-type').value;
   const chkContainer = row.querySelector('.h-main-chk');
+  const LEAVE_TYPES = ['P', 'VR', 'Ô', 'TS', 'O'];
 
   if(!r || !k) { chkContainer.innerHTML = '<span style="color:#64748b; font-size:12px;">Vui lòng chọn CD & Kíp</span>'; return; }
 
-  const matches = NV_LIST.filter(u => u.chucDanh === r && u.kip === k);
+  let matches = NV_LIST.filter(u => u.chucDanh === r && u.kip === k);
+
+  // Với các chế độ nghỉ (P/VR/Ô/TS/O): chỉ hiện người đã có đơn nghỉ được duyệt ngày đó
+  if (LEAVE_TYPES.includes(type) && d && typeof allLeaves !== 'undefined') {
+    const leaveTypeMap = { 'P': 'P', 'VR': 'VR', 'Ô': 'O_m', 'TS': 'TS', 'O': 'O' };
+    const targetLT = leaveTypeMap[type];
+    matches = matches.filter(u => allLeaves.some(lv =>
+      lv.name === u.name &&
+      lv.status === 'approved' &&
+      lv.dates && lv.dates.split(',').map(s => s.trim()).includes(d) &&
+      (lv.leaveType === targetLT || (!lv.leaveType && targetLT === 'P'))
+    ));
+    if (matches.length === 0) {
+      chkContainer.innerHTML = `<span style="color:#dc2626; font-size:12px; font-weight:700;">⚠️ Không có ai trong ${k} đã đăng ký ${type} ngày ${fmtDate(d)}</span>`;
+      return;
+    }
+  }
+
   let html = `<label style="display:flex; align-items:center; font-weight:700; color:#1d4ed8; margin-bottom:8px; border-bottom:2px solid #bfdbfe; padding-bottom:6px; cursor:pointer;">
                 <input type="checkbox" onchange="toggleAllHC(${id}, this, '.hc-chk-val'); checkShiftStatus(${id}); validateHCDates(${id});" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> CHỌN TẤT CẢ
               </label>`;
   html += matches.map(u => {
     let shiftStr = "";
-    // HIỂN THỊ TRỰC TIẾP CA THỰC TẾ LÊN GIAO DIỆN CHỌN NGƯỜI
     if (d) {
-        const actualCa = getCaThucTe(u.name, k, d);
-        shiftStr = actualCa !== 'OFF' ? `<span style="color:#ea580c; margin-left:6px; font-weight:700; font-size:12px;">(Ca ${actualCa})</span>` : `<span style="color:#16a34a; margin-left:6px; font-weight:700; font-size:12px;">(Nghỉ)</span>`;
+        const caGoc = getCaTrucGoc(u.name, k, d);
+        const caThucTe = getCaThucTe(u.name, k, d);
+        // Nếu ca thực tế là P/VR/Ô/TS/O (do đơn nghỉ) → hiện ca gốc để người dùng biết
+        const isLeaveShift = ['P','VR','Ô','TS','O'].includes(caThucTe);
+        if (isLeaveShift) {
+            const caGocLabel = caGoc === 'OFF' ? 'Nghỉ' : caGoc;
+            const needReplace = caGoc !== 'OFF';
+            const color = needReplace ? '#b45309' : '#16a34a';
+            const note = needReplace ? `⚠️ Cần người thay` : `✅ Ngày nghỉ, không cần thay`;
+            shiftStr = `<span style="color:${color}; margin-left:6px; font-weight:700; font-size:11px;">(Ca ${caThucTe} — Gốc: ${caGocLabel} · ${note})</span>`;
+        } else if (caGoc === 'OFF') {
+            shiftStr = `<span style="color:#16a34a; margin-left:6px; font-weight:700; font-size:12px;">(Nghỉ)</span>`;
+        } else {
+            shiftStr = `<span style="color:#ea580c; margin-left:6px; font-weight:700; font-size:12px;">(Ca ${caGoc})</span>`;
+        }
     }
     return `
     <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer; font-weight:500;">
@@ -2847,13 +2937,17 @@ function checkShiftStatus(id) {
   const selectedNames = Array.from(row.querySelectorAll('.hc-chk-val:checked')).map(cb => cb.value);
   let isShift = false;
   if (selectedNames.length > 0) {
-    isShift = selectedNames.some(name => getCaThucTe(name, k, d) !== 'OFF');
+    // Dùng ca GỐC (getCaTrucGoc) để quyết định cần người thay không
+    // Ca P/VR/Ô mà ca gốc là Nghỉ (OFF) → không cần thay
+    isShift = selectedNames.some(name => getCaTrucGoc(name, k, d) !== 'OFF');
   } else {
     const rep = NV_LIST.find(u => u.kip === k);
-    if(rep) isShift = getCaThucTe(rep.name, k, d) !== 'OFF';
+    if(rep) isShift = getCaTrucGoc(rep.name, k, d) !== 'OFF';
   }
   
   const oldW = chkContainer.querySelector('.warning-lbl'); if(oldW) oldW.remove();
+
+  const LEAVE_TYPES = ['P', 'VR', 'Ô', 'TS', 'O'];
 
  if(isShift) {
     const isNoReplace = row.querySelector('.h-no-replace').checked;
@@ -2865,16 +2959,17 @@ function checkShiftStatus(id) {
         partnerBox.innerHTML = '<span style="color:#64748b; font-size:12px;">Không bố trí người thay</span>';
         retBox.style.opacity = '0.3'; retBox.style.pointerEvents = 'none'; retBox.value = '';
         chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#16a34a; font-size:12px; font-weight:700; margin-bottom:8px;">✅ KHÔNG THAY: Khuyết ca này, không nợ ca!</div>`);
-    } else if (type === 'P' || type === 'VR' || type === 'Ô' || isNoReturn) {
+    } else if (LEAVE_TYPES.includes(type) || isNoReturn) {
         pkipBox.style.opacity = '1'; pkipBox.style.pointerEvents = 'auto';
         partnerBox.style.opacity = '1'; partnerBox.style.pointerEvents = 'auto';
         retBox.style.opacity = '0.3'; retBox.style.pointerEvents = 'none'; retBox.value = '';
         
-        if (isNoReturn && !['P', 'VR', 'Ô'].includes(type)) {
+        if (isNoReturn && !LEAVE_TYPES.includes(type)) {
             chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#0284c7; font-size:12px; font-weight:700; margin-bottom:8px;">ℹ️ CÓ ĐI THAY: Nhưng không yêu cầu trả ca!</div>`);
         } else {
-            let lbl = (type==='P') ? '🏖️ NGHỈ PHÉP' : (type==='VR' ? '🏠 VIỆC RIÊNG' : '🏥 NGHỈ ỐM');
-            chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#0284c7; font-size:12px; font-weight:700; margin-bottom:8px;">${lbl}: Cần Kíp thay, KHÔNG CẦN Trả ca!</div>`);
+            const lblMap = {P:'🏖️ NGHỈ PHÉP', VR:'🏠 VIỆC RIÊNG', Ô:'🏥 NGHỈ ỐM', TS:'🤱 THAI SẢN', O:'⛔ KH LƯƠNG'};
+            let lbl = lblMap[type] || type;
+            chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#b45309; font-size:12px; font-weight:700; margin-bottom:8px;">⚠️ ${lbl}: Ca gốc là ca làm việc — Cần Kíp thay, KHÔNG CẦN Trả ca!</div>`);
         }
         if(partnerBox.innerHTML.includes('ĐANG NGHỈ') || partnerBox.innerHTML.includes('Không bố trí')) { partnerBox.innerHTML = '<span style="color:#64748b; font-size:12px;">Chọn Kíp thay</span>'; }
     } else {
@@ -2884,6 +2979,15 @@ function checkShiftStatus(id) {
         chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#ea580c; font-size:12px; font-weight:700; margin-bottom:8px;">⚠️ Bắt buộc chọn người đi thay & Ngày trả ca!</div>`);
         if(partnerBox.innerHTML.includes('ĐANG NGHỈ') || partnerBox.innerHTML.includes('Không bố trí')) { partnerBox.innerHTML = '<span style="color:#64748b; font-size:12px;">Chọn Kíp thay</span>'; }
     }
+  } else if (LEAVE_TYPES.includes(type) && selectedNames.length > 0) {
+    // Ca gốc = Nghỉ (OFF) nhưng type là chế độ nghỉ → KHÔNG CẦN người thay
+    const lblMap = {P:'🏖️ NGHỈ PHÉP', VR:'🏠 VIỆC RIÊNG', Ô:'🏥 NGHỈ ỐM', TS:'🤱 THAI SẢN', O:'⛔ KH LƯƠNG'};
+    const lbl = lblMap[type] || type;
+    pkipBox.style.opacity = '0.3'; pkipBox.style.pointerEvents = 'none'; pkipBox.value = '';
+    partnerBox.style.opacity = '0.3'; partnerBox.style.pointerEvents = 'none';
+    partnerBox.innerHTML = '<span style="color:#64748b; font-size:12px;">Không cần bố trí người thay</span>';
+    retBox.style.opacity = '0.3'; retBox.style.pointerEvents = 'none'; retBox.value = '';
+    chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#16a34a; font-size:12px; font-weight:700; margin-bottom:8px;">✅ ${lbl}: Ca gốc là Ngày Nghỉ — KHÔNG CẦN bố trí người thay!</div>`);
   }
 }
 
@@ -2895,7 +2999,7 @@ function validateHCDates(id) {
   const pkip = row.querySelector('.h-pkip').value;
   const dRet = row.querySelector('.h-ret').value;
   const isNoReturn = row.querySelector('.h-no-return').checked;
-  const isLeave = ['P', 'VR', 'Ô'].includes(type);
+  const isLeave = ['P', 'VR', 'Ô', 'TS', 'O'].includes(type);
   const partnerBox = row.querySelector('.h-partner');
 
   const oldErrs = partnerBox.querySelectorAll('.realtime-err');
@@ -3063,15 +3167,20 @@ async function submitBatchHC() {
     
     const isNoReplace = row.querySelector('.h-no-replace').checked;
     const isNoReturn = row.querySelector('.h-no-return').checked;
-    const isLeave = (type === 'P' || type === 'VR' || type === 'Ô');
-    const noRetRequired = isLeave || isNoReturn; // Tích một trong 2 là miễn trả ca
+    const isLeave = (type === 'P' || type === 'VR' || type === 'Ô' || type === 'TS' || type === 'O');
+    const noRetRequired = isLeave || isNoReturn;
+
+    // Kiểm tra ca GỐC của từng người để quyết định có cần người thay không
+    const namesNeedReplace = isLeave ? selectedNames.filter(n => getCaTrucGoc(n, kip, dHC) !== 'OFF') : selectedNames;
+    const namesNoReplace = isLeave ? selectedNames.filter(n => getCaTrucGoc(n, kip, dHC) === 'OFF') : [];
 
     // --- BỘ LỌC ĐIỀU KIỆN GỬI FORM ---
     if (!isLeave && !isNoReplace) {
         if (selectedNames.length !== selectedPartners.length) { hasError = true; showLocalAlert('batchhc-msg', `LỖI: Số người đi KHÁC số người thay!`, 'ae'); return; }
         if (!pkip || (!retDate && !noRetRequired)) { hasError = true; showLocalAlert('batchhc-msg', `Vui lòng chọn Kíp thay và Ngày trả ca!`, 'ae'); return; }
-    } else if (isLeave && !isNoReplace) {
-        if (selectedNames.length !== selectedPartners.length) { hasError = true; showLocalAlert('batchhc-msg', `LỖI: Số người đi KHÁC số người thay!`, 'ae'); return; }
+    } else if (isLeave && !isNoReplace && namesNeedReplace.length > 0) {
+        // Chỉ validate người thay nếu có người có ca gốc là ca làm việc
+        if (namesNeedReplace.length !== selectedPartners.length) { hasError = true; showLocalAlert('batchhc-msg', `LỖI: Có ${namesNeedReplace.length} người cần thay nhưng chỉ chọn ${selectedPartners.length} người thay!`, 'ae'); return; }
         if (!pkip) { hasError = true; showLocalAlert('batchhc-msg', `Vui lòng chọn Kíp thay!`, 'ae'); return; }
     }
 
@@ -3086,8 +3195,12 @@ async function submitBatchHC() {
     else if (isNoReturn && !isLeave) reasonPrefix += ' (KHÔNG TRẢ CA)'; // Đóng dấu không trả ca vào lịch sử
 
     selectedNames.forEach((n, idx) => {
-      const caThucTeA = getCaThucTe(n, kip, dHC); 
-      const isShiftItem = caThucTeA !== 'OFF';
+      const caGocA = getCaTrucGoc(n, kip, dHC);
+      const caThucTeA = getCaThucTe(n, kip, dHC);
+      // Dùng ca GỐC để quyết định cần người thay không
+      const isShiftItem = caGocA !== 'OFF';
+      // Ca hiển thị trong lệnh là ca thực tế (có thể là P/VR/Ô...)
+      const caDisplay = caThucTeA !== 'OFF' ? caThucTeA : caGocA;
       let finalRetDate = retDate, autoCaTra = 'HC', finalPartner = 'CÔNG TÁC HC', finalPartnerKip = 'Hành chính';
 
     if (isShiftItem) {
@@ -3095,31 +3208,28 @@ async function submitBatchHC() {
             finalRetDate = dHC; autoCaTra = 'OFF';
         } else if (noRetRequired) { 
             finalRetDate = dHC; autoCaTra = 'OFF';
-            finalPartner = selectedPartners[idx]; 
-            
-            // ĐÃ SỬA: Lấy kíp thực tế để kiểm tra an toàn thay vì lưu chữ AUTO
-            const pInfo = NV_LIST.find(u => u.name === finalPartner);
-            finalPartnerKip = pInfo ? pInfo.kip : pkip;
-            
-            const loi = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caThucTeA);
-            if(loi) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN: Đ/c ${finalPartner} vi phạm - ${loi}`, 'ae'); return; }
+            // Chỉ gán người thay nếu có ca gốc là ca làm việc
+            if (isShiftItem && selectedPartners[idx]) {
+              finalPartner = selectedPartners[idx];
+              const pInfo = NV_LIST.find(u => u.name === finalPartner);
+              finalPartnerKip = pInfo ? pInfo.kip : pkip;
+              const loi = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caDisplay);
+              if(loi) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN: Đ/c ${finalPartner} vi phạm - ${loi}`, 'ae'); return; }
+            }
         } else { 
             finalPartner = selectedPartners[idx]; 
-            
-            // ĐÃ SỬA: Lấy kíp thực tế
             const pInfo = NV_LIST.find(u => u.name === finalPartner);
             finalPartnerKip = pInfo ? pInfo.kip : pkip;
-
             const caGocB_Tra = getCaThucTe(finalPartner, finalPartnerKip, retDate);
             autoCaTra = caGocB_Tra;
-            
-            // ĐÃ SỬA: Đổi pkip thành finalPartnerKip
-            const loiThay = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caThucTeA);
+            const loiThay = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caDisplay);
             if(loiThay) { hasError = true; showLocalAlert('batchhc-msg', `LỖI NGƯỜI THAY: ${loiThay}`, 'ae'); return; }
-            
             const loiTra = checkViPhamAnToan(n, kip, retDate, autoCaTra);
             if(loiTra) { hasError = true; showLocalAlert('batchhc-msg', `LỖI TRẢ CA: ${loiTra}`, 'ae'); return; }
         }
+      } else if (isLeave) {
+        // Ca gốc = Nghỉ → không cần thay, ghi lệnh bình thường không có partner
+        finalRetDate = dHC; autoCaTra = 'OFF';
       }
 
       const checkUsers = [n, finalPartner];
@@ -3575,15 +3685,37 @@ btn.disabled = false;
 }
 async function submitLeaveForm() {
 if (selectedLeaveDates.length === 0) { showLocalAlert('leave-msg', 'Vui lòng chọn ít nhất 1 ngày nghỉ!', 'ae'); return; }
+const leaveType = document.getElementById('f-leave-type')?.value || 'P';
+const vrSubtype = document.getElementById('f-vr-subtype')?.value || '';
+if (leaveType === 'VR' && !vrSubtype) { showLocalAlert('leave-msg', '⚠️ Vui lòng chọn lý do việc riêng!', 'ae'); return; }
+if (leaveType === 'VR') {
+  const maxDays = vrSubtype === 'con_ket_hon' ? 1 : 3;
+  if (selectedLeaveDates.length > maxDays) { showLocalAlert('leave-msg', `⚠️ Chế độ này chỉ được đăng ký tối đa ${maxDays} ngày!`, 'ae'); return; }
+}
+const myInfo = NV_LIST.find(u => u.name === CU.name);
+const myKipGoc = myInfo ? myInfo.kip : '';
+if (leaveType !== 'P') {
+  for (const d of selectedLeaveDates) {
+    const ca = getCaTrucGoc(CU.name, myKipGoc, d);
+    if (ca === 'OFF') { showLocalAlert('leave-msg', `⚠️ Ngày ${fmtDate(d)} không phải ngày đi làm của bạn. Chỉ được đăng ký đúng ngày làm việc!`, 'ae'); return; }
+  }
+}
 const reason = document.getElementById('f-leave-reason').value.trim();
-if (!reason) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập lý do nghỉ phép!', 'ae'); document.getElementById('f-leave-reason').focus(); return; }
+if (!reason) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập lý do!', 'ae'); document.getElementById('f-leave-reason').focus(); return; }
 const location = document.getElementById('f-leave-location').value.trim();
 if (!location) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập nơi nghỉ!', 'ae'); document.getElementById('f-leave-location').focus(); return; }
-const myInfo = NV_LIST.find(u => u.name === CU.name);
+let myKipThucTe = myKipGoc;
+if (myInfo && typeof allTransfers !== 'undefined' && allTransfers.length > 0) {
+  const today = new Date().toISOString().substring(0, 10);
+  const sorted = allTransfers.filter(t => t.name === CU.name && t.date <= today && t.newKip).sort((a,b) => b.date.localeCompare(a.date));
+  if (sorted.length > 0) myKipThucTe = sorted[0].newKip;
+}
 const data = {
 name: CU.name,
 role: myInfo ? myInfo.chucDanh : '',
-kip: myInfo ? myInfo.kip : '',
+kip: myKipThucTe,
+leaveType: leaveType,
+vrSubtype: vrSubtype,
 dates: selectedLeaveDates,
 days_count: selectedLeaveDates.length,
 reason: reason,
@@ -3595,16 +3727,18 @@ try {
 const res = await api({ action: 'submitLeave', data: JSON.stringify(data) });
 if (res.error) { showLocalAlert('leave-msg', res.error, 'ae'); }
 else {
-showLocalAlert('leave-msg', '✅ Đã gửi đơn nghỉ phép thành công! Chờ Lãnh đạo phê duyệt.', 'as');
+showLocalAlert('leave-msg', '✅ Đã gửi đơn đăng ký nghỉ thành công! Chờ Lãnh đạo phê duyệt.', 'as');
 selectedLeaveDates = [];
 document.getElementById('f-leave-reason').value = '';
 document.getElementById('f-leave-location').value = '';
+document.getElementById('f-leave-type').value = 'P';
+onLeaveTypeChange();
 await loadLeaves();
 renderLeaveCalendar();
 renderLeavePending();
 }
 } catch(e) { showLocalAlert('leave-msg', 'Lỗi kết nối!', 'ae'); }
-btn.disabled = false; btn.textContent = '📨 Gửi đơn nghỉ phép';
+btn.disabled = false; btn.textContent = '📨 Gửi đơn đăng ký nghỉ';
 }
 function renderLeaveApproveList() {
   const el = document.getElementById('leave-approve-list');
@@ -3616,15 +3750,25 @@ function renderLeaveApproveList() {
   }
   el.innerHTML = pending.map(lv => {
     const dates = lv.dates ? lv.dates.toString().split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
+    // Kíp thực tế theo lệnh điều động tại thời điểm gửi đơn
+    let kipHienThi = lv.kip || '—';
+    if (typeof allTransfers !== 'undefined' && allTransfers.length > 0) {
+      const refDate = lv.createdAt ? lv.createdAt.toString().substring(0,10) : new Date().toISOString().substring(0,10);
+      const sorted = allTransfers.filter(t => t.name === lv.name && t.date <= refDate && t.newKip).sort((a,b) => b.date.localeCompare(a.date));
+      if (sorted.length > 0) kipHienThi = sorted[0].newKip;
+    }
+    const leaveTypeLabels = {P:'Nghỉ phép (Công P)', VR:'Việc riêng (Công VR)', TS:'Thai sản (Công TS)', O_m:'Nghỉ ốm (Công Ô)', O:'Không hưởng lương (Công O)'};
+    const leaveLabel = leaveTypeLabels[lv.leaveType] || 'Nghỉ phép (Công P)';
     return `<div class="req">
       <div class="req-hd">
         <div class="req-name">${lv.name}</div>
         <span class="badge bp">⏳ Chờ duyệt</span>
       </div>
       <div class="req-meta">
+        🏷️ <b>Loại:</b> ${leaveLabel}<br>
         🏖️ <b>Ngày nghỉ:</b> ${dates}<br>
         🔢 <b>Số ngày:</b> ${lv.days_count} ngày<br>
-        👤 <b>Chức danh:</b> ${lv.role || '—'} — Kíp ${lv.kip || '—'}<br>
+        👤 <b>Chức danh:</b> ${lv.role || '—'} — Kíp ${kipHienThi}<br>
         💬 <b>Lý do:</b> ${lv.reason || 'Không có'}<br>
         ${lv.location ? `📍 <b>Nơi nghỉ:</b> ${lv.location}<br>` : ''}
         🕐 <b>Gửi lúc:</b> ${fmtDateTime(lv.createdAt) || '—'}
@@ -3742,7 +3886,6 @@ function renderLeaveHistory() {
   // Lãnh đạo thấy tất cả, nhân viên chỉ thấy của mình
   let leaves = isLD ? [...allLeaves] : allLeaves.filter(lv => lv.name === CU.name);
   if (fst) leaves = leaves.filter(lv => lv.status === fst);
-  if (fkp) leaves = leaves.filter(lv => lv.kip === fkp);
   if (fcd) leaves = leaves.filter(lv => lv.role === fcd);
   if (searchText) leaves = leaves.filter(lv => (lv.name || '').toLowerCase().includes(searchText));
   if (mv) {
@@ -3756,6 +3899,23 @@ function renderLeaveHistory() {
     });
   }
   if (leaves.length === 0) { el.innerHTML = '<div class="empty">Không có dữ liệu</div>'; return; }
+
+  // Hàm lấy kíp thực tế tại thời điểm tạo đơn
+  function getKipTaiThoiDiem(name, createdAt) {
+    if (!allTransfers || !allTransfers.length) {
+      const u = NV_LIST.find(x => x.name === name);
+      return u ? u.kip : '';
+    }
+    const refDate = createdAt ? createdAt.toString().substring(0,10) : new Date().toISOString().substring(0,10);
+    const sorted = allTransfers.filter(t => t.name === name && t.date <= refDate && t.newKip).sort((a,b) => b.date.localeCompare(a.date));
+    if (sorted.length > 0) return sorted[0].newKip;
+    const u = NV_LIST.find(x => x.name === name);
+    return u ? u.kip : '';
+  }
+
+  // Lọc theo Kíp thực tế
+  if (fkp) leaves = leaves.filter(lv => getKipTaiThoiDiem(lv.name, lv.createdAt) === fkp);
+
   const statusMap = {
     pending_ld: { label: '⏳ Chờ duyệt', style: 'background:#fef3c7; color:#b45309;' },
     approved: { label: '✅ Đã duyệt', style: 'background:#dcfce7; color:#16a34a;' },
@@ -3787,9 +3947,29 @@ function renderLeaveHistory() {
   }).join('');
 }
 
-// ===============================================================
-// THỐNG KÊ NGÀY NGHỈ PHÉP
-// ===============================================================
+// ── Xử lý thay đổi loại nghỉ ──
+function onLeaveTypeChange() {
+  const t = document.getElementById('f-leave-type')?.value || 'P';
+  const vrWrap = document.getElementById('vr-subtype-wrap');
+  const balBox = document.getElementById('leave-balance-box');
+  if (vrWrap) vrWrap.style.display = (t === 'VR') ? 'block' : 'none';
+  if (balBox) balBox.style.display = (t === 'P') ? 'flex' : 'none';
+  // Reset selected dates khi đổi loại
+  selectedLeaveDates = [];
+  renderLeaveCalendar();
+  const label = {P:'Nghỉ phép năm', VR:'Nghỉ việc riêng hưởng lương', TS:'Nghỉ thai sản', O_m:'Nghỉ ốm', O:'Nghỉ không hưởng lương'}[t] || '';
+  const btn = document.getElementById('btn-submit-leave');
+  if (btn) btn.textContent = `📨 Gửi đơn ${label}`;
+}
+function onVrSubtypeChange() {
+  const v = document.getElementById('f-vr-subtype')?.value || '';
+  const note = document.getElementById('vr-subtype-note');
+  if (!note) return;
+  const notes = { ket_hon: '💍 Kết hôn: được nghỉ tối đa 3 ngày', con_ket_hon: '👨‍👩‍👦 Con đẻ/con nuôi kết hôn: được nghỉ tối đa 1 ngày', than_qua_doi: '🕯️ Người thân qua đời: được nghỉ tối đa 3 ngày' };
+  note.textContent = notes[v] || '';
+}
+</script>
+<script>
 let allLeaveBalances = {}; // Cache balances cho lãnh đạo
 
 async function loadLeaveBalances() {
@@ -3814,6 +3994,16 @@ async function renderLeaveStats() {
 
   // Danh sách người cần hiển thị
   const targetList = isLD ? NV_LIST : NV_LIST.filter(u => u.name === CU.name);
+
+  // Hàm lấy kíp thực tế theo lệnh điều động (giống renderWarn, renderStaffStats)
+  function getKipThucTe(name, defaultKip) {
+    if (!allTransfers || !allTransfers.length) return defaultKip;
+    const today = new Date().toISOString().substring(0, 10);
+    const sorted = allTransfers
+      .filter(t => t.name === name && t.date <= today && t.newKip)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    return sorted.length > 0 ? sorted[0].newKip : defaultKip;
+  }
 
   // Tính ngày đã nghỉ từ allLeaves (chỉ đơn approved trong năm yr)
   const usedDatesMap = {}; // name -> mảng ngày đã nghỉ (approved)
