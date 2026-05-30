@@ -3712,7 +3712,14 @@ if (leaveType === 'VR') {
 }
 const myInfo = NV_LIST.find(u => u.name === CU.name);
 const myKipGoc = myInfo ? myInfo.kip : '';
-const myKipThucTe = getKipThucTe ? getKipThucTe(CU.name, myKipGoc) : myKipGoc;
+
+let myKipThucTe = myKipGoc;
+if (typeof allTransfers !== 'undefined' && allTransfers.length > 0) {
+  const today = new Date().toISOString().substring(0, 10);
+  const sorted = allTransfers.filter(t => t.name === CU.name && t.date <= today && t.newKip).sort((a,b) => b.date.localeCompare(a.date));
+  if (sorted.length > 0) myKipThucTe = sorted[0].newKip;
+}
+
 if (leaveType !== 'P') {
   for (const d of selectedLeaveDates) {
     const ca = getCaTrucGoc(CU.name, myKipThucTe, d);
