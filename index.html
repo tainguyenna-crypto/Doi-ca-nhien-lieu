@@ -3712,9 +3712,10 @@ if (leaveType === 'VR') {
 }
 const myInfo = NV_LIST.find(u => u.name === CU.name);
 const myKipGoc = myInfo ? myInfo.kip : '';
+const myKipThucTe = getKipThucTe ? getKipThucTe(CU.name, myKipGoc) : myKipGoc;
 if (leaveType !== 'P') {
   for (const d of selectedLeaveDates) {
-    const ca = getCaTrucGoc(CU.name, myKipGoc, d);
+    const ca = getCaTrucGoc(CU.name, myKipThucTe, d);
     if (ca === 'OFF') { showLocalAlert('leave-msg', `⚠️ Ngày ${fmtDate(d)} không phải ngày đi làm của bạn. Chỉ được đăng ký đúng ngày làm việc!`, 'ae'); return; }
   }
 }
@@ -3722,12 +3723,6 @@ const reason = document.getElementById('f-leave-reason').value.trim();
 if (!reason) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập lý do!', 'ae'); document.getElementById('f-leave-reason').focus(); return; }
 const location = document.getElementById('f-leave-location').value.trim();
 if (!location) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập nơi nghỉ!', 'ae'); document.getElementById('f-leave-location').focus(); return; }
-let myKipThucTe = myKipGoc;
-if (myInfo && typeof allTransfers !== 'undefined' && allTransfers.length > 0) {
-  const today = new Date().toISOString().substring(0, 10);
-  const sorted = allTransfers.filter(t => t.name === CU.name && t.date <= today && t.newKip).sort((a,b) => b.date.localeCompare(a.date));
-  if (sorted.length > 0) myKipThucTe = sorted[0].newKip;
-}
 const data = {
 name: CU.name,
 role: myInfo ? myInfo.chucDanh : '',
