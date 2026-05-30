@@ -463,9 +463,22 @@ textarea{resize:none;height:80px}
 
         <div id="leave-warn" style="display:none; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:10px 14px; color:#dc2626; font-weight:600; margin-bottom:12px;"></div>
 
-        <button id="btn-submit-leave" class="btn btn-success" style="width:100%; padding:12px; font-weight:700;" onclick="submitLeaveForm()">📨 Gửi đơn đăng ký nghỉ</button>
+        <button id="btn-submit-leave" class="btn btn-success" style="width:100%; padding:12px; font-weight:700;" onclick="validateAndConfirmLeave()">📨 Gửi đơn đăng ký nghỉ</button>
         <div id="leave-msg" class="alert" style="margin-top:10px; display:none;"></div>
       </div>
+    </div>
+
+    <!-- MODAL XÁC NHẬN GỬI ĐƠN NGHỈ -->
+    <div id="leave-confirm-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+      <div style="background:#fff; border-radius:16px; padding:28px 24px; max-width:400px; width:92%; box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+        <div style="font-size:22px; font-weight:800; color:#1a56a0; margin-bottom:16px; text-align:center;">📋 Xác nhận gửi đơn</div>
+        <div id="leave-confirm-summary" style="background:#f8fafc; border-radius:10px; padding:14px 16px; margin-bottom:20px; font-size:14px; line-height:1.8; color:#374151; border:1px solid #e2e8f0;"></div>
+        <div style="display:flex; gap:12px;">
+          <button onclick="doSubmitLeave()" class="btn btn-success" style="flex:1; padding:12px; font-weight:700; font-size:15px;">✅ Xác nhận gửi</button>
+          <button onclick="document.getElementById('leave-confirm-modal').style.display='none'" class="btn" style="flex:1; padding:12px; font-weight:600; background:#f1f5f9; color:#374151; border:1px solid #cbd5e1;">↩ Hủy</button>
+        </div>
+      </div>
+    </div>
 
       <!-- Danh sách đơn nghỉ phép của tôi đang chờ -->
       <div class="card" style="margin-top:12px;">
@@ -1183,14 +1196,28 @@ function escapeHTML(str) {
 function fmtDateTime(str) {
     if (!str) return '';
     try {
+        // GAS trả về "dd/MM/yyyy HH:mm:ss" — trình duyệt không parse được trực tiếp
+        // Thử parse format DD/MM/YYYY HH:mm:ss trước
+        const vn = str.toString().match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (vn) {
+            // vn: [full, dd, MM, yyyy, HH, mm, ss?]
+            const d = new Date(+vn[3], +vn[2]-1, +vn[1], +vn[4], +vn[5], +(vn[6]||0));
+            if (!isNaN(d.getTime())) {
+                const hrs = String(d.getHours()).padStart(2,'0');
+                const mins = String(d.getMinutes()).padStart(2,'0');
+                const dd  = String(d.getDate()).padStart(2,'0');
+                const mm  = String(d.getMonth()+1).padStart(2,'0');
+                return `${hrs}:${mins} ${dd}/${mm}/${d.getFullYear()}`;
+            }
+        }
+        // Fallback: thử ISO / các format khác
         const d = new Date(str);
-        if (isNaN(d.getTime())) return str; 
+        if (isNaN(d.getTime())) return str;
         const hrs = String(d.getHours()).padStart(2, '0');
         const mins = String(d.getMinutes()).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');
         const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yyyy = d.getFullYear();
-        return `${hrs}:${mins} ${dd}/${mm}/${yyyy}`;
+        return `${hrs}:${mins} ${dd}/${mm}/${d.getFullYear()}`;
     } catch(e) { return str; }
 }
 
@@ -3701,7 +3728,9 @@ warn.style.display = 'none';
 btn.disabled = false;
 }
 }
-async function submitLeaveForm() {
+// Bước 1: Validate + hiện modal xác nhận
+let _pendingLeaveData = null;
+function validateAndConfirmLeave() {
 if (selectedLeaveDates.length === 0) { showLocalAlert('leave-msg', 'Vui lòng chọn ít nhất 1 ngày nghỉ!', 'ae'); return; }
 const leaveType = document.getElementById('f-leave-type')?.value || 'P';
 const vrSubtype = document.getElementById('f-vr-subtype')?.value || '';
@@ -3712,39 +3741,49 @@ if (leaveType === 'VR') {
 }
 const myInfo = NV_LIST.find(u => u.name === CU.name);
 const myKipGoc = myInfo ? myInfo.kip : '';
-
 let myKipThucTe = myKipGoc;
 if (typeof allTransfers !== 'undefined' && allTransfers.length > 0) {
   const today = new Date().toISOString().substring(0, 10);
   const sorted = allTransfers.filter(t => t.name === CU.name && t.date <= today && t.newKip).sort((a,b) => b.date.localeCompare(a.date));
   if (sorted.length > 0) myKipThucTe = sorted[0].newKip;
 }
-
 if (leaveType !== 'P') {
   for (const d of selectedLeaveDates) {
     const ca = getCaTrucGoc(CU.name, myKipThucTe, d);
-    if (ca === 'OFF') { showLocalAlert('leave-msg', `⚠️ Ngày ${fmtDate(d)} không phải ngày đi làm của bạn. Chỉ được đăng ký đúng ngày làm việc!`, 'ae'); return; }
+    if (ca === 'OFF') { showLocalAlert('leave-msg', `⚠️ Ngày ${fmtDate(d)} không phải ngày đi làm của bạn!`, 'ae'); return; }
   }
 }
 const reason = document.getElementById('f-leave-reason').value.trim();
 if (!reason) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập lý do!', 'ae'); document.getElementById('f-leave-reason').focus(); return; }
 const location = document.getElementById('f-leave-location').value.trim();
 if (!location) { showLocalAlert('leave-msg', '⚠️ Vui lòng nhập nơi nghỉ!', 'ae'); document.getElementById('f-leave-location').focus(); return; }
-const data = {
-name: CU.name,
-role: myInfo ? myInfo.chucDanh : '',
-kip: myKipThucTe,
-leaveType: leaveType,
-vrSubtype: vrSubtype,
-dates: selectedLeaveDates,
-days_count: selectedLeaveDates.length,
-reason: reason,
-location: location
-};
+
+_pendingLeaveData = { name: CU.name, role: myInfo ? myInfo.chucDanh : '', kip: myKipThucTe, leaveType, vrSubtype,
+  dates: selectedLeaveDates, days_count: selectedLeaveDates.length, reason, location };
+
+// Hiển thị tóm tắt trong modal
+const leaveTypeNames = {P:'🏖️ Nghỉ phép năm (Công P)', VR:'🏠 Việc riêng (Công VR)', TS:'🤱 Thai sản (Công TS)', O_m:'🏥 Nghỉ ốm (Công Ô)', O:'⛔ Không hưởng lương (Công O)'};
+const vrNames = {ket_hon:'Kết hôn', con_ket_hon:'Con đẻ/nuôi kết hôn', than_qua_doi:'Người thân qua đời'};
+const datesDisplay = selectedLeaveDates.sort().map(d => fmtDate(d)).join(', ');
+document.getElementById('leave-confirm-summary').innerHTML =
+  `👤 <b>Người nghỉ:</b> ${CU.name}<br>` +
+  `📋 <b>Loại nghỉ:</b> ${leaveTypeNames[leaveType] || leaveType}<br>` +
+  (vrSubtype ? `💍 <b>Lý do VR:</b> ${vrNames[vrSubtype] || vrSubtype}<br>` : '') +
+  `📅 <b>Ngày nghỉ:</b> ${datesDisplay}<br>` +
+  `🔢 <b>Số ngày:</b> ${selectedLeaveDates.length} ngày<br>` +
+  `💬 <b>Lý do:</b> ${reason}<br>` +
+  `📍 <b>Nơi nghỉ:</b> ${location}`;
+document.getElementById('leave-confirm-modal').style.display = 'flex';
+}
+
+// Bước 2: Thực sự gửi sau khi xác nhận
+async function doSubmitLeave() {
+if (!_pendingLeaveData) return;
+document.getElementById('leave-confirm-modal').style.display = 'none';
 const btn = document.getElementById('btn-submit-leave');
 btn.disabled = true; btn.textContent = '⏳ Đang gửi...';
 try {
-const res = await api({ action: 'submitLeave', data: JSON.stringify(data) });
+const res = await api({ action: 'submitLeave', data: JSON.stringify(_pendingLeaveData) });
 if (res.error) { showLocalAlert('leave-msg', res.error, 'ae'); }
 else {
 showLocalAlert('leave-msg', '✅ Đã gửi đơn đăng ký nghỉ thành công! Chờ Lãnh đạo phê duyệt.', 'as');
@@ -3753,12 +3792,16 @@ document.getElementById('f-leave-reason').value = '';
 document.getElementById('f-leave-location').value = '';
 document.getElementById('f-leave-type').value = 'P';
 onLeaveTypeChange();
+_pendingLeaveData = null;
 await loadLeaves();
 renderLeaveCalendar();
 renderLeavePending();
 }
 } catch(e) { showLocalAlert('leave-msg', 'Lỗi kết nối!', 'ae'); }
-btn.disabled = false; btn.textContent = '📨 Gửi đơn đăng ký nghỉ';
+btn.disabled = false;
+const lt = document.getElementById('f-leave-type')?.value || 'P';
+const label = {P:'Nghỉ phép năm', VR:'Nghỉ việc riêng hưởng lương', TS:'Nghỉ thai sản', O_m:'Nghỉ ốm', O:'Nghỉ không hưởng lương'}[lt] || '';
+btn.textContent = `📨 Gửi đơn ${label}`;
 }
 function renderLeaveApproveList() {
   const el = document.getElementById('leave-approve-list');
