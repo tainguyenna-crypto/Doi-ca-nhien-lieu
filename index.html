@@ -1774,18 +1774,6 @@ function validateExistingReq(req) {
       if(l2) return `Người trả ca - ${l2}`;
   }
   
-  // Kiểm tra nghỉ phép được duyệt
-if (typeof allLeaves !== 'undefined' && allLeaves.length > 0) {
-const hasLeave = allLeaves.some(lv =>
-lv.name === userName &&
-lv.status === 'approved' &&
-lv.dates && lv.dates.split(',').map(d => d.trim()).includes(dateStr)
-);
-if (hasLeave) {
-if (returnFullObj) return { ca: 'P', status: 'approved_leave' };
-return 'P';
-}
-}
 return null;
 }
 // ===============================================================
