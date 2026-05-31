@@ -1196,28 +1196,24 @@ function escapeHTML(str) {
 function fmtDateTime(str) {
     if (!str) return '';
     try {
-        // GAS trả về "dd/MM/yyyy HH:mm:ss" — trình duyệt không parse được trực tiếp
-        // Thử parse format DD/MM/YYYY HH:mm:ss trước
-        const vn = str.toString().match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+        const s = str.toString().trim();
+        // Format GAS: "dd/MM/yyyy HH:mm" hoặc "dd/MM/yyyy HH:mm:ss"
+        const vn = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
         if (vn) {
-            // vn: [full, dd, MM, yyyy, HH, mm, ss?]
-            const d = new Date(+vn[3], +vn[2]-1, +vn[1], +vn[4], +vn[5], +(vn[6]||0));
-            if (!isNaN(d.getTime())) {
-                const hrs = String(d.getHours()).padStart(2,'0');
-                const mins = String(d.getMinutes()).padStart(2,'0');
-                const dd  = String(d.getDate()).padStart(2,'0');
-                const mm  = String(d.getMonth()+1).padStart(2,'0');
-                return `${hrs}:${mins} ${dd}/${mm}/${d.getFullYear()}`;
-            }
+            // Trả về đúng như GAS gửi, chỉ giữ HH:mm dd/MM/yyyy
+            return `${vn[4]}:${vn[5]} ${vn[1]}/${vn[2]}/${vn[3]}`;
         }
-        // Fallback: thử ISO / các format khác
-        const d = new Date(str);
-        if (isNaN(d.getTime())) return str;
-        const hrs = String(d.getHours()).padStart(2, '0');
-        const mins = String(d.getMinutes()).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        return `${hrs}:${mins} ${dd}/${mm}/${d.getFullYear()}`;
+        // Fallback ISO: "yyyy-MM-ddTHH:mm:ss" — parse thủ công tránh timezone shift
+        const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (iso) {
+            return `${iso[4]}:${iso[5]} ${iso[3]}/${iso[2]}/${iso[1]}`;
+        }
+        // Fallback ISO không có T: "yyyy-MM-dd HH:mm"
+        const iso2 = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+        if (iso2) {
+            return `${iso2[4]}:${iso2[5]} ${iso2[3]}/${iso2[2]}/${iso2[1]}`;
+        }
+        return str;
     } catch(e) { return str; }
 }
 
