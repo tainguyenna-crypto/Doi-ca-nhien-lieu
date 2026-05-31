@@ -480,15 +480,14 @@ textarea{resize:none;height:80px}
       </div>
     </div>
 
-      <!-- Danh sách đơn nghỉ phép của tôi đang chờ -->
-      <div class="card" style="margin-top:12px;">
-        <div class="sec-title" style="margin-bottom:12px;">Đơn đang chờ duyệt</div>
-        <div id="leave-pending-list"></div>
-      </div>
-    </div>
-
     <!-- ===== TAB LỊCH SỬ NGHỈ PHÉP ===== -->
     <div id="tab-lich-su-np" class="section">
+      <!-- Đơn đang chờ duyệt -->
+      <div class="card" style="margin-bottom:12px;" id="leave-pending-card">
+        <div class="sec-title" style="margin-bottom:12px;">⏳ Đơn đang chờ duyệt</div>
+        <div id="leave-pending-list"></div>
+      </div>
+
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
           <div class="sec-title" style="margin:0;">📋 Lịch sử nghỉ cá nhân</div>
@@ -1170,7 +1169,7 @@ const btn=document.querySelector(`.tab[onclick="switchTab('${s}')"]`); if(btn) b
   if(t==='lich-su') renderHistory(); 
   if(t==='bang-di-ca') renderScheduleTable();
   if(t==='nghi-phep') initLeaveTab();
-  if(t==='lich-su-np') renderLeaveHistory();
+  if(t==='lich-su-np') { renderLeaveHistory(); renderLeavePending(); }
   if(t==='duyet-np') renderLeaveApproveList();
   if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); renderNoCaLD(); renderLeaveStats(); }
   if(t==='admin-hc') { 
@@ -3658,7 +3657,6 @@ async function initLeaveTab() {
   leaveCalYear = new Date().getFullYear();
   leaveCalMonth = new Date().getMonth() + 1;
   renderLeaveCalendar();
-  renderLeavePending();
 }
 
 function changeLeaveMonth(dir) {
