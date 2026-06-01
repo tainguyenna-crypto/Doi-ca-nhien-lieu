@@ -4107,6 +4107,7 @@ async function renderLeaveStats() {
   allLeaves.forEach(lv => {
     if (lv.status !== 'approved') return;
     if (!lv.dates) return;
+    if ((lv.leaveType || 'P') !== 'P') return; // Chỉ tính nghỉ phép năm
     const daysInYear = lv.dates.split(',').map(d => d.trim()).filter(d => {
       const parts = d.split('-').map(Number);
       return parts[0] === yr;
