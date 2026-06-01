@@ -250,8 +250,9 @@ textarea{resize:none;height:80px}
         <tbody id="sched-body"></tbody>
       </table>
     </div>
-    <div style="margin-top:12px; font-size:12px; color:#64748b;">
-      * Ghi chú: <span class="dp" style="padding:2px 6px;">C/N/K</span>: Các ca trực, <span style="color:#cbd5e1; font-weight: 600;">-</span>: Nghỉ (OFF). <span style="background:#fff7ed; padding:4px 10px; border-radius:4px; display:inline-block;"></span>: Đi lệch ca. <span style="background:#fecaca; padding:4px 10px; border-radius:4px; display:inline-block;"></span>: Ngày lễ. <span style="background:#f3e8ff; padding:4px 10px; border-radius:4px; border:1px dashed #a855f7; display:inline-block;"></span>: Đang chờ Lãnh đạo phê duyệt
+    <div style="margin-top:12px; font-size:12px; color:#64748b; line-height: 1.8;">
+      * Ghi chú: <span class="dp" style="padding:2px 6px;">C/N/K</span>: Các ca trực, <span style="color:#cbd5e1; font-weight: 600;">-</span>: Nghỉ (OFF). <span style="background:#fff7ed; padding:4px 10px; border-radius:4px; display:inline-block;"></span>: Đi lệch ca. <span style="background:#fecaca; padding:4px 10px; border-radius:4px; display:inline-block;"></span>: Ngày lễ. <span style="background:#f3e8ff; padding:4px 10px; border-radius:4px; border:1px dashed #a855f7; display:inline-block;"></span>: Đang chờ LĐ duyệt.<br>
+      * Chế độ nghỉ: <span style="color:#0284c7; font-weight:800;">P</span> (Nghỉ phép), <span style="color:#7e22ce; font-style:italic; font-weight:700;">VR</span> (Việc riêng), <span style="color:#c2410c; font-style:italic; font-weight:700;">Ô</span> (Nghỉ ốm), <span style="color:#065f46; font-style:italic; font-weight:700;">TS</span> (Thai sản), <span style="color:#94a3b8; font-style:italic;">O</span> (Không lương).
     </div>
   </div>
 </div>
@@ -2609,6 +2610,7 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
   });
 
   let grandTotalK = 0, grandTotalCong = 0;
+  let grandTotalP = 0, grandTotalVR = 0, grandTotalO = 0, grandTotalTS = 0;
 
   // 4. VẼ TỪNG Ô LỊCH
   let bodyHtml = displayList.map(u => {
@@ -2689,6 +2691,7 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
 
     const totalCong = (totalHours / 8).toFixed(2);
     grandTotalK += countK; grandTotalCong += parseFloat(totalCong);
+    grandTotalP += countP; grandTotalVR += countVR; grandTotalO += countO; grandTotalTS += countTS;
 
     row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
     row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0284c7;">${countP > 0 ? countP : '-'}</td>`;
@@ -2706,11 +2709,13 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
         <td colspan="${CU.role === 'ld' ? 3 : 2}" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
         <td colspan="${daysInMonth}"></td>
         <td style="text-align:center; color:#15803d; font-size:14px;">${grandTotalK}</td>
-        <td colspan="3"></td>
+        <td style="text-align:center; color:#0284c7; font-size:14px;">${grandTotalP > 0 ? grandTotalP : '-'}</td>
+        <td style="text-align:center; color:#7e22ce; font-size:14px;">${grandTotalVR > 0 ? grandTotalVR : '-'}</td>
+        <td style="text-align:center; color:#c2410c; font-size:14px;">${grandTotalO > 0 ? grandTotalO : '-'}</td>
+        <td style="text-align:center; color:#065f46; font-size:14px;">${grandTotalTS > 0 ? grandTotalTS : '-'}</td>
         <td style="text-align:center; color:#1a56a0; font-size:14px;">${grandTotalCong.toFixed(2)}</td>
       </tr>
     `;
-
   }
 
   document.getElementById('sched-body').innerHTML = bodyHtml || '<tr><td colspan="45" class="empty">Không có dữ liệu phù hợp</td></tr>';
