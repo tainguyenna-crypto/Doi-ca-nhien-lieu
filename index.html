@@ -1548,7 +1548,27 @@ async function ldNo(id, btn){
     if(btn){ btn.disabled=false; btn.innerHTML='Từ chối'; btn.style.opacity='1'; btn.style.cursor='pointer'; } 
   } 
 }
+function getCurrentKip(userName, baseKip) {
 
+  let currentKip = baseKip;
+
+  if (typeof allTransfers !== 'undefined' &&
+      allTransfers &&
+      allTransfers.length > 0) {
+
+    const today = new Date().toISOString().substring(0,10);
+
+    const transfers = allTransfers
+      .filter(t => t.name === userName && t.date <= today)
+      .sort((a,b) => b.date.localeCompare(a.date));
+
+    if (transfers.length > 0 && transfers[0].newKip) {
+      currentKip = transfers[0].newKip;
+    }
+  }
+
+  return currentKip;
+}
 // =====================================================================
 // BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (ĐỌC TỪ EXCEL)
 // =====================================================================
@@ -2462,7 +2482,19 @@ function renderNoCaLD() {
       const infoNo = NV_LIST.find(x => x.name === nguoiNo) || {};
       const infoDuocNo = NV_LIST.find(x => x.name === nguoiDuocNo) || {};
 
-      rows.push({ nguoiNo, nguoiDuocNo, infoNo, infoDuocNo, soHienThi });
+      infoNo.displayKip =
+    getCurrentKip(infoNo.name, infoNo.kip);
+
+infoDuocNo.displayKip =
+    getCurrentKip(infoDuocNo.name, infoDuocNo.kip);
+
+rows.push({
+  nguoiNo,
+  nguoiDuocNo,
+  infoNo,
+  infoDuocNo,
+  soHienThi
+});
     });
   });
 
@@ -2477,10 +2509,10 @@ function renderNoCaLD() {
     <tr>
       <td style="color:#dc2626;font-weight:600;">${nguoiNo}</td>
       <td>${infoNo.chucDanh || ''}</td>
-      <td>${infoNo.kip || ''}</td>
+      <td>${infoNo.displayKip || ''}</td>
       <td style="color:#16a34a;font-weight:600;">${nguoiDuocNo}</td>
       <td>${infoDuocNo.chucDanh || ''}</td>
-      <td>${infoDuocNo.kip || ''}</td>
+      <td>${infoDuocNo.displayKip || ''}</td>
       <td style="text-align:center;font-weight:700;color:#dc2626;">${soHienThi}</td>
     </tr>
   `).join('');
@@ -4149,7 +4181,7 @@ async function renderLeaveStats() {
     return `<tr>
       <td style="font-weight:600;">${u.name}</td>
       <td>${u.chucDanh || ''}</td>
-      <td>${u.kip || ''}</td>
+      <td>${getCurrentKip(u.name, u.kip)}</td>
       <td style="text-align:center; font-weight:700; color:#0284c7; font-size:16px;">${annual}</td>
       <td style="text-align:center; font-weight:700; color:#dc2626; font-size:16px;">${usedCount}</td>
       <td style="font-size:12px; color:#475569; max-width:200px; white-space:normal; line-height:1.6;">${datesStr}</td>
