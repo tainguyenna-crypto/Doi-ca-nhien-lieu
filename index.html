@@ -623,7 +623,8 @@ textarea{resize:none;height:80px}
         </div>
         <div class="table-wrapper">
           <table class="dt" id="table-thong-ke">
-            <thead><tr><th>Họ tên</th><th>Chức danh</th><th>Kíp</th><th>Tạo đổi ca</th><th>Đồng ý đổi ca</th><th>Lệch ca</th></tr></thead>
+            <thead style="position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <tr><th>Họ tên</th><th>Chức danh</th><th>Kíp</th><th>Tạo đổi ca</th><th>Đồng ý đổi ca</th><th>Lệch ca</th></tr></thead>
             <tbody id="staff-body"></tbody>
           </table>
         </div>
@@ -646,8 +647,10 @@ textarea{resize:none;height:80px}
     <div class="sec-title" style="margin:0;">💳 Bảng nợ ca toàn Phân xưởng</div>
     <button class="btn btn-success" style="height:36px; font-size:13px;" onclick="exportNoCaLD()">⬇ Tải Excel</button>
   </div>
+<div class="table-wrapper" style="max-height: 400px;">
   <table class="dt" id="table-no-ca-ld">
-    <thead><tr>
+    <thead style="position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <tr>
       <th>Người nợ</th>
       <th>Chức danh</th>
       <th>Kíp</th>
@@ -671,8 +674,8 @@ textarea{resize:none;height:80px}
       </div>
       <div class="table-wrapper">
         <table class="dt" id="table-leave-stat">
-          <thead>
-            <tr>
+          <thead style="position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <tr>
               <th>Họ tên</th>
               <th>Chức danh</th>
               <th>Kíp</th>
@@ -2114,8 +2117,8 @@ function renderDayTable(){
   wrap.innerHTML = `
     <div class="table-wrapper">
       <table class="dt" id="table-day">
-        <thead>
-          <tr>
+        <thead style="position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <tr>
             <th>Ngày</th>
             <th>Người đi thay</th>
             <th>Người trả ca</th>
