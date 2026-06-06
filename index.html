@@ -38,6 +38,12 @@ textarea{resize:none;height:80px}
 .filter-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
 .filter-row .ym-sel-year,.filter-row .ym-sel-month{min-width:80px;max-width:110px}
 .filter-row select:not(.ym-sel-year):not(.ym-sel-month){width:auto;min-width:120px;flex:1 1 140px;max-width:200px}
+.hist-filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px}
+.hist-filter-bar select,.hist-filter-bar input[type="text"]{flex:1 1 140px;min-width:120px;width:auto;padding:8px 32px 8px 12px;font-size:13px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;outline:none}
+.hist-filter-bar .ym-sel-year,.hist-filter-bar .ym-sel-month{flex:0 0 auto;min-width:80px;max-width:110px}
+.hist-filter-bar .hist-search-input{flex:2 1 220px;min-width:180px;background-image:none;padding-right:12px}
+.hist-filter-bar .btn{flex:0 0 auto;height:38px;padding:8px 12px;font-size:13px;white-space:nowrap}
+@media(max-width:720px){.hist-filter-bar select,.hist-filter-bar input[type="text"]{flex:1 1 calc(50% - 4px);min-width:0}.hist-filter-bar .hist-search-input{flex:1 1 100%}}
 .badge{display:inline-block;font-size:11px;padding:4px 10px;border-radius:99px;font-weight:600;white-space:nowrap}
 .bp{background:#fef9c3;color:#854d0e}
 .bld{background:#dbeafe;color:#1e40af}
@@ -503,23 +509,19 @@ textarea{resize:none;height:80px}
       </div>
 
       <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <div class="sec-title" style="margin:0;">📋 Lịch sử nghỉ cá nhân</div>
-        </div>
-        <div class="filter-row">
+        <div class="sec-title" style="margin:0 0 10px;">📋 Lịch sử nghỉ cá nhân</div>
+        <div class="hist-filter-bar">
           <select id="f-leave-hist-year" onchange="renderLeaveHistory()" class="ym-sel-year"></select>
           <select id="f-leave-hist-month" onchange="renderLeaveHistory()" class="ym-sel-month"></select>
-          <select id="f-leave-hist-status" onchange="renderLeaveHistory()" style="flex:1; min-width:160px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
+          <select id="f-leave-hist-status" onchange="renderLeaveHistory()">
             <option value="">Tất cả trạng thái</option>
             <option value="pending_ld">Chờ duyệt</option>
             <option value="approved">Đã duyệt</option>
             <option value="rejected">Từ chối</option>
             <option value="cancelled">Đã hủy</option>
           </select>
-          <select id="f-leave-hist-kip" onchange="renderLeaveHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;"><option value="">Tất cả kíp</option></select>
-        </div>
-        <div style="margin-bottom:8px;">
-          <select id="f-leave-hist-type" onchange="renderLeaveHistory()" style="min-width:160px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
+          <select id="f-leave-hist-kip" onchange="renderLeaveHistory()"><option value="">Tất cả kíp</option></select>
+          <select id="f-leave-hist-type" onchange="renderLeaveHistory()">
             <option value="">🗂️ Tất cả chế độ nghỉ</option>
             <option value="P">🏖️ Nghỉ phép năm (Công P)</option>
             <option value="VR">🏠 Việc riêng hưởng lương (Công VR)</option>
@@ -527,12 +529,10 @@ textarea{resize:none;height:80px}
             <option value="O_m">🏥 Nghỉ ốm (Công Ô)</option>
             <option value="O">⛔ Nghỉ không hưởng lương (Công O)</option>
           </select>
-        </div>
-        <div id="f-leave-hist-cd-wrap" style="display:none; margin-bottom:8px;">
-          <select id="f-leave-hist-cd" onchange="renderLeaveHistory()" style="min-width:160px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;"><option value="">Tất cả chức danh</option></select>
-        </div>
-        <div style="margin-bottom:12px;">
-          <input type="text" id="f-leave-hist-search" oninput="renderLeaveHistory()" placeholder="🔍 Tìm theo tên người nghỉ..." style="width:100%; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none; box-sizing:border-box;">
+          <div id="f-leave-hist-cd-wrap" style="display:none;">
+            <select id="f-leave-hist-cd" onchange="renderLeaveHistory()"><option value="">Tất cả chức danh</option></select>
+          </div>
+          <input type="text" id="f-leave-hist-search" class="hist-search-input" oninput="renderLeaveHistory()" placeholder="🔍 Tìm theo tên người nghỉ...">
         </div>
         <div id="leave-history-list"></div>
       </div>
@@ -557,24 +557,22 @@ textarea{resize:none;height:80px}
 </div>
         <div class="card">
         <div class="sec-title" style="margin:0 0 10px;">Lịch sử đổi ca</div>
-        <div class="filter-row">
-          <button id="btn-export-history" class="btn btn-success" style="display:none; flex-shrink:0;" onclick="exportExcelHistory()">⬇ Tải Excel</button>
+        <div class="hist-filter-bar">
+          <button id="btn-export-history" class="btn btn-success" style="display:none;" onclick="exportExcelHistory()">⬇ Tải Excel</button>
           <select id="f-hist-year" onchange="renderHistory()" class="ym-sel-year"></select>
           <select id="f-hist-month" onchange="renderHistory()" class="ym-sel-month"></select>
-          <select id="f-fst" onchange="renderHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;">
+          <select id="f-fst" onchange="renderHistory()">
             <option value="">Tất cả trạng thái</option>
             <option value="pending_partner">Chờ xác nhận</option>
             <option value="pending_ld">Chờ LĐ duyệt</option>
             <option value="approved">Đã duyệt</option>
             <option value="rejected">Từ chối</option>
           </select>
-          <select id="f-fkp" onchange="renderHistory()" style="flex:1; min-width:140px; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none;"><option value="">Tất cả kíp</option></select>
-        </div>
-        <div id="fcd-wrap" style="display:none; gap:8px; margin-bottom:8px;">
-          <select id="f-fcd" onchange="renderHistory()" style="flex:1; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none; width:100%;"><option value="">Tất cả chức danh</option></select>
-        </div>
-        <div style="margin-bottom:12px;">
-          <input type="text" id="f-hist-search" oninput="renderHistory()" placeholder="🔍 Tìm theo tên người nghỉ hoặc người đi thay..." style="width:100%; padding:8px 12px; font-size:14px; border-radius:6px; border:1px solid #cbd5e1; outline:none; box-sizing:border-box;">
+          <select id="f-fkp" onchange="renderHistory()"><option value="">Tất cả kíp</option></select>
+          <div id="fcd-wrap" style="display:none;">
+            <select id="f-fcd" onchange="renderHistory()"><option value="">Tất cả chức danh</option></select>
+          </div>
+          <input type="text" id="f-hist-search" class="hist-search-input" oninput="renderHistory()" placeholder="🔍 Tìm theo tên người nghỉ hoặc người đi thay...">
         </div>
         <div id="list-lich-su"></div>
       </div>
@@ -916,7 +914,11 @@ window.onload = async () => {
 
 async function loadAll(){
 const d = await api({action:"getAll"});
-allReqs = (d.requests||[]).map(r=>({...r,id:r.id.toString()}));
+allReqs = (d.requests||[]).map(r => {
+  const req = {...r, id: r.id.toString()};
+  if (req.kip === 'AUTO_LEAVE' || !req.kip) req.kip = getPersonKip(req.name, req.kip);
+  return req;
+});
 const tasks = [loadTransfers(), loadLeaves()];
 if (CU && (CU.role === 'ld' || CU.admin)) tasks.push(loadLeaveBalances());
 await Promise.all(tasks); }
@@ -1131,10 +1133,10 @@ async function doLogin(){
     document.getElementById('tab-ld').style.display = CU.role==='ld'?'':'none';
     document.getElementById('tab-btn-duyet-np').style.display = CU.role==='ld'?'':'none';
     if (CU.role === 'ld') {
-      document.getElementById('fcd-wrap').style.display = 'flex';
+      document.getElementById('fcd-wrap').style.display = 'contents';
       const cdList = [...new Set(NV_LIST.map(u => u.chucDanh).filter(Boolean))].sort();
       document.getElementById('f-fcd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
-      document.getElementById('f-leave-hist-cd-wrap').style.display = 'block';
+      document.getElementById('f-leave-hist-cd-wrap').style.display = 'contents';
       document.getElementById('f-leave-hist-cd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
     }
    document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = CU.admin?'':'none';      document.getElementById('f-name').value = CU.name; 
@@ -1647,6 +1649,11 @@ function getCurrentKip(userName, baseKip) {
 
   return currentKip;
 }
+function getPersonKip(name, selectedKip) {
+  if (selectedKip && selectedKip !== 'AUTO_LEAVE') return selectedKip;
+  const u = NV_LIST.find(u => u.name === name);
+  return u ? getCurrentKip(name, u.kip) : (selectedKip || '');
+}
 // =====================================================================
 // BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (ĐỌC TỪ EXCEL)
 // =====================================================================
@@ -1747,6 +1754,14 @@ function addDays(dateStr, days) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
+// Ca làm việc thực tế trong lệnh điều động (K/C/N...), không phải ca nghỉ P/VR/HC
+function getDieuDongWorkCa(req, dateStr) {
+  const nonWork = ['P', 'VR', 'Ô', 'TS', 'O', 'HC', 'HC/2', 'OFF', 'NONE'];
+  if (req.caDoi && !nonWork.includes(req.caDoi)) return req.caDoi;
+  const goc = getCaTrucGoc(req.name, getPersonKip(req.name, req.kip), dateStr);
+  return goc !== 'OFF' ? goc : (req.caDoi || 'OFF');
+}
+
 // =====================================================================
 // LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
 // =====================================================================
@@ -1777,14 +1792,21 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
               if (r.partner === userName) { tempCa = r.caDoi; matched = true; }
           } else if (r.name === userName && r.ngayDoi === dateStr) {
               if (isSpecial) {
-                  if (r.reason.includes('[NGHỈ PHÉP]')) tempCa = 'P';
-                  else if (r.reason.includes('[VIỆC RIÊNG]')) tempCa = 'VR';
-                  else if (r.reason.includes('[NGHỈ ỐM]')) tempCa = 'Ô';
-                  else if (r.reason.includes('[NGHỈ THAI SẢN]')) tempCa = 'TS';
-                  else if (r.reason.includes('[NGHỈ KHÔNG LƯƠNG]')) tempCa = 'O';
-                  else if (r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]')) tempCa = 'HC/2';
-                  else tempCa = 'HC';
-                  finalOverride = tempCa;
+                  const isDispatch = r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]');
+                  if (isDispatch) {
+                      // Lệnh điều động: người trong name đi ca làm việc thật, không áp tag nghỉ phép kèm theo
+                      if (r.partner === 'CÔNG TÁC HC') {
+                          tempCa = r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') ? 'HC/2' : 'HC';
+                      } else {
+                          tempCa = getDieuDongWorkCa(r, dateStr);
+                      }
+                  } else if (r.reason.includes('[NGHỈ PHÉP]')) { tempCa = 'P'; finalOverride = tempCa; }
+                  else if (r.reason.includes('[VIỆC RIÊNG]')) { tempCa = 'VR'; finalOverride = tempCa; }
+                  else if (r.reason.includes('[NGHỈ ỐM]')) { tempCa = 'Ô'; finalOverride = tempCa; }
+                  else if (r.reason.includes('[NGHỈ THAI SẢN]')) { tempCa = 'TS'; finalOverride = tempCa; }
+                  else if (r.reason.includes('[NGHỈ KHÔNG LƯƠNG]')) { tempCa = 'O'; finalOverride = tempCa; }
+                  else if (r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]')) { tempCa = 'HC/2'; finalOverride = tempCa; }
+                  else { tempCa = 'HC'; finalOverride = tempCa; }
               } else { tempCa = 'OFF'; }
               matched = true;
           }
@@ -1793,7 +1815,15 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
           // Lệnh điều động ngày trả ca: r.name (Hiền) vào ca thật, r.partner (Đăng) về OFF
           else if (r.name === userName && r.ngayTra === dateStr && isSpecial && r.caTra && r.caTra !== 'HC' && r.caTra !== 'OFF') { tempCa = r.caTra; matched = true; }
           else if (r.partner === userName && r.ngayTra === dateStr && isSpecial && r.caTra && r.caTra !== 'HC' && r.caTra !== 'OFF') { tempCa = 'OFF'; matched = true; }
-          else if (r.partner === userName && r.ngayDoi === dateStr) { tempCa = r.caDoi; matched = true; }
+          else if (r.partner === userName && r.ngayDoi === dateStr) {
+              // Người đi thay: luôn lấy ca làm việc gốc của người được thay, không lấy ca nghỉ P/VR
+              if (isSpecial && r.partner !== 'CÔNG TÁC HC') {
+                  tempCa = getDieuDongWorkCa(r, dateStr);
+              } else {
+                  tempCa = r.caDoi;
+              }
+              matched = true;
+          }
           
           // 2. LOGIC ƯU TIÊN TUYỆT ĐỐI & ÉP LÊN MÀU TÍM
           if (matched) {
@@ -1887,7 +1917,7 @@ function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi, ignoreReqId = n
 // 3. KHÓA NÚT DUYỆT (Bơm ID của đơn đang duyệt vào hệ thống)
 function validateExistingReq(req) {
   const pKip = req.partnerKip || "";
-  const rKip = req.kip || "";
+  const rKip = getPersonKip(req.name, req.kip || "");
   const isDoiCungNgay = (req.ngayDoi && req.ngayTra && req.ngayDoi === req.ngayTra);
 
   if (req.ngayDoi) {
@@ -2853,6 +2883,41 @@ function exportExcelSched() {
 // ===============================================================
 // HỆ THỐNG ĐIỀU ĐỘNG HÀNH CHÍNH (BÁO LỖI THỜI GIAN THỰC)
 // ===============================================================
+// Tìm người nghỉ (ông Hồng) khi điều dự phòng lên thay
+function findLeavePersonForBackup(role, kip, dateStr, leaveType) {
+  const leaveTypeMap = { 'P': 'P', 'VR': 'VR', 'Ô': 'O_m', 'TS': 'TS', 'O': 'O' };
+  const targetLT = leaveTypeMap[leaveType] || 'P';
+  const LEAVE_CAS = ['P', 'VR', 'Ô', 'TS', 'O'];
+  const inKip = NV_LIST.filter(u => u.chucDanh === role && u.kip === kip);
+  for (const u of inKip) {
+    if (getCaTrucGoc(u.name, u.kip, dateStr) === 'OFF') continue;
+    const hasLeave = typeof allLeaves !== 'undefined' && allLeaves.some(lv =>
+      lv.name === u.name && lv.status === 'approved' &&
+      lv.dates && lv.dates.split(',').map(s => s.trim()).includes(dateStr) &&
+      (lv.leaveType === targetLT || (!lv.leaveType && targetLT === 'P'))
+    );
+    if (hasLeave || LEAVE_CAS.includes(getCaThucTe(u.name, u.kip, dateStr))) return u;
+  }
+  return null;
+}
+function findLeavePersonForBackupAuto(role, dateStr, leaveType, backupName, backupKip) {
+  const leaveTypeMap = { 'P': 'P', 'VR': 'VR', 'Ô': 'O_m', 'TS': 'TS', 'O': 'O' };
+  const targetLT = leaveTypeMap[leaveType] || 'P';
+  const LEAVE_CAS = ['P', 'VR', 'Ô', 'TS', 'O'];
+  const caBackup = getCaTrucGoc(backupName, backupKip, dateStr);
+  if (caBackup === 'OFF') return null;
+  return NV_LIST.find(u => {
+    if (u.chucDanh !== role || u.name === backupName) return false;
+    if (getCaTrucGoc(u.name, u.kip, dateStr) !== caBackup) return false;
+    const hasLeave = typeof allLeaves !== 'undefined' && allLeaves.some(lv =>
+      lv.name === u.name && lv.status === 'approved' &&
+      lv.dates && lv.dates.split(',').map(s => s.trim()).includes(dateStr) &&
+      (lv.leaveType === targetLT || (!lv.leaveType && targetLT === 'P'))
+    );
+    return hasLeave || LEAVE_CAS.includes(getCaThucTe(u.name, u.kip, dateStr));
+  }) || null;
+}
+
 let hcIdCounter = 0;
 
 function addRowHC() {
@@ -2875,7 +2940,10 @@ function addRowHC() {
         <option value="O">⛔ Không hưởng lương (O)</option>
       </select>
       <label style="font-size:12px; font-weight:600; color:#dc2626; display:flex; align-items:center; gap:4px; margin-top:4px; cursor:pointer;">
-        <input type="checkbox" class="h-no-replace" onchange="checkShiftStatus(${id}); validateHCDates(${id})" style="width:18px; height:18px; margin:0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> KHÔNG bố trí người thay
+        <input type="checkbox" class="h-no-replace" onchange="if(this.checked){const ub=this.closest('tr').querySelector('.h-use-backup');if(ub)ub.checked=false;} checkShiftStatus(${id}); validateHCDates(${id})" style="width:18px; height:18px; margin:0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> KHÔNG bố trí người thay
+      </label>
+      <label style="font-size:12px; font-weight:600; color:#7c3aed; display:flex; align-items:center; gap:4px; margin-top:4px; cursor:pointer;" title="Điều người trong cùng kíp có chức danh dự phòng lên thay, rồi tìm người thay chỗ ông đó">
+        <input type="checkbox" class="h-use-backup" onchange="if(this.checked){const nr=this.closest('tr').querySelector('.h-no-replace');if(nr)nr.checked=false;} syncHCFilters(${id}); syncPartnerList(${id}); checkShiftStatus(${id}); validateHCDates(${id})" style="width:18px; height:18px; margin:0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> Điều dự phòng kíp lên thay
       </label>
       <input type="date" class="h-date" style="padding:8px; width:100%; border-radius:4px;" onchange="syncHCFilters(${id}); checkShiftStatus(${id}); validateHCDates(${id})">
     </td>
@@ -2910,9 +2978,79 @@ function syncHCFilters(id) {
   const d = row.querySelector('.h-date').value;
   const type = row.querySelector('.h-type').value;
   const chkContainer = row.querySelector('.h-main-chk');
+  const useBackup = row.querySelector('.h-use-backup') && row.querySelector('.h-use-backup').checked;
   const LEAVE_TYPES = ['P', 'VR', 'Ô', 'TS', 'O'];
 
   if(!r || !k) { chkContainer.innerHTML = '<span style="color:#64748b; font-size:12px;">Vui lòng chọn CD & Kíp</span>'; return; }
+
+  // ── CHẾ ĐỘ "ĐIỀU DỰ PHÒNG LÊN THAY" ──
+  // Tìm những người có chức danh dự phòng = r (chức danh của ông nghỉ)
+  // và ngày d đang trực CÙNG CA với kíp ông nghỉ (không giới hạn kíp, lọc theo ca thực tế)
+  if (useBackup) {
+    if (!d) {
+      chkContainer.innerHTML = '<span style="color:#7c3aed; font-size:12px; font-weight:700;">⚠️ Vui lòng chọn Ngày để tìm dự phòng</span>';
+      return;
+    }
+    // AUTO_LEAVE hoặc không chọn kíp: quét tất cả ca đang trực
+    const isAutoKip = (!k || k === 'AUTO_LEAVE');
+
+    let caOngNghi = null;
+    if (!isAutoKip) {
+      const repOfKip = NV_LIST.find(u => u.kip === k);
+      caOngNghi = repOfKip ? getCaTrucGoc(repOfKip.name, k, d) : null;
+      if (!caOngNghi || caOngNghi === 'OFF') {
+        chkContainer.innerHTML = `<span style="color:#7c3aed; font-size:12px; font-weight:700;">⚠️ Kíp ${k} ngày ${fmtDate(d)} đang nghỉ (OFF), không cần điều dự phòng</span>`;
+        return;
+      }
+    }
+
+    // Tìm người có dự phòng = r VÀ đang trực ca (không OFF)
+    // Kíp cụ thể: phải cùng ca với kíp ông nghỉ; AUTO: mọi ca đang trực đều hiện
+    const backupCandidates = NV_LIST.filter(u => {
+      if (!u.chucDanhDuPhong) return false;
+      const bList = u.chucDanhDuPhong.split(',').map(s => s.trim());
+      if (!bList.includes(r)) return false;
+      if (u.chucDanh === r) return false;
+      const caThucTe = getCaThucTe(u.name, u.kip, d);
+      if (caThucTe === 'OFF') return false;
+      if (!isAutoKip && caThucTe !== caOngNghi) return false;
+      return true;
+    });
+
+    if (backupCandidates.length === 0) {
+      const msg = isAutoKip
+        ? `Không tìm thấy ai có chức danh dự phòng "${r}" đang trực ngày ${fmtDate(d)}`
+        : `Không tìm thấy ai có chức danh dự phòng "${r}" đang trực ca ${caOngNghi} ngày ${fmtDate(d)}`;
+      chkContainer.innerHTML = `<span style="color:#7c3aed; font-size:12px; font-weight:700;">⚠️ ${msg}</span>`;
+      return;
+    }
+
+    const headerNote = isAutoKip ? `ngày ${fmtDate(d)}` : `ca ${caOngNghi} ngày ${fmtDate(d)}`;
+    let leaveHint = '';
+    if (!isAutoKip) {
+      const lp = findLeavePersonForBackup(r, k, d, type);
+      if (lp) leaveHint = ` · <span style="color:#dc2626;">Ông nghỉ: ${lp.name}</span>`;
+    }
+    let html = `<div style="color:#7c3aed; font-size:11px; font-weight:700; margin-bottom:6px; padding-bottom:4px; border-bottom:2px solid #ede9fe;">🔁 Đang trực ${headerNote}${leaveHint} — Chọn người dự phòng điều lên:</div>`;
+    html += backupCandidates.map(u => {
+      const caHienTai = getCaThucTe(u.name, u.kip, d);
+      const caTag = isAutoKip ? `<span style="color:#dc2626; margin-left:4px; font-size:11px; font-weight:700;">Ca ${caHienTai}</span>` : '';
+      return `
+      <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer; font-weight:500;">
+        <input type="checkbox" class="hc-chk-val" value="${u.name}" onchange="syncPartnerList(${id}); checkShiftStatus(${id}); validateHCDates(${id});" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;">
+        ${u.name}
+        <span style="color:#ea580c; margin-left:4px; font-size:11px; font-weight:700;">[${u.kip}]</span>
+        ${caTag}
+        <span style="color:#7c3aed; margin-left:6px; font-size:11px; background:#ede9fe; padding:2px 6px; border-radius:4px;">${u.chucDanh} · dự phòng ${r}</span>
+      </label>`;
+    }).join('');
+    chkContainer.innerHTML = html;
+
+    // Reset partner list
+    row.querySelector('.h-pkip').value = '';
+    row.querySelector('.h-partner').innerHTML = '<span style="color:#64748b; font-size:12px;">Chọn người dự phòng trước</span>';
+    return;
+  }
 
   // Với chế độ nghỉ: bắt buộc phải chọn ngày trước
   if (LEAVE_TYPES.includes(type) && !d) {
@@ -2957,8 +3095,9 @@ function syncHCFilters(id) {
   html += matches.map(u => {
     let shiftStr = "";
     if (d) {
-        const caGoc = getCaTrucGoc(u.name, k, d);
-        const caThucTe = getCaThucTe(u.name, k, d);
+        const uKip = (k === 'AUTO_LEAVE') ? u.kip : k;
+        const caGoc = getCaTrucGoc(u.name, uKip, d);
+        const caThucTe = getCaThucTe(u.name, uKip, d);
         // Nếu ca thực tế là P/VR/Ô/TS/O (do đơn nghỉ) → hiện ca gốc, đánh dấu cần thay
         const isLeaveShift = ['P','VR','Ô','TS','O'].includes(caThucTe);
         if (isLeaveShift) {
@@ -2991,6 +3130,7 @@ function syncPartnerList(id) {
   const pk = row.querySelector('.h-pkip').value; 
   const dHC = row.querySelector('.h-date').value; 
   const kip = row.querySelector('.h-kip').value; // Bổ sung lấy Kíp của người đi HC
+  const useBackup = row.querySelector('.h-use-backup') && row.querySelector('.h-use-backup').checked;
   const partnerChkContainer = row.querySelector('.h-partner');
 
   const oldErrs = partnerChkContainer.querySelectorAll('.realtime-err');
@@ -3005,6 +3145,19 @@ function syncPartnerList(id) {
 
   const selectedNames = Array.from(row.querySelectorAll('.hc-chk-val:checked')).map(cb => cb.value);
 
+  // ── CHẾ ĐỘ DỰ PHÒNG: tìm người thay theo chức danh CHÍNH của ông dự phòng ──
+  // Ông dự phòng (vd: Tùng - lái máy) điều lên làm trực chính.
+  // Cần tìm người thay chỗ ông Tùng ở vị trí LÁI MÁY (không phải trực chính).
+  let searchRole = r; // Mặc định: tìm theo chức danh ông nghỉ
+  let backupPersonName = null;
+  if (useBackup && selectedNames.length > 0) {
+    const backupPerson = NV_LIST.find(u => u.name === selectedNames[0]);
+    if (backupPerson) {
+      searchRole = backupPerson.chucDanh; // Dùng chức danh CHÍNH của ông dự phòng
+      backupPersonName = backupPerson.name;
+    }
+  }
+
   // --- BƯỚC CHUẨN BỊ: TÍNH TRƯỚC CA CỦA NGƯỜI ĐI HC ĐỂ LÀM CĂN CỨ CHECK AN TOÀN ---
   let caThucTeA = 'OFF';
   if (dHC && kip) {
@@ -3018,16 +3171,17 @@ function syncPartnerList(id) {
 
   // --- LOGIC MỚI: LỌC SẠCH SẼ 100% NGAY TỪ VÒNG TÌM KIẾM ---
   const partners = NV_LIST.filter(u => {
-    // 1. Kiểm tra chức danh (Chính hoặc Dự phòng)
+    // 1. Kiểm tra chức danh (theo searchRole - có thể là CD chính ông dự phòng)
     let matchRole = false;
-    if (u.chucDanh === r) matchRole = true;
+    if (u.chucDanh === searchRole) matchRole = true;
     if (u.chucDanhDuPhong) {
         const backupList = u.chucDanhDuPhong.split(',').map(s => s.trim());
-        if (backupList.includes(r)) matchRole = true;
+        if (backupList.includes(searchRole)) matchRole = true;
     }
     if (!matchRole) return false;
     
-    // 2. Không được chọn chính người đang đi HC
+    // 2. Không được chọn chính người đang đi HC (ông nghỉ gốc)
+    // Và không được chọn chính ông dự phòng vừa được điều lên
     if (selectedNames.includes(u.name)) return false;
 
     // 3. Nếu chọn Kíp cụ thể (Kíp 1, 2...) thì lọc đúng kíp đó
@@ -3052,16 +3206,26 @@ function syncPartnerList(id) {
   });
   
   if(partners.length === 0) {
-    partnerChkContainer.innerHTML = '<span style="color:#dc2626; font-size:12px;">Không tìm thấy ai rảnh và đảm bảo an toàn</span>';
+    const roleLabel = useBackup && searchRole !== r ? `${searchRole} (chức danh ông ${backupPersonName || 'dự phòng'})` : r;
+    partnerChkContainer.innerHTML = `<span style="color:#dc2626; font-size:12px;">Không tìm thấy ai rảnh (${roleLabel}) và đảm bảo an toàn</span>`;
   } else {
-    let html = `<label style="display:flex; align-items:center; font-weight:700; color:#b45309; margin-bottom:8px; border-bottom:2px solid #fde68a; padding-bottom:6px; cursor:pointer;">
-                  <input type="checkbox" onchange="toggleAllHC(${id}, this, '.hc-partner-val')" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> CHỌN TẤT CẢ
-                </label>`;
+    const headerColor = useBackup ? '#7c3aed' : '#b45309';
+    const headerBorder = useBackup ? '#ede9fe' : '#fde68a';
+    const headerLabel = useBackup && searchRole !== r
+      ? `Chọn người thay chỗ ông ${backupPersonName || 'dự phòng'} (${searchRole}):`
+      : 'CHỌN TẤT CẢ';
+
+    let html = `<label style="display:flex; align-items:center; font-weight:700; color:${headerColor}; margin-bottom:8px; border-bottom:2px solid ${headerBorder}; padding-bottom:6px; cursor:pointer;">`;
+    if (!useBackup) {
+      html += `<input type="checkbox" onchange="toggleAllHC(${id}, this, '.hc-partner-val')" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;">`;
+    }
+    html += `${headerLabel}</label>`;
+
     html += partners.map(u => {
       let isBackup = false;
-      if (u.chucDanh !== r && u.chucDanhDuPhong) {
+      if (u.chucDanh !== searchRole && u.chucDanhDuPhong) {
           const backupList = u.chucDanhDuPhong.split(',').map(s => s.trim());
-          if (backupList.includes(r)) isBackup = true;
+          if (backupList.includes(searchRole)) isBackup = true;
       }
       
       const backupTag = isBackup ? `<span style="color:#2563eb; font-size:11px; font-weight:700; margin-left:6px; background:#dbeafe; padding:2px 6px; border-radius:4px;">(Dự phòng)</span>` : '';
@@ -3099,7 +3263,7 @@ function checkShiftStatus(id) {
   if (selectedNames.length > 0) {
     // Dùng ca GỐC (getCaTrucGoc) để quyết định cần người thay không
     // Ca P/VR/Ô mà ca gốc là Nghỉ (OFF) → không cần thay
-    isShift = selectedNames.some(name => getCaTrucGoc(name, k, d) !== 'OFF');
+    isShift = selectedNames.some(name => getCaTrucGoc(name, getPersonKip(name, k), d) !== 'OFF');
   } else {
     const rep = NV_LIST.find(u => u.kip === k);
     if(rep) isShift = getCaTrucGoc(rep.name, k, d) !== 'OFF';
@@ -3178,11 +3342,12 @@ function validateHCDates(id) {
   let caThucTeA = 'OFF';
   
   if (repA_name) {
-      caThucTeA = getCaThucTe(repA_name, kip, dHC);
+      const personKip = getPersonKip(repA_name, kip);
+      caThucTeA = getCaThucTe(repA_name, personKip, dHC);
       isShiftA = caThucTeA !== 'OFF';
       
       if (isShiftA) {
-          const loiA_HC = checkViPhamAnToan(repA_name, kip, dHC, type);
+          const loiA_HC = checkViPhamAnToan(repA_name, personKip, dHC, type);
           if (loiA_HC) {
               partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Lỗi người đi HC: ${loiA_HC}</div>`);
           }
@@ -3218,12 +3383,13 @@ function validateHCDates(id) {
         }
         
         if (repA_name) {
-            const caA_Tra = getCaThucTe(repA_name, kip, dRet);
+            const personKip = getPersonKip(repA_name, kip);
+            const caA_Tra = getCaThucTe(repA_name, personKip, dRet);
             
             if(caA_Tra !== 'OFF') {
               partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Ngày trả ca, Kíp đi HC đang vướng ca ${caA_Tra}. Phải chọn ngày NGHỈ để đi trả ca!</div>`);
             } else if (caB_Tra !== 'OFF' && caB_Tra !== 'HC' && caB_Tra !== 'P') {
-                const loiA_Tra = checkViPhamAnToan(repA_name, kip, dRet, caB_Tra);
+                const loiA_Tra = checkViPhamAnToan(repA_name, personKip, dRet, caB_Tra);
                 if (loiA_Tra) partnerBox.insertAdjacentHTML('afterbegin', `<div class="realtime-err" style="color:#dc2626; font-size:12px; font-weight:700; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #fca5a5;">❌ Lỗi An toàn (Lúc trả ca): ${loiA_Tra}</div>`);
             }
         }
@@ -3253,11 +3419,12 @@ function renderAdminHCHist() {
   
   tbody.innerHTML = hcReqs.map(r => {
     const isPhep = r.reason.includes('[NGHỈ PHÉP]');
+    const displayKip = (r.kip === 'AUTO_LEAVE' || !r.kip) ? getPersonKip(r.name, r.kip) : r.kip;
     return `
     <tr>
       <td style="font-weight:600">${fmtDate(r.ngayDoi)}</td>
       <td style="color:#1a56a0; font-weight:700">${r.name}</td>
-      <td><span class="dp">${r.kip}</span></td>
+      <td><span class="dp">${displayKip}</span></td>
       <td>${r.partner === 'CÔNG TÁC HC' ? '--' : `<span style="color:#ea580c; font-weight:700">${r.partner}</span>`}</td>
       <td>
         ${r.partner === 'CÔNG TÁC HC' 
@@ -3322,12 +3489,91 @@ async function submitBatchHC() {
     
     const isNoReplace = row.querySelector('.h-no-replace').checked;
     const isNoReturn = row.querySelector('.h-no-return').checked;
+    const useBackup = row.querySelector('.h-use-backup') && row.querySelector('.h-use-backup').checked;
     const isLeave = (type === 'P' || type === 'VR' || type === 'Ô' || type === 'TS' || type === 'O');
     const noRetRequired = isLeave || isNoReturn;
 
+    // ── CHẾ ĐỘ DỰ PHÒNG: tạo 2 lệnh điều động trong 1 thao tác ──
+    // selectedNames = [ông dự phòng đã chọn] (người cùng ca, có dự phòng chức danh r)
+    // selectedPartners = [người thay chỗ ông dự phòng ở chức danh chính của ổng]
+    if (useBackup) {
+      if (selectedNames.length === 0) { hasError = true; showLocalAlert('batchhc-msg', 'Vui lòng chọn ông dự phòng!', 'ae'); return; }
+      if (selectedPartners.length === 0) { hasError = true; showLocalAlert('batchhc-msg', 'Vui lòng chọn người thay chỗ ông dự phòng!', 'ae'); return; }
+      if (!pkip) { hasError = true; showLocalAlert('batchhc-msg', 'Vui lòng chọn Kíp người thay!', 'ae'); return; }
+
+      selectedNames.forEach((n, idx) => {
+        // n = ông dự phòng (vd: Tùng - lái máy, dự phòng trực chính)
+        const backupInfo = NV_LIST.find(u => u.name === n);
+        const backupKip = backupInfo ? backupInfo.kip : kip; // kíp thật của ông dự phòng
+        const backupMainRole = backupInfo ? backupInfo.chucDanh : role; // CD chính ông dự phòng (lái máy)
+
+        const caWorkBackup = getCaTrucGoc(n, backupKip, dHC); // ca làm việc gốc của ông dự phòng
+        if (caWorkBackup === 'OFF') {
+          hasError = true; showLocalAlert('batchhc-msg', `LỖI: Ông ${n} ngày ${dHC} đang nghỉ (OFF), không thể điều động lên thay!`, 'ae'); return;
+        }
+        const loiBackup = checkViPhamAnToan(n, backupKip, dHC, caWorkBackup);
+        if (loiBackup) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN (ông dự phòng ${n}): ${loiBackup}`, 'ae'); return; }
+
+        // Người thay chỗ ông dự phòng (ở vị trí lái máy)
+        const replacerName = selectedPartners[idx] || selectedPartners[0];
+        const replacerInfo = NV_LIST.find(u => u.name === replacerName);
+        const replacerKip = replacerInfo ? replacerInfo.kip : pkip;
+
+        const caReplacer = getCaThucTe(replacerName, replacerKip, dHC);
+        if (caReplacer !== 'OFF') { hasError = true; showLocalAlert('batchhc-msg', `LỖI: Ông ${replacerName} ngày ${dHC} đang có ca ${caReplacer}, không rảnh để thay!`, 'ae'); return; }
+        const loiReplacer = checkViPhamAnToan(replacerName, replacerKip, dHC, caWorkBackup);
+        if (loiReplacer) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN (người thay ${replacerName}): ${loiReplacer}`, 'ae'); return; }
+
+        // Lệnh dự phòng luôn dùng [LỆNH ĐIỀU ĐỘNG] vì ông Tùng/Tân đi làm ca thật, không nghỉ
+        const leaveTag = { P:'[NGHỈ PHÉP]', VR:'[VIỆC RIÊNG]', Ô:'[NGHỈ ỐM]', TS:'[NGHỈ THAI SẢN]', O:'[KH LƯƠNG]' }[type] || '';
+
+        // Tìm ông nghỉ gốc (vd: Hồng) — chức danh role, cùng ca với ông dự phòng
+        const isAutoKip = (!kip || kip === 'AUTO_LEAVE');
+        const leavePerson = isAutoKip
+          ? findLeavePersonForBackupAuto(role, dHC, type, n, backupKip)
+          : findLeavePersonForBackup(role, kip, dHC, type);
+        if (!leavePerson) {
+          hasError = true;
+          showLocalAlert('batchhc-msg', `LỖI: Không tìm thấy người nghỉ (${role}) ngày ${dHC} để điều dự phòng lên thay!`, 'ae');
+          return;
+        }
+        const caGocLeave = getCaTrucGoc(leavePerson.name, leavePerson.kip, dHC);
+        const leaveReasonPrefix = { P:'[NGHỈ PHÉP]', VR:'[VIỆC RIÊNG]', Ô:'[NGHỈ ỐM]', TS:'[NGHỈ THAI SẢN]', O:'[NGHỈ KHÔNG LƯƠNG]' }[type] || '[NGHỈ PHÉP]';
+
+        const cancelCheckUsers = [leavePerson.name, n, replacerName];
+        allReqs.forEach(req => {
+          if (req.status === 'pending_partner' || req.status === 'pending_ld') {
+            if (cancelCheckUsers.includes(req.name) || cancelCheckUsers.includes(req.partner)) {
+              if ([dHC].includes(req.ngayDoi) || [dHC].includes(req.ngayTra)) cancelIds.add(req.id);
+            }
+          }
+        });
+
+        if (!hasError) {
+          // Lệnh 1: ông Hồng nghỉ → ông Tùng (dự phòng) đi thay ở chức danh role
+          allReqsHC.push({
+            name: leavePerson.name, kip: leavePerson.kip, caDoi: caGocLeave, ngayDoi: dHC,
+            caTra: 'OFF', ngayTra: dHC,
+            partner: n, partnerKip: backupKip, partnerRole: role,
+            reason: `${leaveReasonPrefix} [DỰ PHÒNG ĐI THAY - ${n}] ${reason}`, status: 'approved',
+            approvedBy: CU.name
+          });
+          // Lệnh 2: ông Tùng đi lên → ông Tân thay chỗ Tùng ở chức danh chính (lái máy)
+          allReqsHC.push({
+            name: n, kip: backupKip, caDoi: caWorkBackup, ngayDoi: dHC,
+            caTra: 'OFF', ngayTra: dHC,
+            partner: replacerName, partnerKip: replacerKip, partnerRole: backupMainRole,
+            reason: `[LỆNH ĐIỀU ĐỘNG] ${leaveTag} [THAY DỰ PHÒNG - CD: ${backupMainRole}] ${reason}`, status: 'approved',
+            approvedBy: CU.name
+          });
+        }
+      });
+      return; // Kết thúc xử lý hàng này, không chạy logic cũ bên dưới
+    }
+
     // Kiểm tra ca GỐC của từng người để quyết định có cần người thay không
-    const namesNeedReplace = isLeave ? selectedNames.filter(n => getCaTrucGoc(n, kip, dHC) !== 'OFF') : selectedNames;
-    const namesNoReplace = isLeave ? selectedNames.filter(n => getCaTrucGoc(n, kip, dHC) === 'OFF') : [];
+    const namesNeedReplace = isLeave ? selectedNames.filter(n => getCaTrucGoc(n, getPersonKip(n, kip), dHC) !== 'OFF') : selectedNames;
+    const namesNoReplace = isLeave ? selectedNames.filter(n => getCaTrucGoc(n, getPersonKip(n, kip), dHC) === 'OFF') : [];
 
     // --- BỘ LỌC ĐIỀU KIỆN GỬI FORM ---
     if (!isLeave && !isNoReplace) {
@@ -3350,12 +3596,12 @@ async function submitBatchHC() {
     else if (isNoReturn && !isLeave) reasonPrefix += ' (KHÔNG TRẢ CA)'; // Đóng dấu không trả ca vào lịch sử
 
     selectedNames.forEach((n, idx) => {
-      const caGocA = getCaTrucGoc(n, kip, dHC);
-      const caThucTeA = getCaThucTe(n, kip, dHC);
+      const personKip = getPersonKip(n, kip);
+      const caGocA = getCaTrucGoc(n, personKip, dHC);
       // Dùng ca GỐC để quyết định cần người thay không
       const isShiftItem = caGocA !== 'OFF';
-      // Ca hiển thị trong lệnh là ca thực tế (có thể là P/VR/Ô...)
-      const caDisplay = caThucTeA !== 'OFF' ? caThucTeA : caGocA;
+      // Ca làm việc cần bố trí thay luôn là ca GỐC (K/C/N...), không phải ca nghỉ P/VR
+      const caWork = caGocA;
       let finalRetDate = retDate, autoCaTra = 'HC', finalPartner = 'CÔNG TÁC HC', finalPartnerKip = 'Hành chính';
 
     if (isShiftItem) {
@@ -3368,7 +3614,7 @@ async function submitBatchHC() {
               finalPartner = selectedPartners[idx];
               const pInfo = NV_LIST.find(u => u.name === finalPartner);
               finalPartnerKip = pInfo ? pInfo.kip : pkip;
-              const loi = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caDisplay);
+              const loi = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caWork);
               if(loi) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN: Đ/c ${finalPartner} vi phạm - ${loi}`, 'ae'); return; }
             }
         } else { 
@@ -3377,9 +3623,9 @@ async function submitBatchHC() {
             finalPartnerKip = pInfo ? pInfo.kip : pkip;
             const caGocB_Tra = getCaThucTe(finalPartner, finalPartnerKip, retDate);
             autoCaTra = caGocB_Tra;
-            const loiThay = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caDisplay);
+            const loiThay = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caWork);
             if(loiThay) { hasError = true; showLocalAlert('batchhc-msg', `LỖI NGƯỜI THAY: ${loiThay}`, 'ae'); return; }
-            const loiTra = checkViPhamAnToan(n, kip, retDate, autoCaTra);
+            const loiTra = checkViPhamAnToan(n, personKip, retDate, autoCaTra);
             if(loiTra) { hasError = true; showLocalAlert('batchhc-msg', `LỖI TRẢ CA: ${loiTra}`, 'ae'); return; }
         }
       } else if (isLeave) {
@@ -3399,7 +3645,7 @@ async function submitBatchHC() {
 
       if(!hasError) {
         allReqsHC.push({
-          name: n, kip: kip, caDoi: isShiftItem ? caThucTeA : 'OFF', ngayDoi: dHC,
+          name: n, kip: personKip, caDoi: isShiftItem ? caWork : 'OFF', ngayDoi: dHC,
           caTra: autoCaTra, ngayTra: isShiftItem ? finalRetDate : dHC,
           partner: finalPartner, partnerKip: finalPartnerKip, partnerRole: role,
           reason: reasonPrefix + " " + reason, status: 'approved',
