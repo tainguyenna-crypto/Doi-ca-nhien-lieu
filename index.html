@@ -327,7 +327,7 @@ textarea{resize:none;height:80px}
         </div>
         <div>
           <label>2. Ngày bắt đầu áp dụng</label>
-          <input type="date" id="tc-date" style="border-color:#f97316;">
+          <input type="date" id="tc-date" onchange="filterTCUsers()" style="border-color:#f97316;">
         </div>
       </div>
       <div class="form-row">
@@ -765,37 +765,53 @@ textarea{resize:none;height:80px}
 </div>
 <script>
 // =============================================
-// DÁN LINK WEB APP CỦA BẠN VÀO DÒNG BÊN DƯỚI:
+// KHAI BÁO BIẾN TOÀN CỤC
 // =============================================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjb6nn9Y5thaK1tj6FDU5LoyHmdoASh7ZAtvnfy5GWhYiQoywwW3-_97kCOcy7BIk/exec";
-
-// CẤU HÌNH BIẾN ĐỘNG TRÊN GIAO DIỆN
 let APP_CONFIG = { tenPX: "Phân xưởng", lechMax: 10 };
-let NV_LIST=[]; let CA = {}; let CU=null, allReqs=[], allLeaves=[]; let MAU_LICH={}; // <- Thêm MAU_LICH vào đây
+let NV_LIST=[]; let CA = {}; let CU=null;
+let allReqs=[]; let reqsByName = {}; 
+let allLeaves=[]; let leavesByName = {}; 
+let allTransfers = []; let transfersByName = {}; 
+let MAU_LICH={};
 let autoRefreshTimer = null;
+
+// Báo lỗi ngay lập tức nếu có lỗi script
+window.onerror = function(msg, url, line) {
+  const loadTxt = document.getElementById('loading-text');
+  if (loadTxt) loadTxt.innerHTML = '<span style="color:red">LỖI SCRIPT: ' + msg + ' (Dòng ' + line + ')</span>';
+  return false;
+};
+
 async function api(p) {
-  // SỬA LỖI 2: Tự động đính kèm Token (Thẻ bài) vào mọi gói tin gửi lên máy chủ
   if (typeof CU !== 'undefined' && CU && CU.token) {
     p.reqName = CU.name;
     p.reqToken = CU.token;
   }
 
   return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error("Yêu cầu quá thời gian (30s). Vui lòng kiểm tra mạng hoặc Apps Script!"));
+    }, 30000);
+
     if (typeof google !== 'undefined' && google.script && google.script.run) { 
-        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).apiRun(p); 
+        google.script.run
+          .withSuccessHandler(res => { clearTimeout(timeout); resolve(res); })
+          .withFailureHandler(err => { clearTimeout(timeout); reject(err); })
+          .apiRun(p); 
     } 
     else { 
-        // CHUYỂN SANG PHƯƠNG THỨC POST ĐỂ KHÔNG BỊ CHẶN ẢNH KHI CHẠY FILE TĨNH
         fetch(SCRIPT_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams(p).toString()
         })
-        .then(r => r.json())
-        .then(resolve)
-        .catch(reject); 
+        .then(r => {
+          if (!r.ok) throw new Error("Mã lỗi HTTP: " + r.status);
+          return r.json();
+        })
+        .then(res => { clearTimeout(timeout); resolve(res); })
+        .catch(err => { clearTimeout(timeout); reject(err); }); 
     }
   });
 }
@@ -887,13 +903,11 @@ function transferMatchesYM(t, yr, mo) {
 function setupDynamicFields(settings) {
   if(settings.configs) {
     APP_CONFIG.tenPX = settings.configs.TEN_PHAN_XUONG || "Phân xưởng"; 
-    // Lấy Max từ Excel, mặc định là 10
     APP_CONFIG.lechMax = parseInt(settings.configs.SO_CA_LECH_MAX) || 10;
-    // Lấy Cảnh báo từ Excel, nếu quên chưa nhập thì tự động lấy mức Max - 2
     APP_CONFIG.lechWarn = parseInt(settings.configs.SO_CA_LECH_CANH_BAO) || (APP_CONFIG.lechMax - 2); 
     APP_CONFIG.configs = settings.configs;
-    APP_CONFIG.kipList = settings.kips; // THÊM DÒNG NÀY
-    APP_CONFIG.priorityOrder = settings.chucDanhs; // THÊM DÒNG NÀY
+    APP_CONFIG.kipList = settings.kips;
+    APP_CONFIG.priorityOrder = settings.chucDanhs;
     document.getElementById('page-title').textContent = "Quản lý đổi ca – " + APP_CONFIG.tenPX; 
     document.getElementById('tb-ten-px').textContent = APP_CONFIG.tenPX;
   }
@@ -908,20 +922,46 @@ function setupDynamicFields(settings) {
 }
 
 window.onload = async () => {
+  const loadingText = document.getElementById('loading-text');
   try { 
+    if (loadingText) loadingText.innerHTML = "Đang kết nối máy chủ...";
     const res = await api({action: "getUsers"}); 
+    if (loadingText) loadingText.innerHTML = "Đang xử lý dữ liệu...";
+
     if (res && res.users && res.users.length > 0) { 
       NV_LIST = res.users; 
-      MAU_LICH = res.mauLich || {}; // <- Dán dòng này vào đây
-      allTransfers = res.transfers || []; // DÒNG MỚI THÊM VÀO
+      MAU_LICH = res.mauLich || {}; 
+      
+      allTransfers = (res.transfers || []).map(t => {
+        t._date = (t.date || "").toString().substring(0, 10);
+        return t;
+      });
+      transfersByName = {};
+      allTransfers.forEach(t => {
+        if (!transfersByName[t.name]) transfersByName[t.name] = [];
+        transfersByName[t.name].push(t);
+      });
+
       initSS(); 
       if (res.settings) setupDynamicFields(res.settings);
-      document.getElementById('login-loading').style.display = 'none'; document.getElementById('login-box').style.display = 'block'; 
+      
+      document.getElementById('login-loading').style.display = 'none'; 
+      document.getElementById('login-box').style.display = 'block'; 
     } else {
-      document.getElementById('spin-icon').style.display = 'none'; document.getElementById('loading-text').innerHTML = '<span style="color:#dc2626;">Dữ liệu nhân sự trống. Vui lòng thêm người vào tab "users".</span>'; 
+      throw new Error("Không tìm thấy dữ liệu nhân sự trên máy chủ.");
     }
   } catch(e) { 
-    document.getElementById('spin-icon').style.display = 'none'; document.getElementById('loading-text').innerHTML = '<span style="color:#dc2626;">Lỗi tải dữ liệu. Nhớ ấn <b>Triển khai bản mới</b> trên Apps Script!</span>'; 
+    console.error("Lỗi khởi tạo App:", e);
+    const spinIcon = document.getElementById('spin-icon');
+    if (spinIcon) spinIcon.style.display = 'none'; 
+    if (loadingText) {
+      loadingText.innerHTML = 
+        `<div style="color:#dc2626; font-weight:bold; margin-bottom:10px;">❌ KHÔNG THỂ TẢI DỮ LIỆU</div>` +
+        `<div style="color:#64748b; font-size:12px; margin-bottom:15px; text-align:left; background:#f8fafc; padding:10px; border-radius:6px; border:1px solid #e2e8f0;">` +
+        `<b>Chi tiết lỗi:</b><br>${e.message || e}<br><br>` +
+        `<b>Gợi ý:</b><br>1. Kiểm tra kết nối Internet.<br>2. Nhấn Ctrl + F5 để làm mới hoàn toàn.<br>3. Kiểm tra Apps Script đã "Triển khai" chưa.</div>` +
+        `<button onclick="location.reload()" style="width:100%; padding:10px; background:#1a56a0; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">Thử lại ngay</button>`;
+    }
   }
 };
 
@@ -930,7 +970,24 @@ const d = await api({action:"getAll"});
 allReqs = (d.requests||[]).map(r => {
   const req = {...r, id: r.id.toString()};
   if (req.kip === 'AUTO_LEAVE' || !req.kip) req.kip = getPersonKip(req.name, req.kip);
+  // Tối ưu: Lưu sẵn chuỗi ngày đã chuẩn hóa
+  req._dDoi = normalizeDate(r.ngayDoi);
+  req._dTra = normalizeDate(r.ngayTra);
   return req;
+});
+// Tối ưu: Index theo tên (đã trim) để tìm kiếm nhanh hơn
+reqsByName = {};
+allReqs.forEach(r => {
+  const nameTrim = (r.name || "").toString().trim();
+  const partnerTrim = (r.partner || "").toString().trim();
+  
+  if (!reqsByName[nameTrim]) reqsByName[nameTrim] = [];
+  reqsByName[nameTrim].push(r);
+  
+  if (partnerTrim && partnerTrim !== nameTrim) {
+    if (!reqsByName[partnerTrim]) reqsByName[partnerTrim] = [];
+    reqsByName[partnerTrim].push(r);
+  }
 });
 const tasks = [loadTransfers(), loadLeaves()];
 if (CU && (CU.role === 'ld' || CU.admin)) tasks.push(loadLeaveBalances());
@@ -938,7 +995,17 @@ await Promise.all(tasks); }
 async function loadLeaves() {
 try {
 const res = await api({ action: 'getLeaves' });
-allLeaves = res.leaves || [];
+allLeaves = (res.leaves || []).map(lv => {
+  // Tối ưu: Lưu sẵn chuỗi ngày để so sánh cho nhanh
+  lv._dateList = lv.dates ? lv.dates.toString().split(',').map(s => s.trim()) : [];
+  return lv;
+});
+// Tối ưu: Index theo tên
+leavesByName = {};
+allLeaves.forEach(lv => {
+  if (!leavesByName[lv.name]) leavesByName[lv.name] = [];
+  leavesByName[lv.name].push(lv);
+});
 } catch(e) { allLeaves = []; }
 }
 
@@ -1165,8 +1232,18 @@ async function doLogin(){
   }
   document.getElementById('f-kip').value = displayKip;
 }
-    let isLd = CU.role === 'ld' ? 'inline-flex' : 'none'; document.getElementById('btn-export-excel').style.display = isLd; document.getElementById('btn-export-history').style.display = isLd; document.getElementById('btn-export-day').style.display = isLd; document.getElementById('btn-export-warn').style.display = isLd;
+    let isLd = (CU.role === 'ld' || CU.admin) ? 'inline-flex' : 'none'; 
+    document.getElementById('btn-export-excel').style.display = isLd; 
+    document.getElementById('btn-export-history').style.display = isLd; 
+    document.getElementById('btn-export-day').style.display = isLd; 
+    document.getElementById('btn-export-warn').style.display = isLd;
     document.getElementById('btn-export-leave-stat').style.display = isLd;
+    document.getElementById('f-leave-hist-kip').style.display = isLd;
+    document.getElementById('f-leave-hist-search').style.display = isLd;
+    
+    // Ẩn các ô lọc không cần thiết ở Lịch sử đổi ca đối với nhân viên
+    document.getElementById('f-fkp').style.display = isLd;
+    document.getElementById('f-hist-search').style.display = isLd;
     const now = new Date(); const curYear = now.getFullYear(); const curMonthStr = curYear + '-' + String(now.getMonth()+1).padStart(2,'0'); 
     initYearMonthFilters();
     await loadAll(); 
@@ -1670,6 +1747,32 @@ function getPersonKip(name, selectedKip) {
 // =====================================================================
 // BẢN ĐỒ TÍNH TOÁN LỊCH CA GỐC (ĐỌC TỪ EXCEL)
 // =====================================================================
+function parseDateLocal(str) {
+  if (!str) return new Date();
+  if (str instanceof Date) return str;
+  let parts;
+  if (str.includes('-')) {
+    parts = str.split('T')[0].split('-');
+    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  } else if (str.includes('/')) {
+    parts = str.split('/');
+    return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+  }
+  return new Date(str);
+}
+
+// Chuẩn hóa ngày về dạng YYYY-MM-DD để so sánh chính xác
+function normalizeDate(str) {
+  if (!str) return "";
+  if (str instanceof Date) {
+    const y = str.getFullYear();
+    const m = String(str.getMonth() + 1).padStart(2, '0');
+    const d = String(str.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return str.toString().substring(0, 10);
+}
+
 function getCaTrucGoc(userName, defaultKip, dateStr) {
   if (!dateStr) return 'OFF';
 
@@ -1682,10 +1785,11 @@ function getCaTrucGoc(userName, defaultKip, dateStr) {
   let isNgoaiLe = false;
 
   // MẮT THẦN: Quét lịch sử điều chuyển để ghi đè nếu ngày xét >= ngày áp dụng lệnh
-  if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
-    const sorted = allTransfers
-      .filter(t => t.name === userName && dateStr >= t.date)
-      .sort((a, b) => b.date.localeCompare(a.date));
+  const myTransfers = transfersByName[userName] || [];
+  if (myTransfers.length > 0) {
+    const sorted = myTransfers
+      .filter(t => dateStr >= t._date)
+      .sort((a, b) => b._date.localeCompare(a._date));
     
     if (sorted.length > 0) {
       const latest = sorted[0];
@@ -1703,7 +1807,7 @@ function getCaTrucGoc(userName, defaultKip, dateStr) {
 
   // --- 2. XỬ LÝ KHỐI HÀNH CHÍNH (LỄ, NGHỈ BÙ) ---
   if ((currentKip || "").toLowerCase().includes('hành chính') || (currentKip || "").toLowerCase() === 'hc') {
-    const dateObj = new Date(dateStr);
+    const dateObj = parseDateLocal(dateStr);
     const d = dateObj.getDay(); 
 
     const ngayNghiCuoiTuan = [0, 6]; // 0 là Chủ nhật. Nếu nghỉ cả T7 thì đổi thành [0, 6]
@@ -1751,8 +1855,8 @@ function getCaTrucGoc(userName, defaultKip, dateStr) {
     viTriMoc = c[keyTimKiem] !== undefined ? parseInt(c[keyTimKiem]) : 0; 
   }
 
-  const diffTime = new Date(dateStr) - new Date(ngayMocStr);
-  let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const diffTime = parseDateLocal(dateStr) - parseDateLocal(ngayMocStr);
+  let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
   const len = chuKy.length;
   let viTriHienTai = (viTriMoc + (diffDays % len)) % len;
@@ -1776,116 +1880,120 @@ function getDieuDongWorkCa(req, dateStr) {
 }
 
 // =====================================================================
-// LÍNH GÁC BẢO VỆ AN TOÀN VẬN HÀNH (Chống 2 ca liên tiếp & 4 ca K)
-// =====================================================================
 // HÀM TÍNH LỊCH THỰC TẾ (ĐÃ FIX: ƯU TIÊN TUYỆT ĐỐI CHO LỆNH ĐIỀU ĐỘNG)
 function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullObj = false) {
    let ca = getCaTrucGoc(userName, kipName, dateStr); 
-   const reqs = allReqs
-  .filter(r => (r.status === 'approved' || r.status === 'pending_ld') && r.id !== ignoreReqId)
-  .sort((a, b) => a.id.toString().localeCompare(b.id.toString()));
+   if (!allReqs) return returnFullObj ? { ca: ca, status: 'goc' } : ca;
+
+   const targetDate = (dateStr || "").toString().substring(0, 10);
+   const uName = (userName || "").toString().trim();
    
-   let finalOverride = null;
-   let currentStatus = 'goc'; 
-   let isCommandFound = false; // Cờ đánh dấu nếu đã tìm thấy Lệnh điều động cấp cao
-
-   for (let i = 0; i < reqs.length; i++) {
-      let r = reqs[i];
-      // Nhận diện Lệnh cấp cao (Điều động, Nghỉ phép, Việc riêng...)
-      const isSpecial = r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]') || r.reason.includes('[VIỆC RIÊNG]') || r.reason.includes('[NGHỈ ỐM]') || r.reason.includes('[NGHỈ THAI SẢN]') || r.reason.includes('[NGHỈ KHÔNG LƯƠNG]') || r.reason.includes('[VẮNG KHÔNG PHÉP]') || r.reason.includes('[CÔNG TÁC]') || r.reason.includes('[HỌC TẬP]'));
+   // Lọc các đơn liên quan đến người này trong ngày này
+   const reqs = allReqs.filter(r => {
+      if (r.id === ignoreReqId) return false;
+      if (r.status !== 'approved' && r.status !== 'pending_ld') return false;
       
-      let matched = false;
-      let tempCa = ca;
+      const dDoi = (r.ngayDoi || "").toString().substring(0, 10);
+      const dTra = (r.ngayTra || "").toString().substring(0, 10);
+      const name = (r.name || "").toString().trim();
+      const partner = (r.partner || "").toString().trim();
+      
+      return (name === uName || partner === uName) && (dDoi === targetDate || dTra === targetDate);
+   }).sort((a, b) => Number(a.id) - Number(b.id));
 
-     // 1. Kiểm tra khớp tên và ngày (Đã sửa lỗi đổi cùng ngày)
-          let isDoiCungNgay = (!isSpecial && r.ngayDoi === r.ngayTra && r.ngayDoi === dateStr);
+   let workCa = null;      // Ca đi làm thay (là partner trong lệnh người khác)
+   let workCaSpecial = false; // workCa đến từ lệnh admin (isSpecial), không phải đổi ca tự do
+   let leaveCa = null;     // Trạng thái của chính người này (HC/P/VR/CT/HT/V...)
+   let leaveCaIsHC = false;  // leaveCa là HC thuần (chỉ bố trí người thay, không xác định ca người này)
+   let finalStatus = 'goc';
 
-          if (isDoiCungNgay) {
-              if (r.name === userName) { tempCa = r.caTra; matched = true; }
-              if (r.partner === userName) { tempCa = r.caDoi; matched = true; }
-          } else if (r.name === userName && r.ngayDoi === dateStr) {
-              if (isSpecial) {
-                  const isDispatch = r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[CÔNG TÁC]') || r.reason.includes('[HỌC TẬP]') || r.reason.includes('[VẮNG KHÔNG PHÉP]');
-                  if (isDispatch) {
-                        // Lệnh điều động: người trong name đi ca làm việc thật, không áp tag nghỉ phép kèm theo
-                        if (r.reason.includes('[CÔNG TÁC]')) tempCa = 'CT';
-                        else if (r.reason.includes('[HỌC TẬP]')) tempCa = 'HT';
-                        else if (r.reason.includes('[VẮNG KHÔNG PHÉP]')) tempCa = 'V';
-                        else if (r.partner === 'CÔNG TÁC HC') {
-                            if (r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]')) tempCa = 'HC/2';
-                            else tempCa = 'HC';
-                        } else {
-                            tempCa = getDieuDongWorkCa(r, dateStr);
-                        }
-                    } else if (r.reason.includes('[NGHỈ PHÉP]')) { tempCa = 'P'; finalOverride = tempCa; }
-                  else if (r.reason.includes('[VIỆC RIÊNG]')) { tempCa = 'VR'; finalOverride = tempCa; }
-                  else if (r.reason.includes('[NGHỈ ỐM]')) { tempCa = 'Ô'; finalOverride = tempCa; }
-                  else if (r.reason.includes('[NGHỈ THAI SẢN]')) { tempCa = 'TS'; finalOverride = tempCa; }
-                  else if (r.reason.includes('[NGHỈ KHÔNG LƯƠNG]')) { tempCa = 'O'; finalOverride = tempCa; }
-                  else { tempCa = 'HC'; finalOverride = tempCa; }
-              } else { tempCa = 'OFF'; }
-              matched = true;
-          }
-          else if (r.partner === userName && r.ngayTra === dateStr && (!isSpecial)) { tempCa = 'OFF'; matched = true; }
-          else if (r.name === userName && r.ngayTra === dateStr && (!isSpecial)) { tempCa = r.caTra; matched = true; }
-          // Lệnh điều động ngày trả ca: r.name (Hiền) vào ca thật, r.partner (Đăng) về OFF
-          else if (r.name === userName && r.ngayTra === dateStr && isSpecial && r.caTra && r.caTra !== 'HC' && r.caTra !== 'OFF') { tempCa = r.caTra; matched = true; }
-          else if (r.partner === userName && r.ngayTra === dateStr && isSpecial && r.caTra && r.caTra !== 'HC' && r.caTra !== 'OFF') { tempCa = 'OFF'; matched = true; }
-          else if (r.partner === userName && r.ngayDoi === dateStr) {
-              // Người đi thay: luôn lấy ca làm việc gốc của người được thay, không lấy ca nghỉ P/VR
-              if (isSpecial && r.partner !== 'CÔNG TÁC HC') {
-                  tempCa = getDieuDongWorkCa(r, dateStr);
-              } else {
-                  tempCa = r.caDoi;
-              }
-              matched = true;
-          }
-          
-          // 2. LOGIC ƯU TIÊN TUYỆT ĐỐI & ÉP LÊN MÀU TÍM
-          if (matched) {
-             if (isSpecial && r.name === userName && r.status === 'approved') {
-                // Người đi HC/Nghỉ phép: ưu tiên tuyệt đối
-                isCommandFound = true; ca = tempCa; currentStatus = 'approved'; 
-             }
-             else if (isSpecial && r.partner === userName && r.status === 'approved') {
-                // Người đi thay trong lệnh điều động: cũng ưu tiên tuyệt đối
-                isCommandFound = true; ca = tempCa; currentStatus = 'approved';
-             }
-             else if (!isCommandFound) {
-                ca = tempCa;
-                // Ép trạng thái về 'pending_ld' để bảng tự động kích hoạt viền Tím
-                currentStatus = (r.status === 'pending_partner' || r.status === 'pending_ld') ? 'pending_ld' : r.status;
-             }
-          }
-   }
-   const resCa = finalOverride !== null ? finalOverride : ca;
+   for (let r of reqs) {
+      const dDoi = (r.ngayDoi || "").toString().substring(0, 10);
+      const dTra = (r.ngayTra || "").toString().substring(0, 10);
+      const name = (r.name || "").toString().trim();
+      const partner = (r.partner || "").toString().trim();
+      const reason = (r.reason || "").toString();
 
-   // ── Kiểm tra nghỉ phép/các chế độ được duyệt từ sheet leaves ──
-   // Ưu tiên thấp nhất: chỉ áp dụng nếu chưa có lệnh điều động nào override
-   if (!isCommandFound && typeof allLeaves !== 'undefined' && allLeaves.length > 0) {
-     const approvedLeave = allLeaves.find(lv =>
-       lv.name === userName &&
-       lv.status === 'approved' &&
-       lv.dates &&
-       lv.dates.split(',').map(s => s.trim()).includes(dateStr)
-     );
-     if (approvedLeave) {
-       const leaveType = approvedLeave.leaveType || 'P';
-       const leaveCa = leaveType === 'VR' ? 'VR' : leaveType === 'TS' ? 'TS' : leaveType === 'O_m' ? 'Ô' : leaveType === 'O' ? 'O' : 'P';
-       if (returnFullObj) return { ca: leaveCa, status: 'approved_leave' };
-       return leaveCa;
-     }
+      const isSpecial = /\[(LỆNH ĐIỀU ĐỘNG|ĐIỀU ĐỘNG 0.5 NGÀY|NGHỈ PHÉP|VIỆC RIÊNG|NGHỈ ỐM|NGHỈ THAI SẢN|NGHỈ KHÔNG LƯƠNG|VẮNG KHÔNG PHÉP|CÔNG TÁC|HỌC TẬP)\]/i.test(reason);
+
+      // 1. NGƯỜI ĐI THAY (PARTNER)
+      if (partner === uName && partner !== 'CÔNG TÁC HC' && dDoi === targetDate) {
+          workCa = isSpecial ? getDieuDongWorkCa(r, targetDate) : r.caDoi;
+          workCaSpecial = isSpecial;
+          if (r.status === 'approved') finalStatus = 'approved';
+      }
+
+      // 2. TRẢ CA
+      if (isSpecial && dTra === targetDate && dTra !== dDoi) {
+          if (partner === uName) {
+              workCa = 'OFF'; workCaSpecial = true;
+              if (r.status === 'approved') finalStatus = 'approved';
+          } else if (name === uName) {
+              leaveCa = r.caTra || 'OFF'; leaveCaIsHC = false;
+              if (r.status === 'approved') finalStatus = 'approved';
+          }
+      }
+
+      // 3. NGƯỜI NGHỈ / ĐIỀU ĐỘNG (NAME)
+      if (name === uName && dDoi === targetDate) {
+          if (isSpecial) {
+              let tempLeave = 'HC';
+              if (/\[(CÔNG TÁC)\]/i.test(reason)) tempLeave = 'CT';
+              else if (/\[(HỌC TẬP)\]/i.test(reason)) tempLeave = 'HT';
+              else if (/\[(VẮNG KHÔNG PHÉP)\]/i.test(reason)) tempLeave = 'V';
+              else if (/\[(ĐIỀU ĐỘNG 0.5 NGÀY)\]/i.test(reason)) tempLeave = 'HC/2';
+              else if (/\[(NGHỈ PHÉP)\]/i.test(reason)) tempLeave = 'P';
+              else if (/\[(VIỆC RIÊNG)\]/i.test(reason)) tempLeave = 'VR';
+              else if (/\[(NGHỈ ỐM)\]/i.test(reason)) tempLeave = 'Ô';
+              else if (/\[(NGHỈ THAI SẢN)\]/i.test(reason)) tempLeave = 'TS';
+              else if (/\[(NGHỈ KHÔNG LƯƠNG)\]/i.test(reason)) tempLeave = 'O';
+              leaveCa = tempLeave;
+              leaveCaIsHC = (tempLeave === 'HC'); // HC thuần = chỉ bố trí người thay
+              if (r.status === 'approved') finalStatus = 'approved';
+          } else {
+              leaveCa = 'OFF'; leaveCaIsHC = false;
+              if (r.status === 'approved') finalStatus = 'approved';
+          }
+      }
    }
 
-   return returnFullObj ? { ca: resCa, status: currentStatus } : resCa;
+   // Quy tắc ưu tiên:
+   // - leaveCa cụ thể (P/VR/Ô/CT/HT/V/HC/2/TS/O): admin xác định rõ trạng thái → thắng tất cả
+   // - leaveCa = HC thuần (chỉ bố trí người thay): KHÔNG ghi đè workCa từ lệnh admin
+   //   vì người này đang thực sự đi làm ca đó (do lệnh admin khác điều đi thay)
+   // - workCa từ lệnh admin: thắng workCa tự do và HC thuần
+   // - workCa tự do: yếu nhất
+   let finalCa = ca;
+   if (leaveCa && !leaveCaIsHC) {
+       finalCa = leaveCa; // P/VR/Ô/CT/HT/V/HC/2... thắng tất cả
+   } else if (workCaSpecial) {
+       finalCa = workCa;  // Đang thực sự đi làm theo lệnh admin → giữ ca đó
+   } else if (leaveCa) {
+       finalCa = leaveCa; // HC thuần, không có workCa admin → ghi HC
+   } else if (workCa) {
+       finalCa = workCa;  // Đổi ca tự do
+   }
+
+   // ── Kiểm tra nghỉ phép từ sheet leaves (Ưu tiên thấp nhất) ──
+   if (finalCa === ca && typeof leavesByName !== 'undefined') {
+      const uLeaves = leavesByName[uName] || [];
+      const lv = uLeaves.find(l => l.status === 'approved' && l.dates && l.dates.includes(targetDate));
+      if (lv) {
+          const lvMap = { 'P': 'P', 'VR': 'VR', 'O_m': 'Ô', 'TS': 'TS', 'O': 'O' };
+          finalCa = lvMap[lv.leaveType] || 'P';
+          finalStatus = 'approved';
+      }
+   }
+
+   return returnFullObj ? { ca: finalCa, status: finalStatus } : finalCa;
 }
+
 // 2. LÍNH GÁC AN TOÀN (TỰ ĐỘNG QUÉT LUẬT TỪ EXCEL)
 function checkViPhamAnToan(userName, kipName, dateStr, caMuonDi, ignoreReqId = null) {
   // BỔ SUNG: Không quét lỗi an toàn (C-K) đối với các ca Hành chính, Nghỉ phép, Việc riêng
   if (['HC', 'HC/2', 'P', 'VR', 'Ô', 'OFF'].includes(caMuonDi)) return false;
   
   const ngayTruoc = addDays(dateStr, -1);
-  // ... (phần code bên dưới giữ nguyên)
   const ngaySau = addDays(dateStr, 1);
   
   const caNgayTruoc = getCaThucTe(userName, kipName, ngayTruoc, ignoreReqId);
@@ -2772,7 +2880,7 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
   });
 
   let grandTotalK = 0, grandTotalCong = 0;
-  let grandTotalP = 0, grandTotalVR = 0, grandTotalO = 0, grandTotalTS = 0;
+  let grandTotalP = 0, grandTotalVR = 0, grandTotalO = 0, grandTotalTS = 0, grandTotalV = 0;
 
   // 4. VẼ TỪNG Ô LỊCH
   let bodyHtml = displayList.map(u => {
@@ -2862,7 +2970,7 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
     const totalCong = (totalHours / 8).toFixed(2);
     grandTotalK += countK; grandTotalCong += parseFloat(totalCong);
     grandTotalP += countP; grandTotalVR += countVR; grandTotalO += countO; grandTotalTS += countTS;
-    if (typeof grandTotalV === 'undefined') grandTotalV = 0; grandTotalV += countV;
+    grandTotalV += countV;
 
     row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
     row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0284c7;">${countP > 0 ? countP : '-'}</td>`;
@@ -2913,42 +3021,62 @@ function exportExcelSched() {
 // ===============================================================
 // Tìm người nghỉ (ông Hồng) khi điều dự phòng lên thay
 function findLeavePersonForBackup(role, kip, dateStr, leaveType) {
+  const isPersonalLeave = ['P', 'VR', 'Ô', 'TS', 'O'].includes(leaveType);
   const leaveTypeMap = { 'P': 'P', 'VR': 'VR', 'Ô': 'O_m', 'TS': 'TS', 'O': 'O', 'V': 'V', 'CT': 'CT', 'HT': 'HT' };
   const targetLT = leaveTypeMap[leaveType] || 'P';
   const LEAVE_CAS = ['P', 'VR', 'Ô', 'TS', 'O', 'V', 'CT', 'HT'];
   const inKip = NV_LIST.filter(u => u.chucDanh === role && u.kip === kip);
+  
+  // Bước 1: Tìm người có trạng thái khớp với loại công yêu cầu
   for (const u of inKip) {
-    // Chỗ này quan trọng: Dùng ca thực tế để biết ông này có đang trực thật không
-    const caHienTai = getCaThucTe(u.name, u.kip, dateStr);
-    if (caHienTai === 'OFF') continue; 
+    const caThucTe = getCaThucTe(u.name, u.kip, dateStr);
     
-    const hasLeave = typeof allLeaves !== 'undefined' && allLeaves.some(lv =>
-      lv.name === u.name && lv.status === 'approved' &&
-      lv.dates && lv.dates.split(',').map(s => s.trim()).includes(dateStr) &&
-      (lv.leaveType === targetLT || (!lv.leaveType && targetLT === 'P'))
+    // Kiểm tra xem người này có lệnh nghỉ/điều động nào được duyệt không
+    const approvedReq = allReqs.find(r => 
+        r.status === 'approved' && 
+        r.name === u.name && 
+        r.ngayDoi === dateStr
     );
-    if (hasLeave || LEAVE_CAS.includes(caHienTai)) return u;
+    
+    const approvedLeave = typeof allLeaves !== 'undefined' && allLeaves.find(lv =>
+      lv.name === u.name && lv.status === 'approved' &&
+      lv.dates && lv.dates.split(',').map(s => s.trim()).includes(dateStr)
+    );
+
+    // Nếu tìm thấy bất kỳ lệnh nào chứng minh ông này đang nghỉ/đi HC -> Lấy luôn làm "Người được thay"
+    if (approvedReq || approvedLeave || LEAVE_CAS.includes(caThucTe)) {
+        return u;
+    }
   }
-  return null;
+  
+  return null; 
 }
 function findLeavePersonForBackupAuto(role, dateStr, leaveType, backupName, backupKip) {
-  const leaveTypeMap = { 'P': 'P', 'VR': 'VR', 'Ô': 'O_m', 'TS': 'TS', 'O': 'O', 'V': 'V', 'CT': 'CT', 'HT': 'HT' };
-  const targetLT = leaveTypeMap[leaveType] || 'P';
-  const LEAVE_CAS = ['P', 'VR', 'Ô', 'TS', 'O', 'V', 'CT', 'HT'];
   const caBackup = getCaThucTe(backupName, backupKip, dateStr);
-  if (caBackup === 'OFF') return null;
-  return NV_LIST.find(u => {
-    if (u.chucDanh !== role || u.name === backupName) return false;
-    const caHienTai = getCaThucTe(u.name, u.kip, dateStr);
-    if (caHienTai !== caBackup) return false;
-    
-    const hasLeave = typeof allLeaves !== 'undefined' && allLeaves.some(lv =>
-      lv.name === u.name && lv.status === 'approved' &&
-      lv.dates && lv.dates.split(',').map(s => s.trim()).includes(dateStr) &&
-      (lv.leaveType === targetLT || (!lv.leaveType && targetLT === 'P'))
-    );
-    return hasLeave || LEAVE_CAS.includes(caHienTai);
-  }) || null;
+  const LEAVE_CAS = ['P', 'VR', 'Ô', 'TS', 'O', 'V', 'CT', 'HT'];
+  
+  // Tìm tất cả những người có chức danh 'role' đang vắng mặt ngày đó
+  const allAbsentees = NV_LIST.filter(u => {
+      if (u.chucDanh !== role) return false;
+      const caThucTe = getCaThucTe(u.name, u.kip, dateStr);
+      
+      const hasReq = allReqs.some(r => r.status === 'approved' && r.name === u.name && r.ngayDoi === dateStr);
+      const hasLeave = typeof allLeaves !== 'undefined' && allLeaves.some(lv => 
+          lv.name === u.name && lv.status === 'approved' && 
+          lv.dates && lv.dates.split(',').map(s => s.trim()).includes(dateStr)
+      );
+      
+      return hasReq || hasLeave || LEAVE_CAS.includes(caThucTe);
+  });
+
+  if (allAbsentees.length === 0) return null;
+
+  // Ưu tiên người cùng kíp/ca với ông dự phòng
+  const sameShift = allAbsentees.find(u => getCaThucTe(u.name, u.kip, dateStr) === caBackup || u.kip === backupKip);
+  if (sameShift) return sameShift;
+
+  // Nếu không có ai cùng ca, lấy ông đầu tiên tìm thấy
+  return allAbsentees[0];
 }
 
 let hcIdCounter = 0;
@@ -3032,17 +3160,45 @@ function syncHCFilters(id) {
   const useBackup = row.querySelector('.h-use-backup') && row.querySelector('.h-use-backup').checked;
   const LEAVE_TYPES = ['P', 'VR', 'Ô', 'TS', 'O'];
 
-  if(!r || !k) { chkContainer.innerHTML = '<span style="color:#64748b; font-size:12px;">Vui lòng chọn CD & Kíp</span>'; return; }
+  if(!r || !k) { 
+    chkContainer.innerHTML = '<span style="color:#64748b; font-size:12px;">Vui lòng chọn CD & Kíp</span>'; 
+    resetRightColumns(id); 
+    return; 
+  }
 
-  // ── CHẾ ĐỘ "ĐIỀU DỰ PHÒNG LÊN THAY" ──
-  // Tìm những người có chức danh dự phòng = r (chức danh của ông nghỉ)
-  // và ngày d đang trực CÙNG CA với kíp ông nghỉ (không giới hạn kíp, lọc theo ca thực tế)
+  // 1. TRƯỚC KHI LÀM MỚI DANH SÁCH: Lưu lại người được chọn nếu đang ở chế độ bình thường
+  const currentChecked = Array.from(chkContainer.querySelectorAll('.hc-chk-val:checked')).map(cb => cb.value);
+  if (currentChecked.length > 0) {
+      const firstLabel = chkContainer.querySelector('.hc-chk-val:checked').closest('label');
+      const isNormalMode = firstLabel && !firstLabel.textContent.includes('dự phòng');
+      if (isNormalMode) {
+          row.dataset.intendedReplace = currentChecked[0];
+      }
+  } else if (!useBackup) {
+      // Nếu ở chế độ bình thường mà không chọn ai -> Xóa dự định
+      delete row.dataset.intendedReplace;
+  }
+
+  // ── LẤY DANH SÁCH NHÂN VIÊN PHÙ HỢP ──
+  let matches = NV_LIST;
+  if (r) matches = matches.filter(u => u.chucDanh === r);
+  if (k && k !== 'AUTO_LEAVE') matches = matches.filter(u => u.kip === k);
+
+  // MỚI: Nếu là VẮNG KHÔNG PHÉP (type='V'), ẩn những người đang OFF ngày đó
+  if (type === 'V' && d) {
+    matches = matches.filter(u => {
+      const caThucTe = getCaThucTe(u.name, u.kip, d);
+      return caThucTe !== 'OFF';
+    });
+  }
+
+  // 2. CHẾ ĐỘ "ĐIỀU DỰ PHÒNG LÊN THAY" ──
   if (useBackup) {
     if (!d) {
       chkContainer.innerHTML = '<span style="color:#7c3aed; font-size:12px; font-weight:700;">⚠️ Vui lòng chọn Ngày để tìm dự phòng</span>';
+      resetRightColumns(id); // <--- Reset khi chưa chọn ngày
       return;
     }
-    // AUTO_LEAVE hoặc không chọn kíp: quét tất cả ca đang trực
     const isAutoKip = (!k || k === 'AUTO_LEAVE');
 
     let caOngNghi = null;
@@ -3051,76 +3207,111 @@ function syncHCFilters(id) {
       caOngNghi = repOfKip ? getCaThucTe(repOfKip.name, k, d) : null;
       if (!caOngNghi || caOngNghi === 'OFF') {
         chkContainer.innerHTML = `<span style="color:#7c3aed; font-size:12px; font-weight:700;">⚠️ Kíp ${k} ngày ${fmtDate(d)} đang nghỉ (OFF), không cần điều dự phòng</span>`;
+        resetRightColumns(id); // <--- Reset khi kíp nghỉ
         return;
       }
     }
 
-    // Tìm người có dự phòng = r VÀ đang trực ca (không OFF)
-    // Kíp cụ thể: phải cùng ca với kíp ông nghỉ; AUTO: mọi ca đang trực đều hiện
-    const backupCandidates = NV_LIST.filter(u => {
+    let backupCandidates = NV_LIST.filter(u => {
       if (!u.chucDanhDuPhong) return false;
       const bList = u.chucDanhDuPhong.split(',').map(s => s.trim());
       if (!bList.includes(r)) return false;
       if (u.chucDanh === r) return false;
-      const caThucTe = getCaThucTe(u.name, u.kip, d);
-      if (caThucTe === 'OFF') return false;
-      if (!isAutoKip && caThucTe !== caOngNghi) return false;
+      if (d) {
+          const isDup = allReqs.some(req => isManagementDispatch(req) && (req.name === u.name || req.partner === u.name) && req.ngayDoi === d);
+          if (isDup) return false;
+      }
       return true;
     });
 
+    // ƯU TIÊN 1: Lấy người vừa được chọn ở chế độ bình thường (ví dụ: ông Hiền)
+    let leavePerson = null;
+    if (row.dataset.intendedReplace) {
+        leavePerson = NV_LIST.find(u => u.name === row.dataset.intendedReplace);
+    }
+    
+    // ƯU TIÊN 2: Nếu không có người dự định, mới tìm người đã có đơn nghỉ/vắng (ví dụ: ông Dũng)
+    if (!leavePerson) {
+        const sampleBackup = backupCandidates.length > 0 ? backupCandidates[0] : null;
+        leavePerson = sampleBackup ? (isAutoKip ? findLeavePersonForBackupAuto(r, d, type, sampleBackup.name, sampleBackup.kip) : findLeavePersonForBackup(r, k, d, type)) : null;
+    }
+
+    if (!leavePerson) {
+        chkContainer.innerHTML = `<div style="color:#dc2626; font-size:12px; font-weight:700; padding:10px; background:#fee2e2; border-radius:6px; border:1px solid #fecaca;">⚠️ Không tìm thấy bất kỳ ai có chức danh "${r}" đang nghỉ hoặc có lệnh điều động vào ngày ${fmtDate(d)}. <br><br> <small>(Vui lòng tích chọn người đi HC trước khi bật "Điều dự phòng")</small></div>`;
+        resetRightColumns(id); // <--- Reset khi không tìm thấy người nghỉ
+        return;
+    }
+
     if (backupCandidates.length === 0) {
-      const msg = isAutoKip
-        ? `Không tìm thấy ai có chức danh dự phòng "${r}" đang trực ngày ${fmtDate(d)}`
-        : `Không tìm thấy ai có chức danh dự phòng "${r}" đang trực ca ${caOngNghi} ngày ${fmtDate(d)}`;
+      const msg = `Không tìm thấy ai có chức danh dự phòng "${r}" trong ngày ${fmtDate(d)}`;
       chkContainer.innerHTML = `<span style="color:#7c3aed; font-size:12px; font-weight:700;">⚠️ ${msg}</span>`;
+      resetRightColumns(id); // <--- Reset khi không có dự phòng
       return;
     }
 
-    const headerNote = isAutoKip ? `ngày ${fmtDate(d)}` : `ca ${caOngNghi} ngày ${fmtDate(d)}`;
-    let leaveHint = '';
-    if (!isAutoKip) {
-      const lp = findLeavePersonForBackup(r, k, d, type);
-      if (lp) leaveHint = ` · <span style="color:#dc2626;">Ông nghỉ: ${lp.name}</span>`;
-    }
-    let html = `<div style="color:#7c3aed; font-size:11px; font-weight:700; margin-bottom:6px; padding-bottom:4px; border-bottom:2px solid #ede9fe;">🔁 Đang trực ${headerNote}${leaveHint} — Chọn người dự phòng điều lên:</div>`;
+    const headerNote = `trong ngày ${fmtDate(d)}`;
+    let leaveHint = ` · <span style="color:#dc2626; background:#fee2e2; padding:2px 4px; border-radius:4px;">Thay cho: ${leavePerson.name}</span>`;
+    // Lưu lại tên người được thay vào dataset để submitBatchHC sử dụng chính xác
+    row.dataset.actualReplace = leavePerson.name;
+
+    let html = `<div style="color:#7c3aed; font-size:11px; font-weight:700; margin-bottom:6px; padding-bottom:4px; border-bottom:2px solid #ede9fe;">🔁 Chọn dự phòng điều lên (${headerNote}${leaveHint}):</div>`;
+    
+    const shouldAutoCheck = (backupCandidates.length === 1);
     html += backupCandidates.map(u => {
-      const caHienTai = getCaThucTe(u.name, u.kip, d);
-      const caTag = isAutoKip ? `<span style="color:#dc2626; margin-left:4px; font-size:11px; font-weight:700;">Ca ${caHienTai}</span>` : '';
+      const caThucTe = getCaThucTe(u.name, u.kip, d);
+      const caTag = `<span style="color:#dc2626; margin-left:4px; font-size:11px; font-weight:700;">(${caThucTe === 'OFF' ? 'Nghỉ' : 'Ca ' + caThucTe})</span>`;
       return `
       <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer; font-weight:500;">
-        <input type="checkbox" class="hc-chk-val" value="${u.name}" onchange="syncPartnerList(${id}); checkShiftStatus(${id}); validateHCDates(${id});" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;">
+        <input type="checkbox" class="hc-chk-val" value="${u.name}" ${shouldAutoCheck ? 'checked' : ''} onchange="handleHCSelection(this, '${d}', ${id})" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;">
         ${u.name}
         <span style="color:#ea580c; margin-left:4px; font-size:11px; font-weight:700;">[${u.kip}]</span>
         ${caTag}
-        <span style="color:#7c3aed; margin-left:6px; font-size:11px; background:#ede9fe; padding:2px 6px; border-radius:4px;">${u.chucDanh} · dự phòng ${r}</span>
+        <span style="color:#7c3aed; margin-left:6px; font-size:11px; background:#ede9fe; padding:2px 6px; border-radius:4px;">${u.chucDanh}</span>
       </label>`;
     }).join('');
     chkContainer.innerHTML = html;
 
-    // Reset partner list
-    row.querySelector('.h-pkip').value = '';
-    row.querySelector('.h-partner').innerHTML = '<span style="color:#64748b; font-size:12px;">Chọn người dự phòng trước</span>';
-    return;
+    if (shouldAutoCheck) {
+        setTimeout(() => {
+            const pkipEl = row.querySelector('.h-pkip');
+            if (pkipEl) {
+                pkipEl.value = 'AUTO';
+                syncPartnerList(id); 
+            }
+            checkShiftStatus(id);
+        }, 10);
+    }
+    return; // THOÁT KHỎI HÀM, KHÔNG CHẠY LOGIC RENDER NGHỈ BÌNH THƯỜNG BÊN DƯỚI
   }
 
   // Với chế độ nghỉ: bắt buộc phải chọn ngày trước
   if (LEAVE_TYPES.includes(type) && !d) {
     chkContainer.innerHTML = '<span style="color:#dc2626; font-size:12px; font-weight:700;">⚠️ Vui lòng chọn Ngày trước để tìm người nghỉ</span>';
+    resetRightColumns(id); // <--- Reset khi chưa chọn ngày (chế độ nghỉ)
     return;
   }
 
   // AUTO_LEAVE: tìm tất cả người có chức danh r, có đơn nghỉ approved ngày d (không giới hạn kíp)
   const isAutoLeave = (k === 'AUTO_LEAVE');
-  let matches = isAutoLeave
+  matches = isAutoLeave
     ? NV_LIST.filter(u => u.chucDanh === r)
     : NV_LIST.filter(u => u.chucDanh === r && u.kip === k);
+
+  // --- LỌC BỔ SUNG: ẨN NGƯỜI NGHỈ (OFF) KHI Ở CHẾ ĐỘ "VẮNG KHÔNG PHÉP" (V) ---
+  if (type === 'V' && d) {
+    matches = matches.filter(u => {
+      const uKip = (k === 'AUTO_LEAVE') ? u.kip : k;
+      const caThucTe = getCaThucTe(u.name, uKip, d);
+      return caThucTe !== 'OFF';
+    });
+  }
 
   // Với các chế độ nghỉ (P/VR/Ô/TS/O): lọc người có đơn nghỉ approved + chặn ngày OFF
   if (LEAVE_TYPES.includes(type) && d && typeof allLeaves !== 'undefined') {
     const leaveTypeMap = { 'P': 'P', 'VR': 'VR', 'Ô': 'O_m', 'TS': 'TS', 'O': 'O' };
     const targetLT = leaveTypeMap[type];
     matches = matches.filter(u => {
-      // Phải có đơn nghỉ approved ngày đó
+      // 1. Phải có đơn nghỉ approved ngày đó
       const hasLeave = allLeaves.some(lv =>
         lv.name === u.name &&
         lv.status === 'approved' &&
@@ -3128,51 +3319,75 @@ function syncHCFilters(id) {
         (lv.leaveType === targetLT || (!lv.leaveType && targetLT === 'P'))
       );
       if (!hasLeave) return false;
-      // Chặn: nếu ca gốc là OFF (ngày nghỉ) thì không cần thay
+
+      // 2. Chặn: nếu ca gốc là OFF (ngày nghỉ) thì không cần thay
       const caGoc = getCaTrucGoc(u.name, u.kip, d);
       if (caGoc === 'OFF') return false;
+
+      // 3. ẨN HOÀN TOÀN NẾU ĐÃ CÓ LỆNH ĐIỀU ĐỘNG QUẢN LÝ KHÁC TRONG NGÀY
+      const isDup = allReqs.some(req => 
+          isManagementDispatch(req) && 
+          (req.name === u.name || req.partner === u.name) && 
+          req.ngayDoi === d
+      );
+      if (isDup) return false;
+
       return true;
     });
     if (matches.length === 0) {
       const kipLabel = isAutoLeave ? 'tất cả kíp' : k;
-      chkContainer.innerHTML = `<span style="color:#dc2626; font-size:12px; font-weight:700;">⚠️ Không có ai (${kipLabel}) cần bố trí người thay cho ${type} ngày ${fmtDate(d)}</span>`;
+      chkContainer.innerHTML = `<span style="color:#dc2626; font-size:12px; font-weight:700;">⚠️ Không có ai (${kipLabel}) phù hợp để điều động cho ${type} ngày ${fmtDate(d)}</span>`;
       return;
     }
   }
 
-  let html = `<label style="display:flex; align-items:center; font-weight:700; color:#1d4ed8; margin-bottom:8px; border-bottom:2px solid #bfdbfe; padding-bottom:6px; cursor:pointer;">
-                <input type="checkbox" onchange="toggleAllHC(${id}, this, '.hc-chk-val'); checkShiftStatus(${id}); validateHCDates(${id});" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> CHỌN TẤT CẢ
-              </label>`;
-  html += matches.map(u => {
-    let shiftStr = "";
-    if (d) {
-        const uKip = (k === 'AUTO_LEAVE') ? u.kip : k;
-        const caThucTe = getCaThucTe(u.name, uKip, d);
-        const caGoc = getCaTrucGoc(u.name, uKip, d);
-        
-        // Nếu ca thực tế là P/VR/Ô/TS/O (do đơn nghỉ) → hiện ca gốc, đánh dấu cần thay
-        const isLeaveShift = ['P','VR','Ô','TS','O','V','CT','HT'].includes(caThucTe);
-        if (isLeaveShift) {
-            const caGocLabel = caGoc === 'OFF' ? 'Nghỉ' : caGoc;
-            const needReplace = caGoc !== 'OFF';
-            const color = needReplace ? '#b45309' : '#16a34a';
-            const note = needReplace ? `⚠️ Cần người thay` : `✅ Ngày nghỉ, không cần thay`;
-            shiftStr = `<span style="color:${color}; margin-left:6px; font-weight:700; font-size:11px;">(Gốc: ${caGocLabel} · ${note})</span>`;
-        } else if (caThucTe === 'OFF') {
-            shiftStr = `<span style="color:#16a34a; margin-left:6px; font-weight:700; font-size:12px;">(Nghỉ)</span>`;
-        } else {
-            const isSwap = caThucTe !== caGoc;
-            const swapTag = isSwap ? '<span style="color:#0284c7; font-size:10px;">[Đổi]</span> ' : '';
-            shiftStr = `<span style="color:#ea580c; margin-left:6px; font-weight:700; font-size:12px;">(${swapTag}Ca ${caThucTe})</span>`;
-        }
+  // TÍCH DỰ PHÒNG THÌ CẦN RE-SYNC LẠI LOGIC TÌM DỰ PHÒNG
+  if (useBackup) {
+    // Logic dự phòng đã được xử lý ở đầu hàm, không làm gì thêm ở đây
+  } else {
+    // Render nhân sự nghỉ bình thường
+    let matchesFiltered = matches;
+    if (matchesFiltered.length === 0) {
+        const kipLabel = isAutoLeave ? 'tất cả kíp' : k;
+        chkContainer.innerHTML = `<span style="color:#dc2626; font-size:12px; font-weight:700;">⚠️ Không có ai (${kipLabel}) phù hợp để điều động cho ${type} ngày ${fmtDate(d)}</span>`;
+        resetRightColumns(id); // <--- Reset cột bên phải khi danh sách trống
+        return;
     }
-    return `
-    <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer; font-weight:500;">
-      <input type="checkbox" class="hc-chk-val" value="${u.name}" onchange="checkShiftStatus(${id}); validateHCDates(${id});" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> 
-      ${u.name} ${shiftStr}
-    </label>`;
-  }).join('');
-  chkContainer.innerHTML = html;
+
+    let html = `<label style="display:flex; align-items:center; font-weight:700; color:#1d4ed8; margin-bottom:8px; border-bottom:2px solid #bfdbfe; padding-bottom:6px; cursor:pointer;">
+                  <input type="checkbox" onchange="toggleAllHC(${id}, this, '.hc-chk-val'); checkShiftStatus(${id}); validateHCDates(${id});" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> CHỌN TẤT CẢ
+                </label>`;
+    html += matchesFiltered.map(u => {
+      let shiftStr = "";
+      if (d) {
+          const uKip = (k === 'AUTO_LEAVE') ? u.kip : k;
+          const caThucTe = getCaThucTe(u.name, uKip, d);
+          const caGoc = getCaTrucGoc(u.name, uKip, d);
+          
+          // Nếu ca thực tế là P/VR/Ô/TS/O (do đơn nghỉ) → hiện ca gốc, đánh dấu cần thay
+          const isLeaveShift = ['P','VR','Ô','TS','O','V','CT','HT'].includes(caThucTe);
+          if (isLeaveShift) {
+              const caGocLabel = caGoc === 'OFF' ? 'Nghỉ' : caGoc;
+              const needReplace = caGoc !== 'OFF';
+              const color = needReplace ? '#b45309' : '#16a34a';
+              const note = needReplace ? `⚠️ Cần người thay` : `✅ Ngày nghỉ, không cần thay`;
+              shiftStr = `<span style="color:${color}; margin-left:6px; font-weight:700; font-size:11px;">(Gốc: ${caGocLabel} · ${note})</span>`;
+          } else if (caThucTe === 'OFF') {
+              shiftStr = `<span style="color:#16a34a; margin-left:6px; font-weight:700; font-size:12px;">(Nghỉ)</span>`;
+          } else {
+              const isSwap = caThucTe !== caGoc;
+              const swapTag = isSwap ? '<span style="color:#0284c7; font-size:10px;">[Đổi]</span> ' : '';
+              shiftStr = `<span style="color:#ea580c; margin-left:6px; font-weight:700; font-size:12px;">(${swapTag}Ca ${caThucTe})</span>`;
+          }
+      }
+      return `
+      <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer; font-weight:500;">
+        <input type="checkbox" class="hc-chk-val" value="${u.name}" onchange="handleHCSelection(this, '${d}', ${id})" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> 
+        ${u.name} ${shiftStr}
+      </label>`;
+    }).join('');
+    chkContainer.innerHTML = html;
+  }
   
   row.querySelector('.h-pkip').value = '';
   row.querySelector('.h-partner').innerHTML = '<span style="color:#64748b; font-size:12px;">Chọn Kíp thay trước</span>';
@@ -3212,14 +3427,20 @@ function syncPartnerList(id) {
   }
 
   // --- BƯỚC CHUẨN BỊ: TÍNH TRƯỚC CA CỦA NGƯỜI ĐI HC ĐỂ LÀM CĂN CỨ CHECK AN TOÀN ---
+  // ĐỐI VỚI CHẾ ĐỘ DỰ PHÒNG: Ca làm việc gánh thay chính là ca thực tế của ông dự phòng đó
   let caThucTeA = 'OFF';
-  if (dHC && kip) {
-      let repA_name = selectedNames.length > 0 ? selectedNames[0] : null;
-      if (!repA_name) {
-          const repObj = NV_LIST.find(u => u.kip === kip);
-          if (repObj) repA_name = repObj.name;
+  if (dHC) {
+      if (useBackup && backupPersonName) {
+          const bInfo = NV_LIST.find(u => u.name === backupPersonName);
+          caThucTeA = getCaThucTe(backupPersonName, bInfo ? bInfo.kip : kip, dHC);
+      } else if (kip) {
+          let repA_name = selectedNames.length > 0 ? selectedNames[0] : null;
+          if (!repA_name) {
+              const repObj = NV_LIST.find(u => u.kip === kip);
+              if (repObj) repA_name = repObj.name;
+          }
+          if (repA_name) caThucTeA = getCaThucTe(repA_name, kip, dHC);
       }
-      if (repA_name) caThucTeA = getCaThucTe(repA_name, kip, dHC);
   }
 
   // --- LOGIC MỚI: LỌC SẠCH SẼ 100% NGAY TỪ VÒNG TÌM KIẾM ---
@@ -3237,10 +3458,24 @@ function syncPartnerList(id) {
     // Và không được chọn chính ông dự phòng vừa được điều lên
     if (selectedNames.includes(u.name)) return false;
 
+    // LỌC THÊM: Nếu là chế độ dự phòng, không được chọn người có cùng CD với ông nghỉ gốc (r)
+    // Ví dụ: Điều Tùng (lái máy) dự phòng Trưởng kíp. Thì người thay Tùng phải là Lái máy, không được là Trưởng kíp khác.
+    if (useBackup && u.chucDanh === r) return false;
+
     // 3. Nếu chọn Kíp cụ thể (Kíp 1, 2...) thì lọc đúng kíp đó
     if (pk !== 'AUTO' && u.kip !== pk) return false;
 
-    // 4. Nếu chọn AUTO -> Gộp toàn bộ 3 Lớp lọc làm 1
+    // 4. KIỂM TRA TRÙNG LỆNH: Ẩn người đã có lệnh điều động quản lý
+    if (dHC) {
+        const isDup = allReqs.some(req => 
+            isManagementDispatch(req) && 
+            (req.name === u.name || req.partner === u.name) && 
+            req.ngayDoi === dHC
+        );
+        if (isDup) return false;
+    }
+
+    // 5. Nếu chọn AUTO -> Gộp toàn bộ 3 Lớp lọc làm 1
     if (pk === 'AUTO') {
         const caThucTeB = getCaThucTe(u.name, u.kip, dHC);
         
@@ -3258,9 +3493,13 @@ function syncPartnerList(id) {
     return true;
   });
   
-  if(partners.length === 0) {
-    const roleLabel = useBackup && searchRole !== r ? `${searchRole} (chức danh ông ${backupPersonName || 'dự phòng'})` : r;
-    partnerChkContainer.innerHTML = `<span style="color:#dc2626; font-size:12px;">Không tìm thấy ai rảnh (${roleLabel}) và đảm bảo an toàn</span>`;
+  if (partners.length === 0) {
+    if (useBackup && caThucTeA === 'OFF') {
+        partnerChkContainer.innerHTML = `<div style="color:#16a34a; font-size:12px; font-weight:700; padding:10px; background:#f0fdf4; border-radius:6px; border:1px solid #bbf7d0;">✅ Dự phòng đang nghỉ, không cần người thay.</div>`;
+    } else {
+        const roleLabel = useBackup && searchRole !== r ? `${searchRole} (chức danh ông ${backupPersonName || 'dự phòng'})` : r;
+        partnerChkContainer.innerHTML = `<span style="color:#dc2626; font-size:12px;">Không tìm thấy ai rảnh (${roleLabel}) và đảm bảo an toàn</span>`;
+    }
   } else {
     const headerColor = useBackup ? '#7c3aed' : '#b45309';
     const headerBorder = useBackup ? '#ede9fe' : '#fde68a';
@@ -3274,7 +3513,10 @@ function syncPartnerList(id) {
     }
     html += `${headerLabel}</label>`;
 
-    html += partners.map(u => {
+    // TỰ ĐỘNG CHỌN NẾU CHỈ CÓ 1 NGƯỜI HOẶC KHI CHỌN CHẾ ĐỘ AUTO
+    const shouldAutoCheck = (partners.length === 1 || pk === 'AUTO');
+
+    html += partners.map((u, pIdx) => {
       let isBackup = false;
       if (u.chucDanh !== searchRole && u.chucDanhDuPhong) {
           const backupList = u.chucDanhDuPhong.split(',').map(s => s.trim());
@@ -3284,20 +3526,94 @@ function syncPartnerList(id) {
       const backupTag = isBackup ? `<span style="color:#2563eb; font-size:11px; font-weight:700; margin-left:6px; background:#dbeafe; padding:2px 6px; border-radius:4px;">(Dự phòng)</span>` : '';
       const kipTag = (pk === 'AUTO') ? `<span style="color:#ea580c; font-size:11px; font-weight:700; margin-left:4px;">[${u.kip}]</span>` : '';
       
+      // Nếu là AUTO thì tự động tích ông đầu tiên nếu chưa có ai được tích
+      const isChecked = (shouldAutoCheck && pIdx === 0);
+
       return `
       <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer; font-weight:500;">
-        <input type="checkbox" class="hc-partner-val" value="${u.name}" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> 
+        <input type="checkbox" class="hc-partner-val" value="${u.name}" ${isChecked ? 'checked' : ''} onchange="checkShiftStatus(${id}); validateHCDates(${id});" style="width:18px; height:18px; margin:0 8px 0 0; padding:0; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> 
         ${u.name} ${kipTag} ${backupTag}
       </label>
     `}).join('');
     partnerChkContainer.innerHTML = html;
+
+    if (shouldAutoCheck) {
+        setTimeout(() => checkShiftStatus(id), 10);
+    }
   }
 }
 function toggleAllHC(id, masterChk, targetClass) {
   const row = document.getElementById(`hc-r-${id}`);
   const checkboxes = row.querySelectorAll(targetClass);
-  checkboxes.forEach(chk => chk.checked = masterChk.checked);
+  const d = row.querySelector('.h-date').value;
+  
+  checkboxes.forEach(chk => {
+    chk.checked = masterChk.checked;
+    if (chk.checked && d) {
+       const isDup = allReqs.some(req => 
+           req.status === 'approved' && 
+           req.name === chk.value && 
+           req.ngayDoi === d
+       );
+       if (isDup) {
+           showAlert('app', `⚠️ CẢNH BÁO: Nhân sự ${chk.value} đã có một lệnh điều động/nghỉ khác trong ngày ${fmtDate(d)}.`, 'ai');
+       }
+    }
+  });
 }
+
+// HÀM KIỂM TRA MỘT YÊU CẦU CÓ PHẢI LÀ LỆNH ĐIỀU ĐỘNG/NGHỈ CỦA QUẢN LÝ KHÔNG
+function isManagementDispatch(req) {
+    if (req.status !== 'approved') return false;
+    const reason = (req.reason || "").toString();
+    const isSpecialReason = reason.includes('[LỆNH ĐIỀU ĐỘNG]') || 
+                          reason.includes('[NGHỈ PHÉP]') || 
+                          reason.includes('[VIỆC RIÊNG]') || 
+                          reason.includes('[NGHỈ ỐM]') || 
+                          reason.includes('[NGHỈ THAI SẢN]') || 
+                          reason.includes('[NGHỈ KHÔNG LƯƠNG]') || 
+                          reason.includes('[VẮNG KHÔNG PHÉP]') || 
+                          reason.includes('[CÔNG TÁC]') || 
+                          reason.includes('[HỌC TẬP]') ||
+                          reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]');
+    return req.partner === 'CÔNG TÁC HC' || isSpecialReason;
+}
+
+// HÀM XỬ LÝ KHI TÍCH CHỌN NHÂN SỰ ĐIỀU ĐỘNG
+function handleHCSelection(chk, dateStr, id) {
+    const row = document.getElementById(`hc-r-${id}`);
+    const useBackup = row.querySelector('.h-use-backup') && row.querySelector('.h-use-backup').checked;
+    const selectedNames = Array.from(row.querySelectorAll('.hc-chk-val:checked')).map(cb => cb.value);
+    
+    // Lưu lại người được chọn nếu đang ở chế độ bình thường để làm mục tiêu khi bật dự phòng
+    if (!useBackup) {
+        if (selectedNames.length > 0) {
+            row.dataset.intendedReplace = selectedNames[0];
+        } else {
+            delete row.dataset.intendedReplace;
+        }
+    }
+    
+    // Nếu bỏ tích hết -> Reset cột bên phải
+    if (selectedNames.length === 0) {
+        resetRightColumns(id);
+    }
+    
+    syncPartnerList(id); 
+    checkShiftStatus(id); 
+    validateHCDates(id);
+}
+function resetRightColumns(id) {
+  const row = document.getElementById(`hc-r-${id}`);
+  if (!row) return;
+  const pkipEl = row.querySelector('.h-pkip');
+  const partnerEl = row.querySelector('.h-partner');
+  const retEl = row.querySelector('.h-ret');
+  if (pkipEl) pkipEl.value = '';
+  if (partnerEl) partnerEl.innerHTML = '<span style="color:#64748b; font-size:12px;">Chọn Kíp thay trước</span>';
+  if (retEl) retEl.value = '';
+}
+
 // BỘ LỌC ĐỘNG: XỬ LÝ KHÓA/MỞ Ô NGƯỜI ĐI THAY THEO LỊCH CA
 function checkShiftStatus(id) {
   const row = document.getElementById(`hc-r-${id}`);
@@ -3353,7 +3669,14 @@ function checkShiftStatus(id) {
         pkipBox.style.opacity = '1'; pkipBox.style.pointerEvents = 'auto';
         partnerBox.style.opacity = '1'; partnerBox.style.pointerEvents = 'auto';
         retBox.style.opacity = '1'; retBox.style.pointerEvents = 'auto';
-        chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#ea580c; font-size:12px; font-weight:700; margin-bottom:8px;">⚠️ Bắt buộc chọn người đi thay & Ngày trả ca!</div>`);
+        
+        const useBackup = row.querySelector('.h-use-backup') && row.querySelector('.h-use-backup').checked;
+        if (useBackup) {
+            chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#7c3aed; font-size:12px; font-weight:700; margin-bottom:8px;">🔁 CHẾ ĐỘ DỰ PHÒNG: Người thay cho ông dự phòng là TỰ NGUYỆN (Không bắt buộc).</div>`);
+        } else {
+            chkContainer.insertAdjacentHTML('afterbegin', `<div class="warning-lbl" style="color:#ea580c; font-size:12px; font-weight:700; margin-bottom:8px;">⚠️ Bắt buộc chọn người đi thay & Ngày trả ca!</div>`);
+        }
+        
         if(partnerBox.innerHTML.includes('ĐANG NGHỈ') || partnerBox.innerHTML.includes('Không bố trí')) { partnerBox.innerHTML = '<span style="color:#64748b; font-size:12px;">Chọn Kíp thay</span>'; }
     }
   } else if (LEAVE_TYPES.includes(type) && selectedNames.length > 0) {
@@ -3461,7 +3784,8 @@ function renderAdminHCHist() {
 
   const hcReqs = allReqs.filter(r => {
     if (r.status !== 'approved') return false;
-    const isDispatch = (r.partner === 'CÔNG TÁC HC' || (r.reason && (r.reason.includes('[LỆNH ĐIỀU ĐỘNG]') || r.reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || r.reason.includes('[NGHỈ PHÉP]') || r.reason.includes('[VIỆC RIÊNG]') || r.reason.includes('[NGHỈ ỐM]'))));
+    const reason = (r.reason || "").toString();
+    const isDispatch = (r.partner === 'CÔNG TÁC HC' || !r.partner || reason.includes('[LỆNH ĐIỀU ĐỘNG]') || reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || reason.includes('[NGHỈ PHÉP]') || reason.includes('[VIỆC RIÊNG]') || reason.includes('[NGHỈ ỐM]') || reason.includes('[VẮNG KHÔNG PHÉP]') || reason.includes('[CÔNG TÁC]') || reason.includes('[HỌC TẬP]'));
     if (!isDispatch) return false;
     return matchRequestYM(r, yr, mo);
   }).sort((a,b) => b.id - a.id); 
@@ -3472,22 +3796,25 @@ function renderAdminHCHist() {
   }
   
   tbody.innerHTML = hcReqs.map(r => {
-    const isPhep = r.reason.includes('[NGHỈ PHÉP]');
+    const reason = (r.reason || "").toString();
+    const isPhep = reason.includes('[NGHỈ PHÉP]');
     const displayKip = (r.kip === 'AUTO_LEAVE' || !r.kip) ? getPersonKip(r.name, r.kip) : r.kip;
+    const hasPartner = (r.partner && r.partner !== 'CÔNG TÁC HC');
+    
     return `
     <tr>
       <td style="font-weight:600">${fmtDate(r.ngayDoi)}</td>
       <td style="color:#1a56a0; font-weight:700">${r.name}</td>
       <td><span class="dp">${displayKip}</span></td>
-      <td>${r.partner === 'CÔNG TÁC HC' ? '--' : `<span style="color:#ea580c; font-weight:700">${r.partner}</span>`}</td>
+      <td>${hasPartner ? `<span style="color:#ea580c; font-weight:700">${r.partner}</span>` : '--'}</td>
       <td>
-        ${r.partner === 'CÔNG TÁC HC' 
+        ${!hasPartner 
           ? '<span style="color:#16a34a; font-weight:600">Ngày nghỉ (OFF)</span>' 
           : (isPhep ? '<span style="color:#0284c7; font-weight:600; font-style:italic;">Không có (Nghỉ phép)</span>' 
                     : `<span style="color:#64748b; font-weight:700">${fmtDate(r.ngayTra)}</span> <span class="dp" style="background:#fef3c7; color:#b45309; border: 1px solid #fde68a;">Ca ${r.caTra}</span>`)
         }
       </td>
-      <td style="font-size:13px;">${escapeHTML(r.reason)}</td>
+      <td style="font-size:13px;">${escapeHTML(reason)}</td>
       <td style="text-align:center;"><button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteAdminHC('${r.id}', this)">Thu hồi</button></td>
     </tr>`
   }).join('');
@@ -3552,80 +3879,132 @@ async function submitBatchHC() {
 
     // ── CHẾ ĐỘ DỰ PHÒNG: tạo 2 lệnh điều động trong 1 thao tác ──
     // selectedNames = [ông dự phòng đã chọn] (người cùng ca, có dự phòng chức danh r)
-    // selectedPartners = [người thay chỗ ông dự phòng ở chức danh chính của ổng]
+    // selectedPartners = [người thay chỗ ông dự phòng ở chức danh chính của ổng] - CÓ THỂ TRỐNG
     if (useBackup) {
       if (selectedNames.length === 0) { hasError = true; showLocalAlert('batchhc-msg', 'Vui lòng chọn ông dự phòng!', 'ae'); return; }
-      if (selectedPartners.length === 0) { hasError = true; showLocalAlert('batchhc-msg', 'Vui lòng chọn người thay chỗ ông dự phòng!', 'ae'); return; }
-      if (!pkip) { hasError = true; showLocalAlert('batchhc-msg', 'Vui lòng chọn Kíp người thay!', 'ae'); return; }
-
+      
       selectedNames.forEach((n, idx) => {
-        // n = ông dự phòng (vd: Tùng - lái máy, dự phòng trực chính)
+        // n = ông dự phòng (vd: Nhất)
         const backupInfo = NV_LIST.find(u => u.name === n);
-        const backupKip = backupInfo ? backupInfo.kip : kip; // kíp thật của ông dự phòng
-        const backupMainRole = backupInfo ? backupInfo.chucDanh : role; // CD chính ông dự phòng (lái máy)
+        const backupKip = backupInfo ? backupInfo.kip : kip; 
+        const backupMainRole = backupInfo ? backupInfo.chucDanh : role; 
 
-        const caWorkBackup = getCaTrucGoc(n, backupKip, dHC); // ca làm việc gốc của ông dự phòng
-        if (caWorkBackup === 'OFF') {
-          hasError = true; showLocalAlert('batchhc-msg', `LỖI: Ông ${n} ngày ${dHC} đang nghỉ (OFF), không thể điều động lên thay!`, 'ae'); return;
+        // 1. TÌM ÔNG NGHỈ GỐC (vd: ông Hiền hoặc ông Hồng)
+        const actualReplaceName = row.dataset.actualReplace;
+        let leavePerson = null;
+        if (actualReplaceName) {
+            leavePerson = NV_LIST.find(u => u.name === actualReplaceName);
         }
-        const loiBackup = checkViPhamAnToan(n, backupKip, dHC, caWorkBackup);
-        if (loiBackup) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN (ông dự phòng ${n}): ${loiBackup}`, 'ae'); return; }
+        
+        if (!leavePerson) {
+          const isAutoKip = (!kip || kip === 'AUTO_LEAVE');
+          leavePerson = isAutoKip
+            ? findLeavePersonForBackupAuto(role, dHC, type, n, backupKip)
+            : findLeavePersonForBackup(role, kip, dHC, type);
+        }
 
-        // Người thay chỗ ông dự phòng (ở vị trí lái máy)
-        const replacerName = selectedPartners[idx] || selectedPartners[0];
-        const replacerInfo = NV_LIST.find(u => u.name === replacerName);
-        const replacerKip = replacerInfo ? replacerInfo.kip : pkip;
-
-        const caReplacer = getCaThucTe(replacerName, replacerKip, dHC);
-        if (caReplacer !== 'OFF') { hasError = true; showLocalAlert('batchhc-msg', `LỖI: Ông ${replacerName} ngày ${dHC} đang có ca ${caReplacer}, không rảnh để thay!`, 'ae'); return; }
-        const loiReplacer = checkViPhamAnToan(replacerName, replacerKip, dHC, caWorkBackup);
-        if (loiReplacer) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN (người thay ${replacerName}): ${loiReplacer}`, 'ae'); return; }
-
-        // Lệnh dự phòng luôn dùng [LỆNH ĐIỀU ĐỘNG] vì ông Tùng/Tân đi làm ca thật, không nghỉ
-        const leaveTag = { P:'[NGHỈ PHÉP]', VR:'[VIỆC RIÊNG]', Ô:'[NGHỈ ỐM]', TS:'[NGHỈ THAI SẢN]', O:'[KH LƯƠNG]', V:'[VẮNG KHÔNG PHÉP]', CT:'[CÔNG TÁC]', HT:'[HỌC TẬP]' }[type] || '';
-
-        // Tìm ông nghỉ gốc (vd: Hồng) — chức danh role, cùng ca với ông dự phòng
-        const isAutoKip = (!kip || kip === 'AUTO_LEAVE');
-        const leavePerson = isAutoKip
-          ? findLeavePersonForBackupAuto(role, dHC, type, n, backupKip)
-          : findLeavePersonForBackup(role, kip, dHC, type);
         if (!leavePerson) {
           hasError = true;
-          showLocalAlert('batchhc-msg', `LỖI: Không tìm thấy người nghỉ (${role}) ngày ${dHC} để điều dự phòng lên thay!`, 'ae');
+          showLocalAlert('batchhc-msg', `LỖI: Không tìm thấy người cần thay (${role}) ngày ${fmtDate(dHC)}!`, 'ae');
           return;
         }
-        const caGocLeave = getCaTrucGoc(leavePerson.name, leavePerson.kip, dHC);
-        const leaveReasonPrefix = { P:'[NGHỈ PHÉP]', VR:'[VIỆC RIÊNG]', Ô:'[NGHỈ ỐM]', TS:'[NGHỈ THAI SẢN]', O:'[NGHỈ KHÔNG LƯƠNG]', V:'[VẮNG KHÔNG PHÉP]', CT:'[CÔNG TÁC]', HT:'[HỌC TẬP]' }[type] || '[NGHỈ PHÉP]';
 
-        const cancelCheckUsers = [leavePerson.name, n, replacerName];
+        // 2. LẤY CA THỰC TẾ CỦA NGƯỜI NGHỈ (Ưu tiên ca đã đổi nếu có)
+        const caThucTeLeave = getCaThucTe(leavePerson.name, leavePerson.kip, dHC);
+        if (caThucTeLeave === 'OFF' || caThucTeLeave === 'HC') {
+            // Nếu ca thực tế là OFF/HC thì lấy ca gốc (để biết là K, N hay C)
+            const caGocLeave = getCaTrucGoc(leavePerson.name, leavePerson.kip, dHC);
+            if (caGocLeave !== 'OFF') {
+                // Giữ nguyên caGocLeave nếu nó là ca làm việc
+            }
+        }
+        const finalCaDoiStep1 = (caThucTeLeave !== 'OFF' && caThucTeLeave !== 'HC') ? caThucTeLeave : getCaTrucGoc(leavePerson.name, leavePerson.kip, dHC);
+
+        // 3. LẤY CA THỰC TẾ CỦA ÔNG DỰ PHÒNG (Nhất)
+        const caWorkBackup = getCaThucTe(n, backupKip, dHC); 
+        if (caWorkBackup === 'OFF' || caWorkBackup === 'P' || caWorkBackup === 'VR' || caWorkBackup === 'HC') {
+          hasError = true; showLocalAlert('batchhc-msg', `LỖI: Ông ${n} ngày ${dHC} không đi làm (đang ${caWorkBackup}), không thể điều động lên thay!`, 'ae'); return;
+        }
+        
+        // KIỂM TRA TRÙNG LỆNH CHO ÔNG DỰ PHÒNG
+        const isDupBackup = allReqs.some(req => 
+            isManagementDispatch(req) && 
+            (req.name === n || req.partner === n) && 
+            normalizeDate(req.ngayDoi) === normalizeDate(dHC)
+        );
+        if (isDupBackup) {
+            hasError = true; showLocalAlert('batchhc-msg', `LỖI: Ông dự phòng ${n} đã vướng một LỆNH ĐIỀU ĐỘNG khác trong ngày ${fmtDate(dHC)}!`, 'ae'); return;
+        }
+
+        const loiBackup = checkViPhamAnToan(n, backupKip, dHC, finalCaDoiStep1);
+        if (loiBackup) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN (ông dự phòng ${n}): ${loiBackup}`, 'ae'); return; }
+
+        // Người thay chỗ ông dự phòng (ở vị trí lái máy) - KHÔNG BẮT BUỘC
+        const replacerName = selectedPartners.length > 0 ? (selectedPartners[idx] || selectedPartners[0]) : null;
+        let replacerKip = null;
+        if (replacerName) {
+            const replacerInfo = NV_LIST.find(u => u.name === replacerName);
+            replacerKip = replacerInfo ? replacerInfo.kip : pkip;
+
+            const caReplacer = getCaThucTe(replacerName, replacerKip, dHC);
+            if (caReplacer !== 'OFF') { hasError = true; showLocalAlert('batchhc-msg', `LỖI: Ông ${replacerName} ngày ${dHC} đang có ca ${caReplacer}, không rảnh để thay!`, 'ae'); return; }
+            
+            const isDupReplacer = allReqs.some(req => 
+                isManagementDispatch(req) && 
+                (req.name === replacerName || req.partner === replacerName) && 
+                normalizeDate(req.ngayDoi) === normalizeDate(dHC)
+            );
+            if (isDupReplacer) {
+                hasError = true; showLocalAlert('batchhc-msg', `LỖI: Người thay ${replacerName} đã vướng một LỆNH ĐIỀU ĐỘNG khác trong ngày ${fmtDate(dHC)}!`, 'ae'); return;
+            }
+
+            const loiReplacer = checkViPhamAnToan(replacerName, replacerKip, dHC, caWorkBackup);
+            if (loiReplacer) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN (người thay ${replacerName}): ${loiReplacer}`, 'ae'); return; }
+        }
+
+        const nonWork = ['P', 'VR', 'Ô', 'TS', 'O', 'HC', 'HC/2', 'V', 'CT', 'HT', 'OFF', 'NONE'];
+        const leaveReasonPrefix = { P:'[NGHỈ PHÉP]', VR:'[VIỆC RIÊNG]', Ô:'[NGHỈ ỐM]', TS:'[NGHỈ THAI SẢN]', O:'[NGHỈ KHÔNG LƯƠNG]', V:'[VẮNG KHÔNG PHÉP]', CT:'[CÔNG TÁC]', HT:'[HỌC TẬP]', HC:'[LỆNH ĐIỀU ĐỘNG]' }[type] || '[LỆNH ĐIỀU ĐỘNG]';
+
+        const cancelCheckUsers = [leavePerson.name, n];
+        if (replacerName) cancelCheckUsers.push(replacerName);
+        
         allReqs.forEach(req => {
           if (req.status === 'pending_partner' || req.status === 'pending_ld') {
+            const reqDate = normalizeDate(req.ngayDoi);
+            const reqDateTra = normalizeDate(req.ngayTra);
             if (cancelCheckUsers.includes(req.name) || cancelCheckUsers.includes(req.partner)) {
-              if ([dHC].includes(req.ngayDoi) || [dHC].includes(req.ngayTra)) cancelIds.add(req.id);
+              if ([normalizeDate(dHC)].includes(reqDate) || [normalizeDate(dHC)].includes(reqDateTra)) cancelIds.add(req.id);
             }
           }
         });
 
         if (!hasError) {
-          // Lệnh 1: ông Hồng nghỉ → ông Tùng (dự phòng) đi thay ở chức danh role
+          // Nếu người nghỉ đang ở trạng thái không làm việc (HC, P, OFF...), ta lấy ca gốc của họ để điều dự phòng lên gánh
+          const finalCaDoiStep1 = (!nonWork.includes(caThucTeLeave)) ? caThucTeLeave : getCaTrucGoc(leavePerson.name, leavePerson.kip, dHC);
+
+          // Lệnh 1: ông Hiền nghỉ (đi HC) → ông Nhất (dự phòng) đi thay ca K
           allReqsHC.push({
-            name: leavePerson.name, kip: leavePerson.kip, caDoi: caGocLeave, ngayDoi: dHC,
+            name: leavePerson.name, kip: leavePerson.kip, caDoi: finalCaDoiStep1, ngayDoi: dHC,
             caTra: 'OFF', ngayTra: dHC,
             partner: n, partnerKip: backupKip, partnerRole: role,
             reason: `${leaveReasonPrefix} [DỰ PHÒNG ĐI THAY - ${n}] ${reason}`, status: 'approved',
             approvedBy: CU.name
           });
-          // Lệnh 2: ông Tùng đi lên → ông Tân thay chỗ Tùng ở chức danh chính (lái máy)
-          allReqsHC.push({
-            name: n, kip: backupKip, caDoi: caWorkBackup, ngayDoi: dHC,
-            caTra: 'OFF', ngayTra: dHC,
-            partner: replacerName, partnerKip: replacerKip, partnerRole: backupMainRole,
-            reason: `[LỆNH ĐIỀU ĐỘNG] ${leaveTag} [THAY DỰ PHÒNG - CD: ${backupMainRole}] ${reason}`, status: 'approved',
-            approvedBy: CU.name
-          });
+          
+          // Lệnh 2: ông Nhất đi lên → ông Đông thay chỗ Nhất (Nhất đang ở ca C)
+          if (replacerName) {
+            allReqsHC.push({
+                name: n, kip: backupKip, caDoi: caWorkBackup, ngayDoi: dHC,
+                caTra: 'OFF', ngayTra: dHC,
+                partner: replacerName, partnerKip: replacerKip, partnerRole: backupMainRole,
+                reason: `[LỆNH ĐIỀU ĐỘNG] ${leaveReasonPrefix} [THAY DỰ PHÒNG - CD: ${backupMainRole}] [NGƯỜI THAY: ${replacerName}] ${reason}`, 
+                status: 'approved',
+                approvedBy: CU.name
+            });
+          }
         }
       });
-      return; // Kết thúc xử lý hàng này, không chạy logic cũ bên dưới
+      return; 
     }
 
     // Kiểm tra ca GỐC của từng người để quyết định có cần người thay không
@@ -3642,55 +4021,62 @@ async function submitBatchHC() {
         if (!pkip) { hasError = true; showLocalAlert('batchhc-msg', `Vui lòng chọn Kíp thay!`, 'ae'); return; }
     }
 
-    let reasonPrefix = '';
-    if (type === 'P') reasonPrefix = '[NGHỈ PHÉP]';
-    else if (type === 'VR') reasonPrefix = '[VIỆC RIÊNG]';
-    else if (type === 'Ô') reasonPrefix = '[NGHỈ ỐM]';
-    else if (type === 'V') reasonPrefix = '[VẮNG KHÔNG PHÉP]';
-    else if (type === 'CT') reasonPrefix = '[CÔNG TÁC]';
-    else if (type === 'HT') reasonPrefix = '[HỌC TẬP]';
-    else if (type === 'HC/2') reasonPrefix = '[ĐIỀU ĐỘNG 0.5 NGÀY]';
-    else reasonPrefix = '[LỆNH ĐIỀU ĐỘNG]';
+    const nonWork = ['P', 'VR', 'Ô', 'TS', 'O', 'HC', 'HC/2', 'V', 'CT', 'HT', 'OFF', 'NONE'];
+    let reasonPrefix = { P:'[NGHỈ PHÉP]', VR:'[VIỆC RIÊNG]', Ô:'[NGHỈ ỐM]', TS:'[NGHỈ THAI SẢN]', O:'[NGHỈ KHÔNG LƯƠNG]', V:'[VẮNG KHÔNG PHÉP]', CT:'[CÔNG TÁC]', HT:'[HỌC TẬP]', HC:'[LỆNH ĐIỀU ĐỘNG]', 'HC/2':'[ĐIỀU ĐỘNG 0.5 NGÀY]' }[type] || '[LỆNH ĐIỀU ĐỘNG]';
     
     if (isNoReplace) reasonPrefix += ' (KHÔNG THAY)';
-    else if (isNoReturn && !isLeave) reasonPrefix += ' (KHÔNG TRẢ CA)'; // Đóng dấu không trả ca vào lịch sử
+    else if (isNoReturn && !isLeave) reasonPrefix += ' (KHÔNG TRẢ CA)'; 
 
     selectedNames.forEach((n, idx) => {
       const personKip = getPersonKip(n, kip);
-      const caGocA = getCaTrucGoc(n, personKip, dHC);
-      // Dùng ca GỐC để quyết định cần người thay không
-      const isShiftItem = caGocA !== 'OFF';
-      // Ca làm việc cần bố trí thay luôn là ca GỐC (K/C/N...), không phải ca nghỉ P/VR
-      const caWork = caGocA;
+      const caHienTai = getCaThucTe(n, personKip, dHC);
+      // Ưu tiên lấy ca làm việc thực tế, nếu đang nghỉ/HC thì lấy ca gốc
+      const finalCaDoi = (!nonWork.includes(caHienTai)) ? caHienTai : getCaTrucGoc(n, personKip, dHC);
+
+      // ƯU TIÊN: Nếu người dùng đã chọn người thay ở cột bên cạnh, coi như là có ca làm việc cần thay
+      const manualPartner = selectedPartners[idx] || (selectedPartners.length > 0 ? selectedPartners[0] : null);
+      const isShiftItem = (caHienTai !== 'OFF' || manualPartner !== null);
+      
       let finalRetDate = retDate, autoCaTra = 'HC', finalPartner = 'CÔNG TÁC HC', finalPartnerKip = 'Hành chính';
 
-    if (isShiftItem) {
+      if (isShiftItem) {
         if (isNoReplace) { 
             finalRetDate = dHC; autoCaTra = 'OFF';
+            finalPartner = 'CÔNG TÁC HC'; finalPartnerKip = 'Hành chính';
         } else if (noRetRequired) { 
             finalRetDate = dHC; autoCaTra = 'OFF';
-            // Chỉ gán người thay nếu có ca gốc là ca làm việc
-            if (isShiftItem && selectedPartners[idx]) {
-              finalPartner = selectedPartners[idx];
+            if (manualPartner) {
+              finalPartner = manualPartner;
               const pInfo = NV_LIST.find(u => u.name === finalPartner);
               finalPartnerKip = pInfo ? pInfo.kip : pkip;
-              const loi = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caWork);
-              if(loi) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN: Đ/c ${finalPartner} vi phạm - ${loi}`, 'ae'); return; }
+              // Bỏ qua check an toàn nếu caHienTai là OFF (người dùng cố tình điều động vào ngày nghỉ)
+              if (caHienTai !== 'OFF') {
+                const loi = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, finalCaDoi);
+                if(loi) { hasError = true; showLocalAlert('batchhc-msg', `LỖI AN TOÀN: Đ/c ${finalPartner} vi phạm - ${loi}`, 'ae'); return; }
+              }
             }
         } else { 
-            finalPartner = selectedPartners[idx]; 
+            finalPartner = manualPartner;
+            if (!finalPartner) { hasError = true; showLocalAlert('batchhc-msg', `Vui lòng chọn người thay cho ${n}!`, 'ae'); return; }
+            
             const pInfo = NV_LIST.find(u => u.name === finalPartner);
             finalPartnerKip = pInfo ? pInfo.kip : pkip;
+            
             const caGocB_Tra = getCaThucTe(finalPartner, finalPartnerKip, retDate);
             autoCaTra = caGocB_Tra;
-            const loiThay = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, caWork);
-            if(loiThay) { hasError = true; showLocalAlert('batchhc-msg', `LỖI NGƯỜI THAY: ${loiThay}`, 'ae'); return; }
+            
+            if (caHienTai !== 'OFF') {
+              const loiThay = checkViPhamAnToan(finalPartner, finalPartnerKip, dHC, finalCaDoi);
+              if(loiThay) { hasError = true; showLocalAlert('batchhc-msg', `LỖI NGƯỜI THAY (${finalPartner}): ${loiThay}`, 'ae'); return; }
+            }
             const loiTra = checkViPhamAnToan(n, personKip, retDate, autoCaTra);
-            if(loiTra) { hasError = true; showLocalAlert('batchhc-msg', `LỖI TRẢ CA: ${loiTra}`, 'ae'); return; }
+            if(loiTra) { hasError = true; showLocalAlert('batchhc-msg', `LỖI TRẢ CA (${n}): ${loiTra}`, 'ae'); return; }
         }
-      } else if (isLeave) {
-        // Ca gốc = Nghỉ → không cần thay, ghi lệnh bình thường không có partner
-        finalRetDate = dHC; autoCaTra = 'OFF';
+      } else {
+        finalRetDate = dHC; 
+        autoCaTra = 'OFF';
+        finalPartner = 'CÔNG TÁC HC';
+        finalPartnerKip = 'Hành chính';
       }
 
       const checkUsers = [n, finalPartner];
@@ -3705,10 +4091,10 @@ async function submitBatchHC() {
 
       if(!hasError) {
         allReqsHC.push({
-          name: n, kip: personKip, caDoi: isShiftItem ? caWork : 'OFF', ngayDoi: dHC,
+          name: n, kip: personKip, caDoi: finalCaDoi, ngayDoi: dHC,
           caTra: autoCaTra, ngayTra: isShiftItem ? finalRetDate : dHC,
           partner: finalPartner, partnerKip: finalPartnerKip, partnerRole: role,
-          reason: reasonPrefix + " " + reason, status: 'approved',
+          reason: reasonPrefix + (finalPartner !== 'CÔNG TÁC HC' ? ` [NGƯỜI THAY: ${finalPartner}]` : "") + " " + reason, status: 'approved',
           approvedBy: CU.name // <--- Bơm tên Sếp đang thao tác vào đây
         });
       }
@@ -3727,16 +4113,25 @@ async function submitBatchHC() {
   try {
     const cancelArr = Array.from(cancelIds);
     for(let id of cancelArr) await api({action: "updateStatus", id: id, status: "cancelled", by: "Hệ thống (Auto)"});
-    for(let data of allReqsHC) await api({ action: "add", data: JSON.stringify(data), verifyPin: pin }); 
+    
+    for(let data of allReqsHC) {
+        const res = await api({ action: "add", data: JSON.stringify(data), verifyPin: pin }); 
+        if (res && res.error) {
+            showLocalAlert('batchhc-msg', '❌ LỖI: ' + res.error, 'ae');
+            btn.disabled = false; btn.innerHTML = '⚡ PHÊ DUYỆT LỆNH';
+            return; // Dừng ngay và hiện lỗi nếu sai PIN hoặc lỗi khác
+        }
+    }
     
     await loadAll(); showLocalAlert('batchhc-msg', 'Đã ban hành lệnh thành công!', 'as');
     document.getElementById('hc-table-body').innerHTML = ''; document.getElementById('hc-group-reason').value = '';
     document.getElementById('hc-pin').value = '';
     renderAdminHCHist(); renderScheduleTable(); 
-  } catch(e) { showLocalAlert('batchhc-msg', 'Lỗi mạng!', 'ae'); }
+  } catch(e) { 
+    showLocalAlert('batchhc-msg', 'Lỗi mạng hoặc máy chủ!', 'ae'); 
+  }
   btn.disabled = false; btn.innerHTML = '⚡ PHÊ DUYỆT LỆNH';
 }
-let allTransfers = []; // Biến lưu trữ lịch sử điều chuyển
 
 // Khởi tạo Form Điều chuyển
 function initTransferForm() {
@@ -3762,6 +4157,7 @@ function initTransferForm() {
 function filterTCUsers() {
   const r = document.getElementById('tc-role').value;
   const searchText = document.getElementById('tc-user-search').value.trim().toLowerCase();
+  const selectedDate = document.getElementById('tc-date').value || new Date().toISOString().substring(0, 10);
   
   let list = r ? NV_LIST.filter(u => u.chucDanh === r) : NV_LIST;
   if (searchText) {
@@ -3772,12 +4168,22 @@ function filterTCUsers() {
                 <input type="checkbox" onchange="toggleAllTC(this)" style="width:18px; height:18px; margin-right:8px; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> CHỌN TẤT CẢ (${list.length})
               </label>`;
               
-  html += list.map(u => `
+  html += list.map(u => {
+    // Tính kíp hiện tại của người này tính đến ngày được chọn
+    let currentKip = u.kip;
+    if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
+      const sorted = allTransfers
+        .filter(t => t.name === u.name && selectedDate >= t.date)
+        .sort((a, b) => b.date.localeCompare(a.date));
+      if (sorted.length > 0) currentKip = sorted[0].newKip;
+    }
+
+    return `
     <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer;">
       <input type="checkbox" class="tc-user-val" value="${u.name}" style="width:18px; height:18px; margin-right:8px; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> 
-      ${u.name} <span style="color:#94a3b8; font-size:12px; margin-left:5px;">(${u.kip})</span>
+      ${u.name} <span style="color:#94a3b8; font-size:12px; margin-left:5px;">(${currentKip})</span>
     </label>
-  `).join('');
+  `}).join('');
   
   document.getElementById('tc-user-list').innerHTML = html;
 }
@@ -3830,7 +4236,16 @@ async function submitTransfer() {
 
 async function loadTransfers() {
   const res = await api({ action: "getTransfers" });
-  allTransfers = res || [];
+  allTransfers = (res || []).map(t => {
+    t._date = (t.date || "").toString().substring(0, 10);
+    return t;
+  });
+  // Tối ưu: Index theo tên để tìm kiếm nhanh hơn
+  transfersByName = {};
+  allTransfers.forEach(t => {
+    if (!transfersByName[t.name]) transfersByName[t.name] = [];
+    transfersByName[t.name].push(t);
+  });
 }
 
 
