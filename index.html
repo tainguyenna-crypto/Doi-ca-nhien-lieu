@@ -376,12 +376,16 @@ textarea{resize:none;height:80px}
           <table class="dt" id="table-admin-hc-hist">
             <thead style="position:sticky; top:0; z-index:10; background:#f8fafc;">
               <tr>
-                <th style="width:100px">Ngày HC</th>
-                <th style="width:140px">Người đi</th>
-                <th style="width:60px">Kíp</th>
-                <th style="width:160px">Người đi thay</th>
+                <th style="width:100px">Ngày điều động</th>
+                <th style="width:130px">Người đi</th>
+                <th style="width:110px">Chức danh</th>
+                <th style="width:80px">Kíp/Ca</th>
+                <th style="width:110px">Lý do</th>
+                <th style="width:140px">Người đi thay</th>
+                <th style="width:110px">Chức danh</th>
+                <th style="width:70px">Kíp</th>
                 <th style="width:150px">Ngày trả ca (Vào ca)</th>
-                <th>Nội dung công việc</th>
+                <th>Nội dung</th>
                 <th style="width:90px; text-align:center;">Thao tác</th>
               </tr>
             </thead>
@@ -1348,8 +1352,8 @@ const btn=document.querySelector(`.tab[onclick="switchTab('${s}')"]`); if(btn) b
   if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); renderNoCaLD(); renderLeaveStats(); }
   if(t==='admin-hc') { 
     renderAdminHCHist(); 
-    initTransferForm(); // Dòng mới
-    loadTransfers();    // Dòng mới để tải dữ liệu từ server
+    initTransferForm(); // Khởi tạo form + render danh sách lần đầu
+    loadTransfers().then(() => { filterTCUsers(); renderTransferLog(); }); // Re-render sau khi load xong
   }
 }
 
@@ -1873,9 +1877,12 @@ function addDays(dateStr, days) {
 
 // Ca làm việc thực tế trong lệnh điều động (K/C/N...), không phải ca nghỉ P/VR/HC
 function getDieuDongWorkCa(req, dateStr) {
-  const nonWork = ['P', 'VR', 'Ô', 'TS', 'O', 'HC', 'HC/2', 'V', 'CT', 'HT', 'OFF', 'NONE'];
+  // caDoi chứa ca làm việc thật (K/C/N) của người gốc khi tạo lệnh
+  const nonWork = ['P', 'VR', 'Ô', 'TS', 'O', 'OFF', 'NONE'];
   if (req.caDoi && !nonWork.includes(req.caDoi)) return req.caDoi;
-  const goc = getCaTrucGoc(req.name, getPersonKip(req.name, req.kip), dateStr);
+  // Fallback: lấy ca gốc của partner
+  const partnerKip = getPersonKip(req.partner, req.partnerKip);
+  const goc = getCaTrucGoc(req.partner, partnerKip, dateStr);
   return goc !== 'OFF' ? goc : (req.caDoi || 'OFF');
 }
 
@@ -1901,10 +1908,10 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
       return (name === uName || partner === uName) && (dDoi === targetDate || dTra === targetDate);
    }).sort((a, b) => Number(a.id) - Number(b.id));
 
-   let workCa = null;      // Ca đi làm thay (là partner trong lệnh người khác)
-   let workCaSpecial = false; // workCa đến từ lệnh admin (isSpecial), không phải đổi ca tự do
-   let leaveCa = null;     // Trạng thái của chính người này (HC/P/VR/CT/HT/V...)
-   let leaveCaIsHC = false;  // leaveCa là HC thuần (chỉ bố trí người thay, không xác định ca người này)
+   let workCa = null;          // Ca đi làm thay (partner)
+   let workCaIsAdmin = false;  // workCa đến từ lệnh admin (ưu tiên hơn đổi ca tự do)
+   let leaveCa = null;         // Trạng thái nghỉ/HC (name)
+   let leaveCaIsAdmin = false; // leaveCa đến từ lệnh admin (ưu tiên tuyệt đối)
    let finalStatus = 'goc';
 
    for (let r of reqs) {
@@ -1913,30 +1920,49 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
       const name = (r.name || "").toString().trim();
       const partner = (r.partner || "").toString().trim();
       const reason = (r.reason || "").toString();
-
+      
       const isSpecial = /\[(LỆNH ĐIỀU ĐỘNG|ĐIỀU ĐỘNG 0.5 NGÀY|NGHỈ PHÉP|VIỆC RIÊNG|NGHỈ ỐM|NGHỈ THAI SẢN|NGHỈ KHÔNG LƯƠNG|VẮNG KHÔNG PHÉP|CÔNG TÁC|HỌC TẬP)\]/i.test(reason);
 
-      // 1. NGƯỜI ĐI THAY (PARTNER)
-      if (partner === uName && partner !== 'CÔNG TÁC HC' && dDoi === targetDate) {
-          workCa = isSpecial ? getDieuDongWorkCa(r, targetDate) : r.caDoi;
-          workCaSpecial = isSpecial;
-          if (r.status === 'approved') finalStatus = 'approved';
-      }
-
-      // 2. TRẢ CA
-      if (isSpecial && dTra === targetDate && dTra !== dDoi) {
-          if (partner === uName) {
-              workCa = 'OFF'; workCaSpecial = true;
+      // ══════════════════════════════════════════════════════════
+      // LOGIC ĐỔI CA TỰ DO (!isSpecial)
+      // Ngày đổi: name NGHỈ (cùng ngày thì làm caTra luôn), partner làm caDoi
+      // Ngày trả: name làm caTra, partner NGHỈ
+      // ══════════════════════════════════════════════════════════
+      if (!isSpecial) {
+          if (dDoi === targetDate) {
+              // Đổi ca tự do chỉ ghi workCa nếu chưa có lệnh admin
+              if (partner === uName && !workCaIsAdmin) { workCa = r.caDoi; }
+              if (name === uName && !leaveCaIsAdmin) {
+                  // Cùng ngày đổi+trả: name làm caTra luôn; khác ngày: name nghỉ
+                  leaveCa = (dTra === dDoi && r.caTra && r.caTra !== 'NONE') ? r.caTra : 'OFF';
+              }
               if (r.status === 'approved') finalStatus = 'approved';
-          } else if (name === uName) {
-              leaveCa = r.caTra || 'OFF'; leaveCaIsHC = false;
+          }
+          if (dTra === targetDate && dTra !== dDoi) {
+              if (name === uName && !leaveCaIsAdmin)    { leaveCa = r.caTra && r.caTra !== 'NONE' ? r.caTra : null; }
+              if (partner === uName && !workCaIsAdmin)  { workCa = 'OFF'; }
               if (r.status === 'approved') finalStatus = 'approved';
           }
       }
 
-      // 3. NGƯỜI NGHỈ / ĐIỀU ĐỘNG (NAME)
-      if (name === uName && dDoi === targetDate) {
-          if (isSpecial) {
+      // ══════════════════════════════════════════════════════════
+      // LOGIC LỆNH ADMIN (isSpecial): HC/P/VR/CT/HT/V...
+      // ══════════════════════════════════════════════════════════
+      if (isSpecial) {
+          // PARTNER ngày đổi: làm ca của người gốc
+          if (partner === uName && partner !== 'CÔNG TÁC HC' && dDoi === targetDate) {
+              workCa = getDieuDongWorkCa(r, targetDate);
+              workCaIsAdmin = true; // Lệnh admin thắng đổi ca tự do
+              if (r.status === 'approved') finalStatus = 'approved';
+          }
+          // PARTNER ngày trả (khác ngày đổi): về OFF
+          if (partner === uName && dTra === targetDate && dTra !== dDoi) {
+              workCa = 'OFF';
+              workCaIsAdmin = true;
+              if (r.status === 'approved') finalStatus = 'approved';
+          }
+          // NAME ngày đổi: ghi trạng thái HC/P/VR/CT/HT/V...
+          if (name === uName && dDoi === targetDate) {
               let tempLeave = 'HC';
               if (/\[(CÔNG TÁC)\]/i.test(reason)) tempLeave = 'CT';
               else if (/\[(HỌC TẬP)\]/i.test(reason)) tempLeave = 'HT';
@@ -1948,31 +1974,31 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
               else if (/\[(NGHỈ THAI SẢN)\]/i.test(reason)) tempLeave = 'TS';
               else if (/\[(NGHỈ KHÔNG LƯƠNG)\]/i.test(reason)) tempLeave = 'O';
               leaveCa = tempLeave;
-              leaveCaIsHC = (tempLeave === 'HC'); // HC thuần = chỉ bố trí người thay
+              leaveCaIsAdmin = true; // Đánh dấu: lệnh admin thắng mọi đổi ca tự do
               if (r.status === 'approved') finalStatus = 'approved';
-          } else {
-              leaveCa = 'OFF'; leaveCaIsHC = false;
+          }
+          // NAME ngày trả (khác ngày đổi): về ca gốc
+          if (name === uName && dTra === targetDate && dTra !== dDoi) {
+              const caTraVal = r.caTra && r.caTra !== 'NONE' && r.caTra !== 'OFF' ? r.caTra : null;
+              leaveCa = caTraVal;
               if (r.status === 'approved') finalStatus = 'approved';
           }
       }
    }
 
-   // Quy tắc ưu tiên:
-   // - leaveCa cụ thể (P/VR/Ô/CT/HT/V/HC/2/TS/O): admin xác định rõ trạng thái → thắng tất cả
-   // - leaveCa = HC thuần (chỉ bố trí người thay): KHÔNG ghi đè workCa từ lệnh admin
-   //   vì người này đang thực sự đi làm ca đó (do lệnh admin khác điều đi thay)
-   // - workCa từ lệnh admin: thắng workCa tự do và HC thuần
-   // - workCa tự do: yếu nhất
+   // Ưu tiên: workCaIsAdmin (đang đi làm thay theo lệnh) > leaveCaIsAdmin (HC/CT/P...) > đổi ca tự do
+   // Nguyên tắc: nếu được lệnh đi làm thay người khác thì KHÔNG tính là HC dù có lệnh HC khác
+   const leaveCaIsHC = (leaveCa === 'HC');
+   const workCaIsSpecial = workCa !== null && workCa !== 'OFF' && workCa !== '';
    let finalCa = ca;
-   if (leaveCa && !leaveCaIsHC) {
-       finalCa = leaveCa; // P/VR/Ô/CT/HT/V/HC/2... thắng tất cả
-   } else if (workCaSpecial) {
-       finalCa = workCa;  // Đang thực sự đi làm theo lệnh admin → giữ ca đó
-   } else if (leaveCa) {
-       finalCa = leaveCa; // HC thuần, không có workCa admin → ghi HC
-   } else if (workCa) {
-       finalCa = workCa;  // Đổi ca tự do
-   }
+   if (workCaIsAdmin && workCa && workCa !== 'OFF') finalCa = workCa;   // Lệnh admin (partner đi làm thay): ưu tiên cao nhất
+   else if (leaveCaIsAdmin && leaveCa)              finalCa = leaveCa;  // Lệnh admin (name đi HC/CT/P...): ưu tiên cao
+   else if (workCaIsAdmin && workCa === 'OFF')      finalCa = 'OFF';    // Lệnh admin partner ngày trả: về OFF
+   else if (leaveCa && !leaveCaIsHC)                finalCa = leaveCa;  // Đổi ca tự do (name): P/VR/OFF...
+   else if (workCaIsSpecial)                        finalCa = workCa;   // Đổi ca tự do (partner): đang làm thay
+   else if (leaveCaIsHC && !workCa)                 finalCa = 'HC';     // HC thuần, không có workCa
+   else if (workCa !== null)                        finalCa = workCa;   // workCa tự do (OFF)
+   else if (leaveCa)                                finalCa = leaveCa;
 
    // ── Kiểm tra nghỉ phép từ sheet leaves (Ưu tiên thấp nhất) ──
    if (finalCa === ca && typeof leavesByName !== 'undefined') {
@@ -2964,7 +2990,7 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
          style = isLe ? "background:#fecaca;" : "";
       }
       
-      row += `<td style="text-align:center; ${style}">${ca === 'OFF' ? '-' : ca}</td>`;
+      row += `<td style="text-align:center; ${style}">${(ca === 'OFF' || ca === 'NONE') ? '-' : ca}</td>`;
     }
 
     const totalCong = (totalHours / 8).toFixed(2);
@@ -3792,7 +3818,7 @@ function renderAdminHCHist() {
 
   if(hcReqs.length === 0) {
     const period = mo ? `tháng ${mo}/${yr}` : `năm ${yr}`;
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">Chưa có lệnh nào trong ${period}</td></tr>`; return;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty">Chưa có lệnh nào trong ${period}</td></tr>`; return;
   }
   
   tbody.innerHTML = hcReqs.map(r => {
@@ -3800,13 +3826,55 @@ function renderAdminHCHist() {
     const isPhep = reason.includes('[NGHỈ PHÉP]');
     const displayKip = (r.kip === 'AUTO_LEAVE' || !r.kip) ? getPersonKip(r.name, r.kip) : r.kip;
     const hasPartner = (r.partner && r.partner !== 'CÔNG TÁC HC');
-    
+
+    const lyDo = reason.includes('[LỆNH ĐIỀU ĐỘNG]') ? '🏢 Đi hành chính'
+      : reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') ? '🏢 HC nửa ngày'
+      : reason.includes('[NGHỈ PHÉP]') ? '🏖️ Nghỉ phép'
+      : reason.includes('[VIỆC RIÊNG]') ? '🏠 Việc riêng'
+      : reason.includes('[NGHỈ ỐM]') ? '🏥 Nghỉ ốm'
+      : reason.includes('[NGHỈ THAI SẢN]') ? '👶 Thai sản'
+      : reason.includes('[NGHỈ KHÔNG LƯƠNG]') ? '⛔ Không lương'
+      : reason.includes('[VẮNG KHÔNG PHÉP]') ? '🚫 Vắng không phép'
+      : reason.includes('[CÔNG TÁC]') ? '✈️ Công tác'
+      : reason.includes('[HỌC TẬP]') ? '📚 Học tập'
+      : '📋 Điều động';
+
+    const noiDung = escapeHTML(reason
+      .replace(/\[LỆNH ĐIỀU ĐỘNG\]/gi, '')
+      .replace(/\[ĐIỀU ĐỘNG 0\.5 NGÀY\]/gi, '')
+      .replace(/\[NGHỈ PHÉP\]/gi, '')
+      .replace(/\[VIỆC RIÊNG\]/gi, '')
+      .replace(/\[NGHỈ ỐM\]/gi, '')
+      .replace(/\[NGHỈ THAI SẢN\]/gi, '')
+      .replace(/\[NGHỈ KHÔNG LƯƠNG\]/gi, '')
+      .replace(/\[VẮNG KHÔNG PHÉP\]/gi, '')
+      .replace(/\[CÔNG TÁC\]/gi, '')
+      .replace(/\[HỌC TẬP\]/gi, '')
+      .replace(/\[NGƯỜI THAY:[^\]]*\]/gi, '')
+      .replace(/\[DỰ PHÒNG ĐI THAY[^\]]*\]/gi, '')
+      .replace(/\[THAY DỰ PHÒNG[^\]]*\]/gi, '')
+      .replace(/\[[^\]]*\]/gi, '')
+      .trim()) || lyDo.replace(/^.{2} /, '');
+
+    const caThucTe = getCaThucTe(r.name, displayKip, r.ngayDoi);
+    const nguoiInfo = (staffData || []).find(s => s.name === r.name);
+    const partnerInfo = hasPartner ? (staffData || []).find(s => s.name === r.partner) : null;
+    const chucDanh = nguoiInfo?.role || r.role || '--';
+    const partnerChucDanh = partnerInfo?.role || r.partnerRole || '--';
+
     return `
     <tr>
       <td style="font-weight:600">${fmtDate(r.ngayDoi)}</td>
       <td style="color:#1a56a0; font-weight:700">${r.name}</td>
-      <td><span class="dp">${displayKip}</span></td>
+      <td style="font-size:12px; color:#475569;">${chucDanh}</td>
+      <td>
+        <span class="dp">${displayKip}</span><br>
+        <span class="dp" style="background:#f0fdf4;color:#15803d;font-size:11px;margin-top:3px;display:inline-block;">Ca ${caThucTe}</span>
+      </td>
+      <td style="font-size:12px;">${lyDo}</td>
       <td>${hasPartner ? `<span style="color:#ea580c; font-weight:700">${r.partner}</span>` : '--'}</td>
+      <td style="font-size:12px; color:#475569;">${hasPartner ? partnerChucDanh : '--'}</td>
+      <td>${hasPartner ? `<span class="dp">${r.partnerKip || '--'}</span>` : '--'}</td>
       <td>
         ${!hasPartner 
           ? '<span style="color:#16a34a; font-weight:600">Ngày nghỉ (OFF)</span>' 
@@ -3814,7 +3882,7 @@ function renderAdminHCHist() {
                     : `<span style="color:#64748b; font-weight:700">${fmtDate(r.ngayTra)}</span> <span class="dp" style="background:#fef3c7; color:#b45309; border: 1px solid #fde68a;">Ca ${r.caTra}</span>`)
         }
       </td>
-      <td style="font-size:13px;">${escapeHTML(reason)}</td>
+      <td style="font-size:12px;">${noiDung}</td>
       <td style="text-align:center;"><button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteAdminHC('${r.id}', this)">Thu hồi</button></td>
     </tr>`
   }).join('');
