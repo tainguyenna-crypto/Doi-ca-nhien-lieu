@@ -1247,9 +1247,7 @@ async function doLogin(){
     document.getElementById('f-leave-hist-kip').style.display = isLd;
     document.getElementById('f-leave-hist-search').style.display = isLd;
     
-    // Ẩn các ô lọc không cần thiết ở Lịch sử đổi ca đối với nhân viên
-    document.getElementById('f-fkp').style.display = isLd;
-    document.getElementById('f-hist-search').style.display = isLd;
+    // Lọc kíp và tìm tên luôn hiện cho tất cả (kể cả nhân viên)
     const now = new Date(); const curYear = now.getFullYear(); const curMonthStr = curYear + '-' + String(now.getMonth()+1).padStart(2,'0'); 
     initYearMonthFilters();
     await loadAll(); 
@@ -2275,7 +2273,7 @@ if (r.reason && r.reason.match(/^\[/)) return false;
     if (CU.role !== 'ld' && !CU.admin) {
         if (r.name !== CU.name && r.partner !== CU.name) return false;
     }
-    // Lọc theo tên tìm kiếm (chỉ lãnh đạo)
+    // Lọc theo tên tìm kiếm
     if (searchText) {
       const nameMatch = (r.name || '').toLowerCase().includes(searchText) || 
                         (r.partner || '').toLowerCase().includes(searchText);
