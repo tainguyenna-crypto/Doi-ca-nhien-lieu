@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title id="page-title">Quản lý đổi ca</title>
+<!-- VERSION: 2026-06-08.5 -->
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <style>
@@ -145,6 +146,7 @@ textarea{resize:none;height:80px}
 
 <div class="topbar">
   <div><div style="font-size:16px;font-weight:700;">Quản lý đổi ca</div><div class="topbar-sub" id="tb-ten-px">Đang tải cấu hình...</div></div>
+  <div style="font-size:11px;opacity:0.6;align-self:flex-end;">v2026-06-08.5</div>
 </div>
 
 <div class="overlay" id="overlay">
@@ -795,8 +797,8 @@ async function api(p) {
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      reject(new Error("Yêu cầu quá thời gian (30s). Vui lòng kiểm tra mạng hoặc Apps Script!"));
-    }, 30000);
+      reject(new Error("Yêu cầu quá thời gian (90s). Vui lòng kiểm tra mạng hoặc Apps Script!"));
+    }, 90000);
 
     if (typeof google !== 'undefined' && google.script && google.script.run) { 
         google.script.run
@@ -1937,11 +1939,13 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
                   leaveCa = (dTra === dDoi && r.caTra && r.caTra !== 'NONE') ? r.caTra : 'OFF';
               }
               if (r.status === 'approved') finalStatus = 'approved';
+              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
           }
           if (dTra === targetDate && dTra !== dDoi) {
               if (name === uName && !leaveCaIsAdmin)    { leaveCa = r.caTra && r.caTra !== 'NONE' ? r.caTra : null; }
               if (partner === uName && !workCaIsAdmin)  { workCa = 'OFF'; }
               if (r.status === 'approved') finalStatus = 'approved';
+              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
           }
       }
 
@@ -1954,12 +1958,14 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
               workCa = getDieuDongWorkCa(r, targetDate);
               workCaIsAdmin = true; // Lệnh admin thắng đổi ca tự do
               if (r.status === 'approved') finalStatus = 'approved';
+              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
           }
           // PARTNER ngày trả (khác ngày đổi): về OFF
           if (partner === uName && dTra === targetDate && dTra !== dDoi) {
               workCa = 'OFF';
               workCaIsAdmin = true;
               if (r.status === 'approved') finalStatus = 'approved';
+              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
           }
           // NAME ngày đổi: ghi trạng thái HC/P/VR/CT/HT/V...
           if (name === uName && dDoi === targetDate) {
@@ -1976,12 +1982,14 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
               leaveCa = tempLeave;
               leaveCaIsAdmin = true; // Đánh dấu: lệnh admin thắng mọi đổi ca tự do
               if (r.status === 'approved') finalStatus = 'approved';
+              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
           }
           // NAME ngày trả (khác ngày đổi): về ca gốc
           if (name === uName && dTra === targetDate && dTra !== dDoi) {
               const caTraVal = r.caTra && r.caTra !== 'NONE' && r.caTra !== 'OFF' ? r.caTra : null;
               leaveCa = caTraVal;
               if (r.status === 'approved') finalStatus = 'approved';
+              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
           }
       }
    }
@@ -2000,8 +2008,10 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
    else if (workCa !== null)                        finalCa = workCa;   // workCa tự do (OFF)
    else if (leaveCa)                                finalCa = leaveCa;
 
-   // ── Kiểm tra nghỉ phép từ sheet leaves (Ưu tiên thấp nhất) ──
-   if (finalCa === ca && typeof leavesByName !== 'undefined') {
+   // ── Kiểm tra nghỉ phép từ sheet leaves ──
+   // Leaves thắng nếu: chưa có lệnh admin, HOẶC lệnh admin chỉ ghi HC thuần (không phải P/VR/CT...)
+   const adminIsHCOnly = leaveCaIsAdmin && leaveCa === 'HC';
+   if ((!leaveCaIsAdmin || adminIsHCOnly) && !workCaIsAdmin && typeof leavesByName !== 'undefined') {
       const uLeaves = leavesByName[uName] || [];
       const lv = uLeaves.find(l => l.status === 'approved' && l.dates && l.dates.includes(targetDate));
       if (lv) {
@@ -3210,11 +3220,19 @@ function syncHCFilters(id) {
   if (r) matches = matches.filter(u => u.chucDanh === r);
   if (k && k !== 'AUTO_LEAVE') matches = matches.filter(u => u.kip === k);
 
-  // MỚI: Nếu là VẮNG KHÔNG PHÉP (type='V'), ẩn những người đang OFF ngày đó
+  // MỚI: Nếu là VẮNG KHÔNG PHÉP (type='V'), chỉ hiện người đang có ca làm việc thực tế
   if (type === 'V' && d) {
+    const NON_WORK = ['OFF', 'P', 'VR', 'Ô', 'TS', 'O'];
     matches = matches.filter(u => {
       const caThucTe = getCaThucTe(u.name, u.kip, d);
-      return caThucTe !== 'OFF';
+      if (NON_WORK.includes(caThucTe)) return false;
+      // Check thêm sheet Leaves: nếu có đơn nghỉ cá nhân approved ngày đó thì loại ra
+      if (typeof leavesByName !== 'undefined') {
+        const uLeaves = leavesByName[u.name] || [];
+        const hasLeave = uLeaves.some(lv => lv.status === 'approved' && lv.dates && lv.dates.includes(d));
+        if (hasLeave) return false;
+      }
+      return true;
     });
   }
 
@@ -3801,6 +3819,53 @@ function validateHCDates(id) {
   }
 }
 
+// Trả về ca thực tế của người đi (r.name) TRƯỚC KHI có bất kỳ lệnh điều động nào
+// trong ngày r.ngayDoi — tức là chỉ tính đổi ca tự do (!isSpecial) đã có sẵn.
+// Dùng để hiển thị cột "Ca" trong bảng Lệnh điều động đã ban hành.
+function getCaThucTeBeforeDispatch(userName, defaultKip, dateStr) {
+  // Bắt đầu từ ca gốc theo lịch kíp (đã xét điều chuyển kíp dài hạn)
+  let ca = getCaTrucGoc(userName, defaultKip, dateStr);
+  if (!allReqs) return ca;
+
+  const targetDate = (dateStr || '').toString().substring(0, 10);
+  const uName = (userName || '').toString().trim();
+
+  // Chỉ xét đổi ca TỰ DO (!isSpecial) liên quan đến người này trong ngày này
+  const reqs = allReqs.filter(r => {
+    if (r.status !== 'approved' && r.status !== 'pending_ld') return false;
+    const reason = (r.reason || '').toString();
+    // Bỏ qua hoàn toàn lệnh điều động đặc biệt (HC/CT/P/VR...)
+    const isSpecial = /\[(LỆNH ĐIỀU ĐỘNG|ĐIỀU ĐỘNG 0.5 NGÀY|NGHỈ PHÉP|VIỆC RIÊNG|NGHỈ ỐM|NGHỈ THAI SẢN|NGHỈ KHÔNG LƯƠNG|VẮNG KHÔNG PHÉP|CÔNG TÁC|HỌC TẬP)\]/i.test(reason);
+    if (isSpecial) return false;
+    const dDoi = (r.ngayDoi || '').toString().substring(0, 10);
+    const dTra = (r.ngayTra || '').toString().substring(0, 10);
+    const name = (r.name || '').toString().trim();
+    const partner = (r.partner || '').toString().trim();
+    return (name === uName || partner === uName) && (dDoi === targetDate || dTra === targetDate);
+  }).sort((a, b) => Number(a.id) - Number(b.id));
+
+  let workCa = null, leaveCa = null;
+  for (const r of reqs) {
+    const dDoi = (r.ngayDoi || '').toString().substring(0, 10);
+    const dTra = (r.ngayTra || '').toString().substring(0, 10);
+    const name = (r.name || '').toString().trim();
+    const partner = (r.partner || '').toString().trim();
+    if (dDoi === targetDate) {
+      if (partner === uName) workCa = r.caDoi;
+      if (name === uName) leaveCa = (dTra === dDoi && r.caTra && r.caTra !== 'NONE') ? r.caTra : 'OFF';
+    }
+    if (dTra === targetDate && dTra !== dDoi) {
+      if (name === uName)    leaveCa = (r.caTra && r.caTra !== 'NONE') ? r.caTra : null;
+      if (partner === uName) workCa = 'OFF';
+    }
+  }
+
+  if (leaveCa)                               return leaveCa;
+  if (workCa !== null && workCa !== 'OFF')   return workCa;
+  if (workCa === 'OFF')                      return 'OFF';
+  return ca;
+}
+
 function renderAdminHCHist() {
   const tbody = document.getElementById('admin-hc-hist-body');
   if(!tbody) return;
@@ -3809,7 +3874,7 @@ function renderAdminHCHist() {
   if (!yr) return;
 
   const hcReqs = allReqs.filter(r => {
-    if (r.status !== 'approved') return false;
+    if (r.status !== 'approved' && r.status !== 'pending_ld') return false;
     const reason = (r.reason || "").toString();
     const isDispatch = (r.partner === 'CÔNG TÁC HC' || !r.partner || reason.includes('[LỆNH ĐIỀU ĐỘNG]') || reason.includes('[ĐIỀU ĐỘNG 0.5 NGÀY]') || reason.includes('[NGHỈ PHÉP]') || reason.includes('[VIỆC RIÊNG]') || reason.includes('[NGHỈ ỐM]') || reason.includes('[VẮNG KHÔNG PHÉP]') || reason.includes('[CÔNG TÁC]') || reason.includes('[HỌC TẬP]'));
     if (!isDispatch) return false;
@@ -3856,11 +3921,12 @@ function renderAdminHCHist() {
       .replace(/\[[^\]]*\]/gi, '')
       .trim()) || lyDo.replace(/^.{2} /, '');
 
-    const caThucTe = getCaThucTe(r.name, displayKip, r.ngayDoi);
-    const nguoiInfo = (staffData || []).find(s => s.name === r.name);
-    const partnerInfo = hasPartner ? (staffData || []).find(s => s.name === r.partner) : null;
-    const chucDanh = nguoiInfo?.role || r.role || '--';
-    const partnerChucDanh = partnerInfo?.role || r.partnerRole || '--';
+    // Ca thực tế sau đổi ca tự do, trước lệnh điều động đặc biệt
+    const caThucTeNgayDoi = getCaThucTeBeforeDispatch(r.name, displayKip, r.ngayDoi);
+    const nguoiInfo = NV_LIST.find(s => s.name === r.name);
+    const partnerInfo = hasPartner ? NV_LIST.find(s => s.name === r.partner) : null;
+    const chucDanh = nguoiInfo?.chucDanh || r.role || '--';
+    const partnerChucDanh = partnerInfo?.chucDanh || r.partnerRole || '--';
 
     return `
     <tr>
@@ -3869,7 +3935,7 @@ function renderAdminHCHist() {
       <td style="font-size:12px; color:#475569;">${chucDanh}</td>
       <td>
         <span class="dp">${displayKip}</span><br>
-        <span class="dp" style="background:#f0fdf4;color:#15803d;font-size:11px;margin-top:3px;display:inline-block;">Ca ${caThucTe}</span>
+        <span class="dp" style="background:#f0fdf4;color:#15803d;font-size:11px;margin-top:3px;display:inline-block;">Ca ${caThucTeNgayDoi}</span>
       </td>
       <td style="font-size:12px;">${lyDo}</td>
       <td>${hasPartner ? `<span style="color:#ea580c; font-weight:700">${r.partner}</span>` : '--'}</td>
@@ -4196,7 +4262,12 @@ async function submitBatchHC() {
     document.getElementById('hc-pin').value = '';
     renderAdminHCHist(); renderScheduleTable(); 
   } catch(e) { 
-    showLocalAlert('batchhc-msg', 'Lỗi mạng hoặc máy chủ!', 'ae'); 
+    // Dù timeout vẫn reload để kiểm tra lệnh có lên không
+    try { await loadAll(); renderAdminHCHist(); renderScheduleTable(); } catch(_) {}
+    const msg = (e && e.message && e.message.includes('quá thời gian'))
+      ? '⚠️ Máy chủ xử lý lâu quá (timeout), nhưng lệnh có thể đã được lưu. Vui lòng kiểm tra bảng phía trên!'
+      : 'Lỗi mạng hoặc máy chủ: ' + (e && e.message ? e.message : e);
+    showLocalAlert('batchhc-msg', msg, 'ae'); 
   }
   btn.disabled = false; btn.innerHTML = '⚡ PHÊ DUYỆT LỆNH';
 }
