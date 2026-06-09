@@ -311,6 +311,7 @@ textarea{resize:none;height:80px}
               <th style="width:120px">Ngày áp dụng</th>
               <th>Họ tên</th>
               <th style="width:100px">Kíp mới</th>
+              <th style="width:120px">Người phê duyệt</th>
               <th style="width:100px; text-align:center;">Thao tác</th>
             </tr>
           </thead>
@@ -387,6 +388,7 @@ textarea{resize:none;height:80px}
                 <th style="width:70px">Kíp</th>
                 <th style="width:150px">Ngày trả ca (Vào ca)</th>
                 <th>Nội dung</th>
+                <th style="width:120px">Người phê duyệt</th>
                 <th style="width:90px; text-align:center;">Thao tác</th>
               </tr>
             </thead>
@@ -781,6 +783,7 @@ let allTransfers = []; let transfersByName = {};
 let MAU_LICH={};
 let autoRefreshTimer = null;
 let leavePollTimer = null;
+let reqPollTimer = null;
 
 // Báo lỗi ngay lập tức nếu có lỗi script
 window.onerror = function(msg, url, line) {
@@ -1225,7 +1228,7 @@ async function doLogin(){
       document.getElementById('f-leave-hist-cd-wrap').style.display = 'contents';
       document.getElementById('f-leave-hist-cd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
     }
-   document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = CU.admin?'':'none';      document.getElementById('f-name').value = CU.name; 
+   document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = (CU.admin || CU.role === 'ld')?'':'none';      document.getElementById('f-name').value = CU.name; 
     if(myInfo) {
   // Lấy kíp thực tế sau điều động
   let displayKip = myInfo.kip;
@@ -1350,6 +1353,7 @@ const btn=document.querySelector(`.tab[onclick="switchTab('${s}')"]`); if(btn) b
   if(t==='lich-su-np') { renderLeaveHistory(); renderLeavePending(); }
   if(t==='duyet-np') renderLeaveApproveList();
   syncLeavePollTimer(t);
+  syncReqPollTimer(t);
   if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); renderNoCaLD(); renderLeaveStats(); }
   if(t==='admin-hc') { 
     renderAdminHCHist(); 
@@ -3882,7 +3886,7 @@ function renderAdminHCHist() {
 
   if(hcReqs.length === 0) {
     const period = mo ? `tháng ${mo}/${yr}` : `năm ${yr}`;
-    tbody.innerHTML = `<tr><td colspan="11" class="empty">Chưa có lệnh nào trong ${period}</td></tr>`; return;
+    tbody.innerHTML = `<tr><td colspan="12" class="empty">Chưa có lệnh nào trong ${period}</td></tr>`; return;
   }
   
   tbody.innerHTML = hcReqs.map(r => {
@@ -3948,7 +3952,8 @@ function renderAdminHCHist() {
         }
       </td>
       <td style="font-size:12px;">${noiDung}</td>
-      <td style="text-align:center;"><button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteAdminHC('${r.id}', this)">Thu hồi</button></td>
+      <td style="font-size:12px; color:#475569;">${escapeHTML((r.approvedBy || '').replace(' (Lãnh đạo PX)', '').replace(' (Lãnh đạo PX - Telegram)', '') || '--')}</td>
+      <td style="text-align:center;">${CU.admin ? `<button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteAdminHC('${r.id}', this)">Thu hồi</button>` : '--'}</td>
     </tr>`
   }).join('');
 }
@@ -4405,8 +4410,9 @@ function renderTransferLog() {
       <td>${fmtDate(t.date)}</td>
       <td style="font-weight:600;">${t.name}</td>
       <td><span class="dp">${t.newKip}</span></td>
+      <td style="font-size:12px; color:#475569;">${escapeHTML(t.approvedBy || '--')}</td>
       <td style="text-align:center;">
-        <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteTransfer('${t.id}', this)">Xóa</button>
+        ${CU.admin ? `<button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteTransfer('${t.id}', this)">Xóa</button>` : '--'}
       </td>
     </tr>
   `).join('');
@@ -4920,6 +4926,38 @@ function getLeaveTypeBadge(leaveType) {
   const t = LEAVE_TYPE_LABELS[leaveType] || LEAVE_TYPE_LABELS['P'];
   return `<span style="background:${t.bg}; color:${t.color}; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px; border:1px solid ${t.color}30;">${t.emoji} ${t.label}</span>`;
 }
+function syncReqPollTimer(activeTab) {
+  if (reqPollTimer) { clearInterval(reqPollTimer); reqPollTimer = null; }
+  const watchTabs = ['dong-y', 'phe-duyet', 'lich-su', 'dang-ky'];
+  if (!CU || !watchTabs.includes(activeTab)) return;
+  const trackReq = r => (
+    (r.status === 'pending_partner' && r.partner === CU.name) ||
+    (r.status === 'pending_ld' && r.name === CU.name) ||
+    (r.status === 'pending_ld' && (CU.role === 'ld' || CU.admin))
+  );
+  if (!allReqs.some(trackReq)) return;
+  reqPollTimer = setInterval(async () => {
+    const pendingIds = allReqs.filter(trackReq).map(r => r.id);
+    if (pendingIds.length === 0) { syncReqPollTimer(activeTab); return; }
+    await loadAll();
+    const resolved = pendingIds.filter(id => {
+      const r = allReqs.find(x => x.id === id);
+      return r && !trackReq(r);
+    });
+    if (resolved.length > 0) {
+      const st = id => allReqs.find(x => x.id === id)?.status;
+      if (resolved.some(id => st(id) === 'approved')) showAlert('app', '✅ Đơn đổi ca đã được phê duyệt!', 'as');
+      else if (resolved.some(id => st(id) === 'pending_ld')) showAlert('app', '🤝 Người đi thay đã xác nhận! Chờ LĐ duyệt.', 'as');
+      else showAlert('app', 'ℹ️ Đơn đổi ca đã được cập nhật trạng thái.', 'ai');
+    }
+    const curTab = document.querySelector('.tab.active')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+    if (curTab === 'dong-y') renderDongY();
+    else if (curTab === 'phe-duyet') renderPheDuyet();
+    else if (curTab === 'lich-su') renderHistory();
+    syncReqPollTimer(curTab || activeTab);
+  }, 15000);
+}
+
 function syncLeavePollTimer(activeTab) {
   if (leavePollTimer) { clearInterval(leavePollTimer); leavePollTimer = null; }
   const watchTabs = ['lich-su-np', 'nghi-phep', 'duyet-np'];
