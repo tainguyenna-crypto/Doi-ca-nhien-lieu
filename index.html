@@ -781,6 +781,7 @@ let allLeaves=[]; let leavesByName = {};
 let allTransfers = []; let transfersByName = {}; 
 let MAU_LICH={};
 let autoRefreshTimer = null;
+let leavePollTimer = null;
 
 // Báo lỗi ngay lập tức nếu có lỗi script
 window.onerror = function(msg, url, line) {
@@ -1349,6 +1350,7 @@ const btn=document.querySelector(`.tab[onclick="switchTab('${s}')"]`); if(btn) b
   if(t==='nghi-phep') initLeaveTab();
   if(t==='lich-su-np') { renderLeaveHistory(); renderLeavePending(); }
   if(t==='duyet-np') renderLeaveApproveList();
+  syncLeavePollTimer(t);
   if(t==='thong-ke'){ renderSummary(); renderDayTable(); renderWarn(); renderStaffStats(); renderNoCa(); renderNoCaLD(); renderLeaveStats(); }
   if(t==='admin-hc') { 
     renderAdminHCHist(); 
@@ -4784,6 +4786,7 @@ _pendingLeaveData = null;
 await loadLeaves();
 renderLeaveCalendar();
 renderLeavePending();
+syncLeavePollTimer('nghi-phep');
 }
 } catch(e) { showLocalAlert('leave-msg', 'Lỗi kết nối!', 'ae'); }
 btn.disabled = false;
@@ -4918,6 +4921,36 @@ function getLeaveTypeBadge(leaveType) {
   const t = LEAVE_TYPE_LABELS[leaveType] || LEAVE_TYPE_LABELS['P'];
   return `<span style="background:${t.bg}; color:${t.color}; font-size:12px; font-weight:700; padding:2px 10px; border-radius:12px; border:1px solid ${t.color}30;">${t.emoji} ${t.label}</span>`;
 }
+function syncLeavePollTimer(activeTab) {
+  if (leavePollTimer) { clearInterval(leavePollTimer); leavePollTimer = null; }
+  const watchTabs = ['lich-su-np', 'nghi-phep', 'duyet-np'];
+  if (!CU || !watchTabs.includes(activeTab)) return;
+  const hasPendingMine = allLeaves.some(lv => lv.name === CU.name && lv.status === 'pending_ld');
+  const hasPendingApprove = (CU.role === 'ld' || CU.admin) && allLeaves.some(lv => lv.status === 'pending_ld');
+  if (!hasPendingMine && !hasPendingApprove) return;
+  leavePollTimer = setInterval(async () => {
+    const pendingIds = allLeaves
+      .filter(lv => lv.status === 'pending_ld' && (lv.name === CU.name || CU.role === 'ld' || CU.admin))
+      .map(lv => lv.id);
+    if (pendingIds.length === 0) { syncLeavePollTimer(activeTab); return; }
+    await loadLeaves();
+    const resolved = pendingIds.filter(id => {
+      const lv = allLeaves.find(l => l.id === id);
+      return lv && lv.status !== 'pending_ld';
+    });
+    if (resolved.length > 0) {
+      const approved = resolved.some(id => allLeaves.find(l => l.id === id)?.status === 'approved');
+      if (approved) showAlert('app', '✅ Đơn nghỉ phép đã được phê duyệt!', 'as');
+      else showAlert('app', 'ℹ️ Đơn nghỉ phép đã được cập nhật trạng thái.', 'ai');
+    }
+    const curTab = document.querySelector('.tab.active')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+    if (curTab === 'lich-su-np') { renderLeaveHistory(); renderLeavePending(); }
+    else if (curTab === 'duyet-np') renderLeaveApproveList();
+    else if (curTab === 'nghi-phep') { renderLeavePending(); renderLeaveCalendar(); }
+    syncLeavePollTimer(curTab || activeTab);
+  }, 15000);
+}
+
 function renderLeavePending() {
 const myLeaves = allLeaves.filter(lv => lv.name === CU.name && lv.status === 'pending_ld');
 const el = document.getElementById('leave-pending-list');
