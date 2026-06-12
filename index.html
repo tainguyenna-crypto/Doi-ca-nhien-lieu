@@ -711,6 +711,27 @@ textarea{resize:none;height:80px}
   </div>
 </div>
 
+
+<div class="overlay" id="forced-pin-modal" style="display:none; z-index:9999">
+  <div class="pbox" style="border:3px solid #f59e0b;">
+    <div class="plogo" style="font-size:18px;color:#b45309;">🔐 Đặt PIN mới</div>
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px;margin-bottom:14px;font-size:13px;color:#92400e;">
+      ⚠️ Bạn đang dùng PIN tạm thời.<br>Vui lòng đặt PIN mới trước khi tiếp tục.
+    </div>
+    <div class="pfield"><label>PIN mới (4-8 số)</label>
+      <input type="password" id="fcp-new" minlength="4" maxlength="8" placeholder="Nhập PIN mới"
+        style="text-align:center;font-size:20px;letter-spacing:6px;"
+        onkeydown="if(event.key==='Enter')doForcedChangePin()">
+    </div>
+    <div class="pfield"><label>Nhập lại PIN mới</label>
+      <input type="password" id="fcp-new2" minlength="4" maxlength="8" placeholder="Xác nhận PIN"
+        style="text-align:center;font-size:20px;letter-spacing:6px;"
+        onkeydown="if(event.key==='Enter')doForcedChangePin()">
+    </div>
+    <div class="perr" id="fcp-err"></div>
+    <button class="btn btn-primary" style="width:100%;padding:12px;margin-top:4px;" onclick="doForcedChangePin()">✅ Xác nhận đặt PIN mới</button>
+  </div>
+</div>
 <div class="overlay" id="pin-modal" style="display:none">
   <div class="pbox">
     <div class="plogo" style="font-size:18px">🔒 Đổi mã PIN</div>
@@ -1206,7 +1227,17 @@ async function doLogin(){
     
     // ĐĂNG NHẬP THÀNH CÔNG
     CU=r.user; 
-    buildSS('ss-partner', ''); 
+    buildSS('ss-partner', '');
+
+    // Bắt buộc đổi PIN nếu đang dùng PIN tạm (reset qua Telegram)
+    if (r.user && r.user.currentToken === 'TEMP_PIN') {
+      document.getElementById('overlay').style.display='none';
+      document.getElementById('app').style.display='block';
+      document.getElementById('forced-pin-modal').style.display='flex';
+      document.getElementById('fcp-new').focus();
+      return;
+    }
+
 // CẢI TIẾN 3: NHẮC ĐỔI PIN NẾU QUÁ 6 THÁNG
     if (r.nhacDoiPin) {
   setTimeout(() => {
@@ -1302,6 +1333,31 @@ async function doRefresh(btn) {
   btn.textContent = '🔄 Làm mới'; 
   btn.disabled = false; 
 }
+
+// ── FORCED CHANGE PIN (PIN tạm từ reset Telegram) ──────────
+async function doForcedChangePin() {
+  const newPin  = document.getElementById('fcp-new').value.trim();
+  const newPin2 = document.getElementById('fcp-new2').value.trim();
+  const err     = document.getElementById('fcp-err');
+  err.textContent = '';
+  if (!newPin || newPin.length < 4)  { err.textContent = 'PIN phải có ít nhất 4 số!'; return; }
+  if (!/^\d+$/.test(newPin))         { err.textContent = 'PIN chỉ được chứa chữ số!'; return; }
+  if (newPin !== newPin2)             { err.textContent = 'PIN nhập lại không khớp!'; return; }
+  const btn = document.querySelector('#forced-pin-modal .btn-primary');
+  btn.disabled = true; btn.textContent = '⏳ Đang lưu...';
+  try {
+    const currentPin = document.getElementById('pin-inp').value;
+    const r = await api({ action: 'changeTempPin', name: CU.name, currentPin, newPin });
+    if (r.error) { err.textContent = r.error; btn.disabled = false; btn.textContent = '✅ Xác nhận đặt PIN mới'; return; }
+    document.getElementById('forced-pin-modal').style.display = 'none';
+    CU.currentToken = '';
+    showAlert('app', '🎉 Đặt PIN mới thành công! Chào mừng ' + CU.name, 'as');
+  } catch(ex) {
+    err.textContent = 'Lỗi kết nối, thử lại!';
+    btn.disabled = false; btn.textContent = '✅ Xác nhận đặt PIN mới';
+  }
+}
+
 function openChangePin(){document.getElementById('pin-modal').style.display='flex';} function closePinModal(){document.getElementById('pin-modal').style.display='none';}
 async function doChangePin(){
   const o=document.getElementById('cp-old').value, n=document.getElementById('cp-new').value, n2=document.getElementById('cp-new2').value, err=document.getElementById('cp-err');
@@ -1913,10 +1969,8 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
       return (name === uName || partner === uName) && (dDoi === targetDate || dTra === targetDate);
    }).sort((a, b) => Number(a.id) - Number(b.id));
 
-   let workCa = null;          // Ca đi làm thay (partner)
-   let workCaIsAdmin = false;  // workCa đến từ lệnh admin (ưu tiên hơn đổi ca tự do)
-   let leaveCa = null;         // Trạng thái nghỉ/HC (name)
-   let leaveCaIsAdmin = false; // leaveCa đến từ lệnh admin (ưu tiên tuyệt đối)
+   // ── last-write-wins: đơn nào id lớn hơn (tạo sau) thì đè đơn trước ──
+   let finalCa = null;
    let finalStatus = 'goc';
 
    for (let r of reqs) {
@@ -1925,96 +1979,79 @@ function getCaThucTe(userName, kipName, dateStr, ignoreReqId = null, returnFullO
       const name = (r.name || "").toString().trim();
       const partner = (r.partner || "").toString().trim();
       const reason = (r.reason || "").toString();
-      
+
       const isSpecial = /\[(LỆNH ĐIỀU ĐỘNG|ĐIỀU ĐỘNG 0.5 NGÀY|NGHỈ PHÉP|VIỆC RIÊNG|NGHỈ ỐM|NGHỈ THAI SẢN|NGHỈ KHÔNG LƯƠNG|VẮNG KHÔNG PHÉP|CÔNG TÁC|HỌC TẬP)\]/i.test(reason);
+
+      let caResult = null; // ca tính được cho người này từ đơn r
 
       // ══════════════════════════════════════════════════════════
       // LOGIC ĐỔI CA TỰ DO (!isSpecial)
-      // Ngày đổi: name NGHỈ (cùng ngày thì làm caTra luôn), partner làm caDoi
-      // Ngày trả: name làm caTra, partner NGHỈ
       // ══════════════════════════════════════════════════════════
       if (!isSpecial) {
           if (dDoi === targetDate) {
-              // Đổi ca tự do chỉ ghi workCa nếu chưa có lệnh admin
-              if (partner === uName && !workCaIsAdmin) { workCa = r.caDoi; }
-              if (name === uName && !leaveCaIsAdmin) {
-                  // Cùng ngày đổi+trả: name làm caTra luôn; khác ngày: name nghỉ
-                  leaveCa = (dTra === dDoi && r.caTra && r.caTra !== 'NONE') ? r.caTra : 'OFF';
+              if (partner === uName) {
+                  caResult = r.caDoi; // partner: đi làm ca đổi
+              } else if (name === uName) {
+                  if (dTra === dDoi && r.caTra && r.caTra !== 'NONE') {
+                      caResult = r.caTra; // cùng ngày đổi+trả: name đi làm ca trả
+                  } else {
+                      caResult = 'OFF';  // khác ngày: name nghỉ ngày đổi
+                  }
               }
-              if (r.status === 'approved') finalStatus = 'approved';
-              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
           }
           if (dTra === targetDate && dTra !== dDoi) {
-              if (name === uName && !leaveCaIsAdmin)    { leaveCa = r.caTra && r.caTra !== 'NONE' ? r.caTra : null; }
-              if (partner === uName && !workCaIsAdmin)  { workCa = 'OFF'; }
-              if (r.status === 'approved') finalStatus = 'approved';
-              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
+              if (name === uName) {
+                  caResult = r.caTra && r.caTra !== 'NONE' ? r.caTra : ca; // name đi làm ca trả
+              } else if (partner === uName) {
+                  caResult = 'OFF'; // partner: nghỉ ngày trả
+              }
           }
       }
 
       // ══════════════════════════════════════════════════════════
-      // LOGIC LỆNH ADMIN (isSpecial): HC/P/VR/CT/HT/V...
+      // LOGIC LỆNH ADMIN (isSpecial)
       // ══════════════════════════════════════════════════════════
       if (isSpecial) {
-          // PARTNER ngày đổi: làm ca của người gốc
-          if (partner === uName && partner !== 'CÔNG TÁC HC' && dDoi === targetDate) {
-              workCa = getDieuDongWorkCa(r, targetDate);
-              workCaIsAdmin = true; // Lệnh admin thắng đổi ca tự do
-              if (r.status === 'approved') finalStatus = 'approved';
-              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
+          if (dDoi === targetDate) {
+              if (partner === uName && partner !== 'CÔNG TÁC HC') {
+                  caResult = getDieuDongWorkCa(r, targetDate); // partner: đi làm thay theo lệnh
+              } else if (name === uName) {
+                  let tempLeave = 'HC';
+                  if (/\[(CÔNG TÁC)\]/i.test(reason))              tempLeave = 'CT';
+                  else if (/\[(HỌC TẬP)\]/i.test(reason))          tempLeave = 'HT';
+                  else if (/\[(VẮNG KHÔNG PHÉP)\]/i.test(reason))  tempLeave = 'V';
+                  else if (/\[(ĐIỀU ĐỘNG 0.5 NGÀY)\]/i.test(reason)) tempLeave = 'HC/2';
+                  else if (/\[(NGHỈ PHÉP)\]/i.test(reason))        tempLeave = 'P';
+                  else if (/\[(VIỆC RIÊNG)\]/i.test(reason))       tempLeave = 'VR';
+                  else if (/\[(NGHỈ ỐM)\]/i.test(reason))          tempLeave = 'Ô';
+                  else if (/\[(NGHỈ THAI SẢN)\]/i.test(reason))    tempLeave = 'TS';
+                  else if (/\[(NGHỈ KHÔNG LƯƠNG)\]/i.test(reason)) tempLeave = 'O';
+                  caResult = tempLeave;
+              }
           }
-          // PARTNER ngày trả (khác ngày đổi): về OFF
-          if (partner === uName && dTra === targetDate && dTra !== dDoi) {
-              workCa = 'OFF';
-              workCaIsAdmin = true;
-              if (r.status === 'approved') finalStatus = 'approved';
-              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
+          if (dTra === targetDate && dTra !== dDoi) {
+              if (partner === uName) {
+                  caResult = 'OFF'; // partner ngày trả: về OFF
+              } else if (name === uName) {
+                  const caTraVal = r.caTra && r.caTra !== 'NONE' && r.caTra !== 'OFF' ? r.caTra : null;
+                  caResult = caTraVal !== null ? caTraVal : ca;
+              }
           }
-          // NAME ngày đổi: ghi trạng thái HC/P/VR/CT/HT/V...
-          if (name === uName && dDoi === targetDate) {
-              let tempLeave = 'HC';
-              if (/\[(CÔNG TÁC)\]/i.test(reason)) tempLeave = 'CT';
-              else if (/\[(HỌC TẬP)\]/i.test(reason)) tempLeave = 'HT';
-              else if (/\[(VẮNG KHÔNG PHÉP)\]/i.test(reason)) tempLeave = 'V';
-              else if (/\[(ĐIỀU ĐỘNG 0.5 NGÀY)\]/i.test(reason)) tempLeave = 'HC/2';
-              else if (/\[(NGHỈ PHÉP)\]/i.test(reason)) tempLeave = 'P';
-              else if (/\[(VIỆC RIÊNG)\]/i.test(reason)) tempLeave = 'VR';
-              else if (/\[(NGHỈ ỐM)\]/i.test(reason)) tempLeave = 'Ô';
-              else if (/\[(NGHỈ THAI SẢN)\]/i.test(reason)) tempLeave = 'TS';
-              else if (/\[(NGHỈ KHÔNG LƯƠNG)\]/i.test(reason)) tempLeave = 'O';
-              leaveCa = tempLeave;
-              leaveCaIsAdmin = true; // Đánh dấu: lệnh admin thắng mọi đổi ca tự do
-              if (r.status === 'approved') finalStatus = 'approved';
-              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
-          }
-          // NAME ngày trả (khác ngày đổi): về ca gốc
-          if (name === uName && dTra === targetDate && dTra !== dDoi) {
-              const caTraVal = r.caTra && r.caTra !== 'NONE' && r.caTra !== 'OFF' ? r.caTra : null;
-              leaveCa = caTraVal;
-              if (r.status === 'approved') finalStatus = 'approved';
-              else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
-          }
+      }
+
+      // last-write-wins: đơn sau (id lớn hơn) luôn đè đơn trước
+      if (caResult !== null) {
+          finalCa = caResult;
+          if (r.status === 'approved') finalStatus = 'approved';
+          else if (r.status === 'pending_ld' && finalStatus !== 'approved') finalStatus = 'pending_ld';
       }
    }
 
-   // Ưu tiên: workCaIsAdmin (đang đi làm thay theo lệnh) > leaveCaIsAdmin (HC/CT/P...) > đổi ca tự do
-   // Nguyên tắc: nếu được lệnh đi làm thay người khác thì KHÔNG tính là HC dù có lệnh HC khác
-   const leaveCaIsHC = (leaveCa === 'HC');
-   const workCaIsSpecial = workCa !== null && workCa !== 'OFF' && workCa !== '';
-   let finalCa = ca;
-   if (workCaIsAdmin && workCa && workCa !== 'OFF') finalCa = workCa;   // Lệnh admin (partner đi làm thay): ưu tiên cao nhất
-   else if (leaveCaIsAdmin && leaveCa)              finalCa = leaveCa;  // Lệnh admin (name đi HC/CT/P...): ưu tiên cao
-   else if (workCaIsAdmin && workCa === 'OFF')      finalCa = 'OFF';    // Lệnh admin partner ngày trả: về OFF
-   else if (leaveCa && !leaveCaIsHC)                finalCa = leaveCa;  // Đổi ca tự do (name): P/VR/OFF...
-   else if (workCaIsSpecial)                        finalCa = workCa;   // Đổi ca tự do (partner): đang làm thay
-   else if (leaveCaIsHC && !workCa)                 finalCa = 'HC';     // HC thuần, không có workCa
-   else if (workCa !== null)                        finalCa = workCa;   // workCa tự do (OFF)
-   else if (leaveCa)                                finalCa = leaveCa;
+   // Nếu không có đơn nào tác động → dùng ca gốc
+   if (finalCa === null) finalCa = ca;
 
-   // ── Kiểm tra nghỉ phép từ sheet leaves ──
-   // Leaves thắng nếu: chưa có lệnh admin, HOẶC lệnh admin chỉ ghi HC thuần (không phải P/VR/CT...)
-   const adminIsHCOnly = leaveCaIsAdmin && leaveCa === 'HC';
-   if ((!leaveCaIsAdmin || adminIsHCOnly) && !workCaIsAdmin && typeof leavesByName !== 'undefined') {
+   // ── Kiểm tra nghỉ phép từ sheet leaves (chỉ áp dụng nếu chưa có đơn nào đè) ──
+   if (finalCa === ca && typeof leavesByName !== 'undefined') {
       const uLeaves = leavesByName[uName] || [];
       const lv = uLeaves.find(l => l.status === 'approved' && l.dates && l.dates.includes(targetDate));
       if (lv) {
