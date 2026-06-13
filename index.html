@@ -1594,27 +1594,21 @@ function renderPheDuyet(){
   } 
   
   // 1. LẤY QUYỀN DUYỆT CỦA LÃNH ĐẠO ĐANG ĐĂNG NHẬP
+  // Quy tắc: * = duyệt tất cả | "Trưởng kíp,Trực chính" = chỉ các chức danh đó | để trống = không duyệt được gì
   const myInfo = NV_LIST.find(u => u.name === CU.name);
-  const myPerms = (myInfo && myInfo.quyenDuyet) 
-                  ? myInfo.quyenDuyet.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) 
-                  : [];
+  const myPermsRaw = (myInfo && myInfo.quyenDuyet) ? myInfo.quyenDuyet.trim() : '';
+  const myPermsAll = myPermsRaw === '*';
+  const myPerms = myPermsAll ? [] : myPermsRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
   // 2. LỌC DANH SÁCH ĐƠN DỰA TRÊN THẨM QUYỀN
   const its = allReqs.filter(r => {
-    // Chỉ lấy các đơn đang chờ Lãnh đạo duyệt
     if (r.status !== 'pending_ld') return false;
-    
-    // Nếu Lãnh đạo bị giới hạn quyền (Có gõ chức danh vào cột L trên Excel)
-    if (myPerms.length > 0) {
-      const reqUser = NV_LIST.find(u => u.name === r.name);
-      const reqRole = (reqUser && reqUser.chucDanh) ? reqUser.chucDanh.trim().toLowerCase() : "";
-      
-      // Nếu chức danh của người xin nghỉ KHÔNG NẰM TRONG danh sách được duyệt -> Giấu đơn đi
-      if (!myPerms.includes(reqRole)) return false;
-    }
-    
-    // Nếu cột L để trống (myPerms rỗng) -> Lãnh đạo này được duyệt tất cả
-    return true; 
+    if (CU.admin) return true;
+    if (myPermsAll) return true;               // * → duyệt tất cả
+    if (myPerms.length === 0) return false;    // để trống → không duyệt được gì
+    const reqUser = NV_LIST.find(u => u.name === r.name);
+    const reqRole = (reqUser && reqUser.chucDanh) ? reqUser.chucDanh.trim().toLowerCase() : '';
+    return myPerms.includes(reqRole);
   }); 
 
   el.innerHTML = its.length 
@@ -4839,7 +4833,21 @@ btn.textContent = `📨 Gửi đơn ${label}`;
 function renderLeaveApproveList() {
   const el = document.getElementById('leave-approve-list');
   if (!el) return;
-  const pending = allLeaves.filter(lv => lv.status === 'pending_ld');
+  // Lọc theo quyenDuyetNghi:
+  // * = thấy và duyệt tất cả | "Trưởng kíp,Trực chính" = chỉ thấy/duyệt chức danh đó | để trống = không thấy đơn nào
+  const myInfo = NV_LIST.find(u => u.name === CU.name);
+  const myQuyenNghiRaw = (myInfo && myInfo.quyenDuyetNghi) ? myInfo.quyenDuyetNghi.trim() : '';
+  const myQuyenNghiAll = myQuyenNghiRaw === '*';
+  const myQuyenNghi = myQuyenNghiAll ? [] : myQuyenNghiRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const pending = allLeaves.filter(lv => {
+    if (lv.status !== 'pending_ld') return false;
+    if (CU.admin) return true;
+    if (myQuyenNghiAll) return true;               // * → thấy tất cả
+    if (myQuyenNghi.length === 0) return false;    // để trống → không thấy gì
+    const lvUser = NV_LIST.find(u => u.name === lv.name);
+    const lvCd = (lvUser && lvUser.chucDanh) ? lvUser.chucDanh.trim().toLowerCase() : (lv.role || '').trim().toLowerCase();
+    return myQuyenNghi.includes(lvCd);
+  });
   if (pending.length === 0) {
     el.innerHTML = '<div class="empty">Không có đơn nghỉ phép nào chờ duyệt</div>';
     return;
