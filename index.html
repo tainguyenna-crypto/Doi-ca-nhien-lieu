@@ -3507,17 +3507,38 @@ function syncPartnerList(id) {
   // --- BƯỚC CHUẨN BỊ: TÍNH TRƯỚC CA CỦA NGƯỜI ĐI HC ĐỂ LÀM CĂN CỨ CHECK AN TOÀN ---
   // ĐỐI VỚI CHẾ ĐỘ DỰ PHÒNG: Ca làm việc gánh thay chính là ca thực tế của ông dự phòng đó
   let caThucTeA = 'OFF';
+  // Các mã "ca thực tế" sinh ra do ĐÃ CÓ ĐƠN NGHỈ PHÉP duyệt trước — không phải
+  // ca làm việc thật. Khi người đi HC đã có đơn nghỉ phép cho đúng ngày dHC,
+  // getCaThucTe() sẽ trả về mã này (P/VR/...) thay vì ca gốc (C/K/N). Phải
+  // luôn quy về CA GỐC (ca làm việc thật cần người thay) để máy quét an toàn
+  // C-K hoạt động đúng — nếu không, checkViPhamAnToan() sẽ loại trừ các mã
+  // này ngay từ đầu (coi như "ca nghỉ, miễn kiểm tra") và bỏ qua hoàn toàn
+  // việc kiểm tra an toàn cho người được đề xuất đi thay.
+  const LEAVE_SHIFT_CODES = ['P', 'VR', 'Ô', 'TS', 'O', 'V', 'CT', 'HT', 'HC', 'HC/2'];
   if (dHC) {
       if (useBackup && backupPersonName) {
           const bInfo = NV_LIST.find(u => u.name === backupPersonName);
-          caThucTeA = getCaThucTe(backupPersonName, bInfo ? bInfo.kip : kip, dHC);
+          const bKip = bInfo ? bInfo.kip : kip;
+          const caRaw = getCaThucTe(backupPersonName, bKip, dHC);
+          caThucTeA = LEAVE_SHIFT_CODES.includes(caRaw) ? getCaTrucGoc(backupPersonName, bKip, dHC) : caRaw;
       } else if (kip) {
           let repA_name = selectedNames.length > 0 ? selectedNames[0] : null;
           if (!repA_name) {
               const repObj = NV_LIST.find(u => u.kip === kip);
               if (repObj) repA_name = repObj.name;
           }
-          if (repA_name) caThucTeA = getCaThucTe(repA_name, kip, dHC);
+          // FIX: nếu kip = 'AUTO_LEAVE' (chọn "🔍 Tự động tìm" cho người đi HC),
+          // phải resolve về kíp THẬT trước khi tính ca gốc — nếu không
+          // getCaTrucGoc sẽ tra sai mốc MOC_KIP_ và tính sai caThucTeA,
+          // khiến máy quét an toàn C-K bị bỏ qua hoàn toàn (silent bypass).
+          if (repA_name) {
+              const resolvedKipA = getPersonKip(repA_name, kip);
+              const caRaw = getCaThucTe(repA_name, resolvedKipA, dHC);
+              // FIX CHÍNH: nếu ca thực tế là mã nghỉ (do đã có đơn nghỉ phép
+              // duyệt cho ngày này — đúng trường hợp ông Hiếu) thì phải lấy
+              // CA GỐC (C) làm căn cứ check an toàn, không dùng mã 'P'.
+              caThucTeA = LEAVE_SHIFT_CODES.includes(caRaw) ? getCaTrucGoc(repA_name, resolvedKipA, dHC) : caRaw;
+          }
       }
   }
 
