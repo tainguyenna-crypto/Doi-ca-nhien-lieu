@@ -529,7 +529,10 @@ textarea{resize:none;height:80px}
       </div>
 
       <div class="card">
-        <div class="sec-title" style="margin:0 0 10px;">📋 Lịch sử nghỉ cá nhân</div>
+        <div class="sec-title" style="margin:0 0 10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <span>📋 Lịch sử nghỉ cá nhân</span>
+          <button id="btn-export-leave-history" class="btn btn-success" style="display:none; height:36px; font-size:13px;" onclick="exportExcelLeaveHistory()">⬇ Tải Excel</button>
+        </div>
         <div class="hist-filter-bar">
           <select id="f-leave-hist-year" onchange="renderLeaveHistory()" class="ym-sel-year"></select>
           <select id="f-leave-hist-month" onchange="renderLeaveHistory()" class="ym-sel-month"></select>
@@ -1275,6 +1278,7 @@ async function doLogin(){
     let isLd = (CU.role === 'ld' || CU.admin) ? 'inline-flex' : 'none'; 
     document.getElementById('btn-export-excel').style.display = isLd; 
     document.getElementById('btn-export-history').style.display = isLd; 
+    document.getElementById('btn-export-leave-history').style.display = isLd;
     document.getElementById('btn-export-day').style.display = isLd; 
     document.getElementById('btn-export-warn').style.display = isLd;
     document.getElementById('btn-export-leave-stat').style.display = isLd;
@@ -4017,7 +4021,7 @@ function renderAdminHCHist() {
 }
 
 function exportExcelAdminHC() {
-  if (!CU || !CU.admin) return;
+  if (!CU || (CU.role !== 'ld' && !CU.admin)) return;
   const mv = ymExportLabel('f-admin-hc-year', 'f-admin-hc-month');
   const tableEl = document.getElementById('table-admin-hc-hist');
   if(!tableEl || tableEl.querySelector('.empty')) { showAlert('app', 'Tháng này không có dữ liệu để tải!', 'ae'); return; }
@@ -5160,6 +5164,91 @@ function renderLeaveHistory() {
       </div>
     </div>`;
   }).join('');
+}
+
+function exportExcelLeaveHistory() {
+  if (!CU || (CU.role !== 'ld' && !CU.admin)) return;
+
+  const { yr, mo } = getYM('f-leave-hist-year', 'f-leave-hist-month');
+  const fst = document.getElementById('f-leave-hist-status')?.value || '';
+  const fkp = document.getElementById('f-leave-hist-kip')?.value || '';
+  const fcd = document.getElementById('f-leave-hist-cd')?.value || '';
+  const searchText = (document.getElementById('f-leave-hist-search')?.value || '').trim().toLowerCase();
+  const flt = document.getElementById('f-leave-hist-type')?.value || '';
+
+  let leaves = [...allLeaves];
+  if (fst) leaves = leaves.filter(lv => lv.status === fst);
+  if (fcd) leaves = leaves.filter(lv => lv.role === fcd);
+  if (searchText) leaves = leaves.filter(lv => (lv.name || '').toLowerCase().includes(searchText));
+  if (flt) leaves = leaves.filter(lv => (lv.leaveType || 'P') === flt);
+  if (yr) leaves = leaves.filter(lv => leaveMatchesYM(lv, yr, mo));
+
+  function getKipTaiThoiDiem(name, createdAt) {
+    if (!allTransfers || !allTransfers.length) {
+      const u = NV_LIST.find(x => x.name === name);
+      return u ? u.kip : '';
+    }
+    const refDate = createdAt ? createdAt.toString().substring(0,10) : new Date().toISOString().substring(0,10);
+    const sorted = allTransfers.filter(t => t.name === name && t.date <= refDate && t.newKip).sort((a,b) => b.date.localeCompare(a.date));
+    if (sorted.length > 0) return sorted[0].newKip;
+    const u = NV_LIST.find(x => x.name === name);
+    return u ? u.kip : '';
+  }
+  if (fkp) leaves = leaves.filter(lv => getKipTaiThoiDiem(lv.name, lv.createdAt) === fkp);
+
+  if (!leaves.length) { showAlert('app', 'Không có dữ liệu để tải!', 'ae'); return; }
+
+  const statusLabel = { pending_ld: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Từ chối', cancelled: 'Đã hủy' };
+  const typeLabel = { P: 'Nghỉ phép năm', VR: 'Việc riêng hưởng lương', TS: 'Nghỉ thai sản', O_m: 'Nghỉ ốm', O: 'Nghỉ không hưởng lương' };
+
+  const rows = leaves.map((lv, idx) => {
+    const safeDates = lv.dates ? lv.dates.toString() : '';
+    const dates = safeDates ? safeDates.split(',').map(d => fmtDate(d.trim())).join(', ') : '';
+    return `<tr>
+      <td>${idx + 1}</td>
+      <td>${lv.name || ''}</td>
+      <td>${lv.role || ''}</td>
+      <td>${getKipTaiThoiDiem(lv.name, lv.createdAt)}</td>
+      <td>${typeLabel[lv.leaveType || 'P'] || ''}</td>
+      <td>${dates}</td>
+      <td>${lv.days_count || ''}</td>
+      <td>${lv.reason || ''}</td>
+      <td>${lv.location || ''}</td>
+      <td>${statusLabel[lv.status] || lv.status || ''}</td>
+      <td>${lv.createdAt ? fmtDateTime(lv.createdAt) : ''}</td>
+      <td>${lv.approvedAt && lv.status !== 'pending_ld' ? fmtDateTime(lv.approvedAt) : ''}</td>
+      <td>${lv.approver || ''}</td>
+      <td>${lv.rejectReason || ''}</td>
+    </tr>`;
+  }).join('');
+
+  const table = `
+    <table border="1">
+      <thead>
+        <tr>
+          <th>STT</th>
+          <th>Họ tên</th>
+          <th>Chức danh</th>
+          <th>Kíp</th>
+          <th>Chế độ nghỉ</th>
+          <th>Ngày nghỉ</th>
+          <th>Số ngày</th>
+          <th>Lý do</th>
+          <th>Nơi nghỉ</th>
+          <th>Trạng thái</th>
+          <th>Thời gian tạo đơn</th>
+          <th>Thời gian duyệt/từ chối</th>
+          <th>Người duyệt</th>
+          <th>Lý do từ chối</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  const periodLabel = ymExportLabel('f-leave-hist-year', 'f-leave-hist-month');
+  const tenFile = `Lich_su_nghi_ca_nhan${periodLabel ? '_' + periodLabel : ''}.xls`;
+  downloadExcel(table, tenFile, 'LichSuNghi');
 }
 
 // ── Xử lý thay đổi loại nghỉ ──
