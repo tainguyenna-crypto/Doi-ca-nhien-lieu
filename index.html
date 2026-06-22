@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title id="page-title">Quản lý đổi ca</title>
-<!-- VERSION: 2026-06-08.5 -->
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <style>
@@ -4896,16 +4895,15 @@ function renderLeaveApproveList() {
     const leaveLabel = leaveTypeLabels[lv.leaveType] || 'Nghỉ phép (Công P)';
     return `<div class="req">
       <div class="req-hd">
-        <div class="req-name">${lv.name}</div>
-        <span class="badge bp">⏳ Chờ duyệt</span>
+        <div class="req-name">${escapeHTML(lv.name)}</div>
       </div>
       <div class="req-meta">
         🏷️ <b>Loại:</b> ${leaveLabel}<br>
         🏖️ <b>Ngày nghỉ:</b> ${dates}<br>
         🔢 <b>Số ngày:</b> ${lv.days_count} ngày<br>
         👤 <b>Chức danh:</b> ${lv.role || '—'} — Kíp ${kipHienThi}<br>
-        💬 <b>Lý do:</b> ${lv.reason || 'Không có'}<br>
-        ${lv.location ? `📍 <b>Nơi nghỉ:</b> ${lv.location}<br>` : ''}
+        💬 <b>Lý do:</b> ${escapeHTML(lv.reason) || 'Không có'}<br>
+        ${lv.location ? `📍 <b>Nơi nghỉ:</b> ${escapeHTML(lv.location)}<br>` : ''}
         🕐 <b>Gửi lúc:</b> ${fmtDateTime(lv.createdAt) || '—'}
       </div>
       <div class="req-acts">
@@ -5082,9 +5080,7 @@ el.innerHTML = myLeaves.map(lv => {
           <span style="background:#fef3c7; color:#b45309; font-size:12px; font-weight:700; padding:2px 8px; border-radius:12px;">⏳ Chờ duyệt</span>
         </div>
         <div style="font-weight:700; color:#374151;">📅 ${dates}</div>
-        <div style="font-size:13px; color:#64748b; margin-top:4px;">Số ngày: <b>${lv.days_count}</b> | Lý do: ${lv.reason || 'Không có'}</div>
-      </div>
-      <button class="btn btn-danger" style="padding:4px 10px; font-size:12px; white-space:nowrap;" onclick="cancelLeaveForm('${lv.id}')">Hủy đơn</button>
+        <div style="font-size:13px; color:#64748b; margin-top:4px;">Số ngày: <b>${lv.days_count}</b> | Lý do: ${escapeHTML(lv.reason) || 'Không có'}</div>
     </div>
   </div>`;
 }).join('');
@@ -5141,10 +5137,10 @@ function renderLeaveHistory() {
     const safeDates = lv.dates ? lv.dates.toString() : '';
     const dates = safeDates ? safeDates.split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
     const st = statusMap[lv.status] || { label: lv.status, style: '' };
-    const nameTag = isLD ? `<div style="font-size:13px; font-weight:700; color:#1a56a0;">${lv.name} <span style="font-weight:400; color:#64748b;">(${lv.role || ''} — ${lv.kip || ''})</span></div>` : '';
+    const nameTag = isLD ? `<div style="font-size:13px; font-weight:700; color:#1a56a0;">${escapeHTML(lv.name)} <span style="font-weight:400; color:#64748b;">(${escapeHTML(lv.role || '')} — ${escapeHTML(lv.kip || '')})</span></div>` : '';
     const timeLogs = [
       lv.createdAt ? `🔸 <b>Tạo đơn:</b> ${fmtDateTime(lv.createdAt)}` : '',
-      lv.approvedAt && lv.status !== 'pending_ld' ? `🔸 <b>${lv.status === 'rejected' ? 'LĐ từ chối' : 'LĐ duyệt'}:</b> ${fmtDateTime(lv.approvedAt)}${lv.approver ? ` (${lv.status === 'rejected' ? 'Từ chối' : 'Duyệt'} bởi: ${lv.approver})` : ''}` : ''
+      lv.approvedAt && lv.status !== 'pending_ld' ? `🔸 <b>${lv.status === 'rejected' ? 'LĐ từ chối' : 'LĐ duyệt'}:</b> ${fmtDateTime(lv.approvedAt)}${lv.approver ? ` (${lv.status === 'rejected' ? 'Từ chối' : 'Duyệt'} bởi: ${escapeHTML(lv.approver)})` : ''}` : ''
     ].filter(Boolean).join('<br>');
     const typeBadgeH = getLeaveTypeBadge(lv.leaveType || 'P');
     return `<div style="border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:8px;">
@@ -5155,9 +5151,9 @@ function renderLeaveHistory() {
             ${typeBadgeH}
           </div>
           <div style="font-weight:700; color:#374151;">📅 ${dates}</div>
-          <div style="font-size:13px; color:#64748b; margin-top:4px;">Số ngày: <b>${lv.days_count}</b> | Lý do: ${lv.reason || 'Không có'}</div>
-          ${lv.location ? `<div style="font-size:13px; color:#64748b;">📍 Nơi nghỉ: ${lv.location}</div>` : ''}
-          ${lv.rejectReason ? `<div style="font-size:13px; color:#dc2626;">💬 Lý do từ chối: ${lv.rejectReason}</div>` : ''}
+          <div style="font-size:13px; color:#64748b; margin-top:4px;">Số ngày: <b>${lv.days_count}</b> | Lý do: ${escapeHTML(lv.reason) || 'Không có'}</div>
+          ${lv.location ? `<div style="font-size:13px; color:#64748b;">📍 Nơi nghỉ: ${escapeHTML(lv.location)}</div>` : ''}
+          ${lv.rejectReason ? `<div style="font-size:13px; color:#dc2626;">💬 Lý do từ chối: ${escapeHTML(lv.rejectReason)}</div>` : ''}
           ${timeLogs ? `<div style="font-size:12px; color:#94a3b8; margin-top:6px; border-top:1px solid #f1f5f9; padding-top:6px;">${timeLogs}</div>` : ''}
         </div>
         <span style="${st.style} font-size:12px; font-weight:700; padding:3px 10px; border-radius:12px; white-space:nowrap;">${st.label}</span>
@@ -5206,19 +5202,19 @@ function exportExcelLeaveHistory() {
     const dates = safeDates ? safeDates.split(',').map(d => fmtDate(d.trim())).join(', ') : '';
     return `<tr>
       <td>${idx + 1}</td>
-      <td>${lv.name || ''}</td>
-      <td>${lv.role || ''}</td>
-      <td>${getKipTaiThoiDiem(lv.name, lv.createdAt)}</td>
-      <td>${typeLabel[lv.leaveType || 'P'] || ''}</td>
+      <td>${escapeHTML(lv.name || '')}</td>
+      <td>${escapeHTML(lv.role || '')}</td>
+      <td>${escapeHTML(getKipTaiThoiDiem(lv.name, lv.createdAt))}</td>
+      <td>${escapeHTML(typeLabel[lv.leaveType || 'P'] || '')}</td>
       <td>${dates}</td>
       <td>${lv.days_count || ''}</td>
-      <td>${lv.reason || ''}</td>
-      <td>${lv.location || ''}</td>
-      <td>${statusLabel[lv.status] || lv.status || ''}</td>
+      <td>${escapeHTML(lv.reason || '')}</td>
+      <td>${escapeHTML(lv.location || '')}</td>
+      <td>${escapeHTML(statusLabel[lv.status] || lv.status || '')}</td>
       <td>${lv.createdAt ? fmtDateTime(lv.createdAt) : ''}</td>
       <td>${lv.approvedAt && lv.status !== 'pending_ld' ? fmtDateTime(lv.approvedAt) : ''}</td>
-      <td>${lv.approver || ''}</td>
-      <td>${lv.rejectReason || ''}</td>
+      <td>${escapeHTML(lv.approver || '')}</td>
+      <td>${escapeHTML(lv.rejectReason || '')}</td>
     </tr>`;
   }).join('');
 
