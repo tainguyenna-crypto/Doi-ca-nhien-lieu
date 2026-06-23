@@ -1289,11 +1289,11 @@ async function doLogin(){
     await loadAll(); 
   } catch(ex){e.style.color='#dc2626'; e.textContent='Lỗi kết nối mạng';}
   
-  // TỰ ĐỘNG CẬP NHẬT SAU MỖI 60 GIÂY
+  // TỰ ĐỘNG CẬP NHẬT — giãn ra 120s, và CHỈ chạy khi tab đang mở (giảm số lệnh gọi GAS)
   if (autoRefreshTimer) clearInterval(autoRefreshTimer); 
   
   autoRefreshTimer = setInterval(async () => {
-    if (CU) {
+    if (CU && document.visibilityState === 'visible') {
       await loadAll(); 
       const activeBtn = document.querySelector('.tab.active');
       if (activeBtn) {
@@ -1301,7 +1301,7 @@ async function doLogin(){
         if (['dong-y', 'phe-duyet', 'lich-su', 'duyet-np'].includes(t)) switchTab(t);
       }
     }
-  }, 60000);
+  }, 120000);
 }
 
 function doLogout() {
@@ -4922,7 +4922,7 @@ function approveLeaveWeb(id, btn) {
   _pendingLeaveActionId = id;
   const dates = lv.dates ? lv.dates.split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
   document.getElementById('leave-approve-modal-info').innerHTML =
-    `<b>${lv.name}</b> — ${dates} (${lv.days_count} ngày)`;
+    `<b>${escapeHTML(lv.name)}</b> — ${dates} (${lv.days_count} ngày)`;
   document.getElementById('leave-approve-pin-inp').value = '';
   document.getElementById('leave-approve-err').textContent = '';
   document.getElementById('leave-approve-modal').style.display = 'flex';
@@ -4956,7 +4956,7 @@ function rejectLeaveWeb(id, btn) {
   _pendingLeaveActionId = id;
   const dates = lv.dates ? lv.dates.split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
   document.getElementById('leave-reject-modal-info').innerHTML =
-    `<b>${lv.name}</b> — ${dates} (${lv.days_count} ngày)`;
+    `<b>${escapeHTML(lv.name)}</b> — ${dates} (${lv.days_count} ngày)`;
   document.getElementById('leave-reject-reason-inp').value = '';
   document.getElementById('leave-reject-pin-inp').value = '';
   document.getElementById('leave-reject-err').textContent = '';
