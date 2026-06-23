@@ -338,12 +338,12 @@ textarea{resize:none;height:80px}
         </div>
         <div>
           <label>4. Mẫu lịch mới (Nếu đổi kíp hệ)</label>
-          <select id="tc-newpattern" style="border-color:#f97316;"></select>
+          <select id="tc-newpattern" style="border-color:#f97316;" onchange="onMauLichChange(this)"></select>
         </div>
       </div>
       <div class="form-row full">
-        <label>5. Vị trí mốc khởi tạo (Dành cho lịch riêng/ngoại lệ)</label>
-        <input type="number" id="tc-newvitri" value="0" style="border-color:#f97316;" placeholder="Nhập số vị trí mốc...">
+        <label>5. Vị trí mốc khởi tạo <span id="tc-vitri-hint" style="font-weight:400; color:#94a3b8; font-size:12px;">(Chọn Mẫu lịch mới ở ô 4 để nhập)</span></label>
+        <input type="number" id="tc-newvitri" value="0" disabled style="border-color:#cbd5e1; background:#f1f5f9; color:#94a3b8; cursor:not-allowed;" placeholder="Chọn Mẫu lịch ở ô 4 trước...">
       </div>
       <div class="form-row full">
         <label>6. Chọn nhân viên (Có thể chọn nhiều người)</label>
@@ -1289,11 +1289,11 @@ async function doLogin(){
     await loadAll(); 
   } catch(ex){e.style.color='#dc2626'; e.textContent='Lỗi kết nối mạng';}
   
-  // TỰ ĐỘNG CẬP NHẬT — giãn ra 120s, và CHỈ chạy khi tab đang mở (giảm số lệnh gọi GAS)
+  // TỰ ĐỘNG CẬP NHẬT SAU MỖI 60 GIÂY
   if (autoRefreshTimer) clearInterval(autoRefreshTimer); 
   
   autoRefreshTimer = setInterval(async () => {
-    if (CU && document.visibilityState === 'visible') {
+    if (CU) {
       await loadAll(); 
       const activeBtn = document.querySelector('.tab.active');
       if (activeBtn) {
@@ -1301,7 +1301,7 @@ async function doLogin(){
         if (['dong-y', 'phe-duyet', 'lich-su', 'duyet-np'].includes(t)) switchTab(t);
       }
     }
-  }, 120000);
+  }, 60000);
 }
 
 function doLogout() {
@@ -4356,6 +4356,30 @@ function initTransferForm() {
 }
 
 
+function onMauLichChange(sel) {
+  const vitriInp = document.getElementById('tc-newvitri');
+  const hint = document.getElementById('tc-vitri-hint');
+  const giuNguyen = !sel.value; // option value="" là Giữ nguyên Mẫu
+  if (giuNguyen) {
+    vitriInp.disabled = true;
+    vitriInp.value = 0;
+    vitriInp.style.borderColor = '#cbd5e1';
+    vitriInp.style.background = '#f1f5f9';
+    vitriInp.style.color = '#94a3b8';
+    vitriInp.style.cursor = 'not-allowed';
+    vitriInp.placeholder = 'Chọn Mẫu lịch ở ô 4 trước...';
+    hint.textContent = '(Chọn Mẫu lịch mới ở ô 4 để nhập)';
+  } else {
+    vitriInp.disabled = false;
+    vitriInp.style.borderColor = '#f97316';
+    vitriInp.style.background = '';
+    vitriInp.style.color = '';
+    vitriInp.style.cursor = '';
+    vitriInp.placeholder = 'Nhập số vị trí mốc...';
+    hint.textContent = '(Dành cho lịch riêng/ngoại lệ)';
+  }
+}
+
 function filterTCUsers() {
   const r = document.getElementById('tc-role').value;
   const searchText = document.getElementById('tc-user-search').value.trim().toLowerCase();
@@ -4922,7 +4946,7 @@ function approveLeaveWeb(id, btn) {
   _pendingLeaveActionId = id;
   const dates = lv.dates ? lv.dates.split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
   document.getElementById('leave-approve-modal-info').innerHTML =
-    `<b>${escapeHTML(lv.name)}</b> — ${dates} (${lv.days_count} ngày)`;
+    `<b>${lv.name}</b> — ${dates} (${lv.days_count} ngày)`;
   document.getElementById('leave-approve-pin-inp').value = '';
   document.getElementById('leave-approve-err').textContent = '';
   document.getElementById('leave-approve-modal').style.display = 'flex';
@@ -4956,7 +4980,7 @@ function rejectLeaveWeb(id, btn) {
   _pendingLeaveActionId = id;
   const dates = lv.dates ? lv.dates.split(',').map(d => fmtDate(d.trim())).join(', ') : '—';
   document.getElementById('leave-reject-modal-info').innerHTML =
-    `<b>${escapeHTML(lv.name)}</b> — ${dates} (${lv.days_count} ngày)`;
+    `<b>${lv.name}</b> — ${dates} (${lv.days_count} ngày)`;
   document.getElementById('leave-reject-reason-inp').value = '';
   document.getElementById('leave-reject-pin-inp').value = '';
   document.getElementById('leave-reject-err').textContent = '';
