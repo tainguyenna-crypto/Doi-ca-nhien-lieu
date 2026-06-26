@@ -331,26 +331,40 @@ textarea{resize:none;height:80px}
           <input type="date" id="tc-date" onchange="filterTCUsers()" style="border-color:#f97316;">
         </div>
       </div>
-      <div class="form-row">
-        <div>
-          <label>3. Chọn Kíp mới</label>
-          <select id="tc-newkip" style="border-color:#f97316; font-weight:700; color:#ea580c;"></select>
+
+      <!-- TOGGLE CHẾ ĐỘ -->
+      <div style="background:#fff7ed; border:1px solid #fdba74; border-radius:8px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700; color:#ea580c; font-size:14px; margin:0;">
+          <input type="checkbox" id="tc-multi-kip-mode" onchange="onMultiKipModeChange()" style="width:20px; height:20px; appearance:auto; -webkit-appearance:auto; cursor:pointer; margin:0; flex-shrink:0;">
+          Điều chuyển nhiều kíp khác nhau (mỗi người 1 kíp riêng)
+        </label>
+        <span style="font-size:12px; color:#9a3412; background:#fee2e2; border-radius:4px; padding:2px 8px;">Tích vào nếu mỗi người chuyển sang kíp khác nhau</span>
+      </div>
+
+      <!-- CHẾ ĐỘ THƯỜNG: kíp chung -->
+      <div id="tc-common-kip-wrap">
+        <div class="form-row">
+          <div>
+            <label>3. Chọn Kíp mới (áp dụng chung)</label>
+            <select id="tc-newkip" style="border-color:#f97316; font-weight:700; color:#ea580c;"></select>
+          </div>
+          <div>
+            <label>4. Mẫu lịch mới (Nếu đổi kíp hệ)</label>
+            <select id="tc-newpattern" style="border-color:#f97316;"></select>
+          </div>
         </div>
-        <div>
-          <label>4. Mẫu lịch mới (Nếu đổi kíp hệ)</label>
-          <select id="tc-newpattern" style="border-color:#f97316;"></select>
+        <div class="form-row full">
+          <label>5. Vị trí mốc khởi tạo (Dành cho lịch riêng/ngoại lệ)</label>
+          <input type="number" id="tc-newvitri" value="0" style="border-color:#f97316;" placeholder="Nhập số vị trí mốc...">
         </div>
       </div>
+
       <div class="form-row full">
-        <label>5. Vị trí mốc khởi tạo (Dành cho lịch riêng/ngoại lệ)</label>
-        <input type="number" id="tc-newvitri" value="0" style="border-color:#f97316;" placeholder="Nhập số vị trí mốc...">
-      </div>
-      <div class="form-row full">
-        <label>6. Chọn nhân viên (Có thể chọn nhiều người)</label>
+        <label>6. Chọn nhân viên</label>
         <div style="margin-bottom:8px;">
           <input type="text" id="tc-user-search" placeholder="🔍 Tìm tên nhân viên..." oninput="filterTCUsers()" style="width:100%; padding:8px; border:1px solid #f97316; border-radius:6px; font-size:14px;">
         </div>
-        <div id="tc-user-list" style="height:150px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; padding:10px; background:#fff;">
+        <div id="tc-user-list" style="max-height:300px; overflow-y:auto; border:1px solid #cbd5e1; border-radius:8px; padding:8px; background:#fff;">
           <span style="color:#94a3b8">Đang tải...</span>
         </div>
       </div>
@@ -4356,84 +4370,207 @@ function initTransferForm() {
 }
 
 
+function onMultiKipModeChange() {
+  const isMulti = document.getElementById('tc-multi-kip-mode').checked;
+  document.getElementById('tc-common-kip-wrap').style.display = isMulti ? 'none' : '';
+  filterTCUsers(); // re-render danh sách để hiện/ẩn dropdown kíp riêng từng người
+}
+
+function _getTCKips() {
+  // Lấy danh sách kíp từ dropdown tc-newkip (đã được populate khi init)
+  return Array.from(document.getElementById('tc-newkip').options)
+    .filter(o => o.value)
+    .map(o => o.value);
+}
+
+function _getCurrentKipOfUser(name, defaultKip, selectedDate) {
+  if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
+    const sorted = allTransfers
+      .filter(t => t.name === name && selectedDate >= t.date)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    if (sorted.length > 0) return sorted[0].newKip;
+  }
+  return defaultKip;
+}
+
 function filterTCUsers() {
   const r = document.getElementById('tc-role').value;
   const searchText = document.getElementById('tc-user-search').value.trim().toLowerCase();
   const selectedDate = document.getElementById('tc-date').value || new Date().toISOString().substring(0, 10);
-  
-  let list = r ? NV_LIST.filter(u => u.chucDanh === r) : NV_LIST;
-  if (searchText) {
-    list = list.filter(u => u.name.toLowerCase().includes(searchText));
-  }
-  
-  let html = `<label style="display:flex; align-items:center; font-weight:700; color:#ea580c; margin-bottom:10px; border-bottom:2px solid #fdba74; padding-bottom:8px; cursor:pointer;">
-                <input type="checkbox" onchange="toggleAllTC(this)" style="width:18px; height:18px; margin-right:8px; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> CHỌN TẤT CẢ (${list.length})
-              </label>`;
-              
-  html += list.map(u => {
-    // Tính kíp hiện tại của người này tính đến ngày được chọn
-    let currentKip = u.kip;
-    if (typeof allTransfers !== 'undefined' && allTransfers && allTransfers.length > 0) {
-      const sorted = allTransfers
-        .filter(t => t.name === u.name && selectedDate >= t.date)
-        .sort((a, b) => b.date.localeCompare(a.date));
-      if (sorted.length > 0) currentKip = sorted[0].newKip;
-    }
+  const isMulti = document.getElementById('tc-multi-kip-mode') && document.getElementById('tc-multi-kip-mode').checked;
+  const kips = _getTCKips();
 
-    return `
-    <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer;">
-      <input type="checkbox" class="tc-user-val" value="${u.name}" style="width:18px; height:18px; margin-right:8px; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> 
-      ${u.name} <span style="color:#94a3b8; font-size:12px; margin-left:5px;">(${currentKip})</span>
-    </label>
-  `}).join('');
-  
+  let list = r ? NV_LIST.filter(u => u.chucDanh === r) : NV_LIST;
+  if (searchText) list = list.filter(u => u.name.toLowerCase().includes(searchText));
+
+  // Header "Chọn tất cả" — chế độ multi không có "chọn tất cả" để tránh nhầm kíp
+  let html = '';
+  if (!isMulti) {
+    html = `<label style="display:flex; align-items:center; font-weight:700; color:#ea580c; margin-bottom:10px; border-bottom:2px solid #fdba74; padding-bottom:8px; cursor:pointer;">
+              <input type="checkbox" onchange="toggleAllTC(this)" style="width:18px; height:18px; margin-right:8px; appearance:auto; -webkit-appearance:auto; cursor:pointer;"> CHỌN TẤT CẢ (${list.length})
+            </label>`;
+  } else {
+    html = `<div style="font-size:12px; color:#9a3412; background:#fff7ed; border:1px solid #fdba74; border-radius:6px; padding:6px 10px; margin-bottom:10px;">
+              ⚠️ Chế độ nhiều kíp: tích chọn từng người và chọn <b>kíp mới</b> riêng cho họ ở cột bên phải.
+            </div>`;
+  }
+
+  html += list.map(u => {
+    const currentKip = _getCurrentKipOfUser(u.name, u.kip, selectedDate);
+    const safeId = u.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+
+    if (!isMulti) {
+      // Chế độ thường: checkbox + tên + kíp hiện tại
+      return `
+      <label style="display:flex; align-items:center; margin-bottom:6px; cursor:pointer; padding:4px 6px; border-radius:6px;" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background=''">
+        <input type="checkbox" class="tc-user-val" value="${u.name}" style="width:18px; height:18px; margin-right:8px; appearance:auto; -webkit-appearance:auto; cursor:pointer; flex-shrink:0;">
+        <span style="flex:1;">${u.name}</span>
+        <span style="color:#94a3b8; font-size:12px; margin-left:5px; white-space:nowrap;">${currentKip}</span>
+      </label>`;
+    } else {
+      // Chế độ nhiều kíp: mỗi người có ngày riêng + kíp riêng
+      const kipOptions = kips.map(k =>
+        `<option value="${k}" ${k === currentKip ? 'selected' : ''}>${k}</option>`
+      ).join('');
+      return `
+      <div style="margin-bottom:6px; border:1px solid #e2e8f0; border-radius:8px; background:#fff; overflow:hidden;" id="tc-row-${safeId}">
+        <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:#fafafa; border-bottom:1px solid #f1f5f9;">
+          <input type="checkbox" class="tc-user-val" value="${u.name}" data-safe-id="${safeId}"
+            onchange="var w=document.getElementById('tc-kip-wrap-${safeId}'); w.style.opacity=this.checked?'1':'0.4'; w.style.pointerEvents=this.checked?'':'none';"
+            style="width:18px; height:18px; appearance:auto; -webkit-appearance:auto; cursor:pointer; flex-shrink:0;">
+          <span style="flex:1; font-size:14px; font-weight:600;">${u.name}</span>
+          <span style="font-size:11px; background:#e2e8f0; color:#64748b; border-radius:4px; padding:2px 7px; white-space:nowrap;">Hiện: ${currentKip}</span>
+        </div>
+        <div id="tc-kip-wrap-${safeId}" style="display:flex; align-items:center; gap:8px; padding:6px 10px; opacity:0.4; pointer-events:none; transition:opacity 0.15s; flex-wrap:wrap;">
+          <span style="font-size:12px; color:#64748b; white-space:nowrap;">Ngày áp dụng:</span>
+          <input type="date" class="tc-user-date" data-user="${u.name}"
+            value="${selectedDate}"
+            style="padding:4px 8px; border:1.5px solid #94a3b8; border-radius:6px; font-size:13px; flex-shrink:0;">
+          <span style="color:#94a3b8; font-size:13px;">&#8594; Kíp mới:</span>
+          <select class="tc-user-newkip" data-user="${u.name}"
+            style="padding:5px 8px; border:1.5px solid #f97316; border-radius:6px; font-size:13px; font-weight:700; color:#ea580c; background:#fff7ed; min-width:90px;">
+            <option value="">-- Chọn kíp --</option>
+            ${kipOptions}
+          </select>
+          <label title="Chỉ cần nhập nếu đổi sang lịch ca hệ mới (offset mẫu)" style="display:flex; align-items:center; gap:4px; font-size:11px; color:#64748b; cursor:pointer; white-space:nowrap; margin-left:4px;">
+            <input type="checkbox" class="tc-vitri-toggle"
+              onchange="var w=document.getElementById('tc-vitri-wrap-${safeId}'); w.style.display=this.checked?'flex':'none';"
+              style="width:14px; height:14px; appearance:auto; -webkit-appearance:auto; cursor:pointer;">
+            Đổi mẫu/mốc?
+          </label>
+          <div id="tc-vitri-wrap-${safeId}" style="display:none; align-items:center; gap:6px; flex-wrap:wrap; margin-top:4px; width:100%; padding:6px 8px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px;">
+            <span style="font-size:12px; color:#64748b; white-space:nowrap;">Mẫu lịch:</span>
+            <select class="tc-user-pattern" data-user="${u.name}"
+              style="padding:4px 8px; border:1.5px solid #94a3b8; border-radius:6px; font-size:13px; flex:1; min-width:120px;"
+              onchange="document.getElementById('tc-vitri-wrap-${safeId}').querySelector('.tc-user-vitri').value=0;">
+              <option value="">-- Giữ nguyên mẫu --</option>
+              ${Object.keys(MAU_LICH||{}).map(p=>`<option value="${p}">${p}</option>`).join('')}
+            </select>
+            <span style="font-size:12px; color:#64748b; white-space:nowrap;">Vị trí mốc:</span>
+            <input type="number" class="tc-user-vitri" data-user="${u.name}"
+              value="0" min="0"
+              style="width:60px; padding:4px 6px; border:1.5px solid #94a3b8; border-radius:6px; font-size:13px; text-align:center;">
+          </div>
+        </div>
+      </div>`;
+    }
+  }).join('');
+
   document.getElementById('tc-user-list').innerHTML = html;
 }
 
-// Hàm bổ trợ: Bấm 1 phát chọn hết toàn bộ danh sách
+// Hàm bổ trợ: Bấm 1 phát chọn hết toàn bộ danh sách (chế độ thường)
 function toggleAllTC(masterCheckbox) {
   document.querySelectorAll('.tc-user-val').forEach(cb => cb.checked = masterCheckbox.checked);
 }
 
 async function submitTransfer() {
   const date = document.getElementById('tc-date').value;
-  const newKip = document.getElementById('tc-newkip').value;
-  const newPattern = document.getElementById('tc-newpattern').value;
-  const newViTriMoc = document.getElementById('tc-newvitri').value;
   const pin = document.getElementById('tc-pin').value;
-  const users = Array.from(document.querySelectorAll('.tc-user-val:checked')).map(cb => cb.value);
+  const isMulti = document.getElementById('tc-multi-kip-mode') && document.getElementById('tc-multi-kip-mode').checked;
 
-  if(!date || users.length === 0) { showLocalAlert('transfer-msg','Vui lòng chọn ngày và nhân viên!','ae'); return; }
-  if(!pin) { showLocalAlert('transfer-msg','Vui lòng nhập mã PIN xác nhận!','ae'); return; }
-  
-  if(!confirm(`Xác nhận chuyển ${users.length} người sang trạng thái mới kể từ ${fmtDate(date)}?`)) return;
+  if (!date) { showLocalAlert('transfer-msg', 'Vui lòng chọn ngày áp dụng!', 'ae'); return; }
+  if (!pin)  { showLocalAlert('transfer-msg', 'Vui lòng nhập mã PIN xác nhận!', 'ae'); return; }
 
-  showLocalAlert('transfer-msg','Đang xử lý...','ai')
-  try {
-    const approvedBy = CU ? CU.name : "";
-    let hasError = false;
-    for(let name of users) {
-      const res = await api({ 
-        action: "addTransfer", 
-        data: JSON.stringify({ name, date, newKip, newPattern, newViTriMoc, approvedBy }),
-        verifyPin: pin
-      });
-      if(res.error) {
-        showLocalAlert('transfer-msg', res.error, 'ae');
-        hasError = true;
-        break;
+  const approvedBy = CU ? CU.name : "";
+
+  // Tập hợp danh sách { name, newKip, newPattern, newViTriMoc } cần gửi
+  let tasks = [];
+
+  if (!isMulti) {
+    // ── Chế độ thường: kíp/mẫu/mốc dùng chung ──
+    const newKip      = document.getElementById('tc-newkip').value;
+    const newPattern  = document.getElementById('tc-newpattern').value;
+    const newViTriMoc = document.getElementById('tc-newvitri').value;
+    const users = Array.from(document.querySelectorAll('.tc-user-val:checked')).map(cb => cb.value);
+    if (users.length === 0) { showLocalAlert('transfer-msg', 'Vui lòng chọn ít nhất 1 nhân viên!', 'ae'); return; }
+    tasks = users.map(name => ({ name, newKip, newPattern, newViTriMoc }));
+  } else {
+    // ── Chế độ nhiều kíp: mỗi người lấy kíp riêng ──
+    const checkedBoxes = Array.from(document.querySelectorAll('.tc-user-val:checked'));
+    if (checkedBoxes.length === 0) { showLocalAlert('transfer-msg', 'Vui lòng tích chọn ít nhất 1 nhân viên!', 'ae'); return; }
+
+    for (const cb of checkedBoxes) {
+      const name = cb.value;
+      const safeId = cb.dataset.safeId;
+      const kipSel  = document.querySelector(`#tc-kip-wrap-${safeId} .tc-user-newkip`);
+      const dateSel = document.querySelector(`#tc-kip-wrap-${safeId} .tc-user-date`);
+      const newKip   = kipSel  ? kipSel.value  : '';
+      const userDate = dateSel ? dateSel.value : date;
+      const vitriSel    = document.querySelector(`#tc-vitri-wrap-${safeId} .tc-user-vitri`);
+      const patternSel   = document.querySelector(`#tc-vitri-wrap-${safeId} .tc-user-pattern`);
+      const vitriToggle  = document.querySelector(`#tc-kip-wrap-${safeId} .tc-vitri-toggle`);
+      const userVitri    = (vitriToggle && vitriToggle.checked && vitriSel)   ? (vitriSel.value   || '0') : '0';
+      const userPattern  = (vitriToggle && vitriToggle.checked && patternSel) ? (patternSel.value || '')  : '';
+      if (!newKip) {
+        showLocalAlert('transfer-msg', `⚠️ Chưa chọn kíp mới cho: ${name}`, 'ae');
+        return;
       }
+      if (!userDate) {
+        showLocalAlert('transfer-msg', `⚠️ Chưa chọn ngày áp dụng cho: ${name}`, 'ae');
+        return;
+      }
+      tasks.push({ name, date: userDate, newKip, newPattern: userPattern, newViTriMoc: userVitri });
     }
-    
-    if (!hasError) {
-      await loadTransfers(); 
+  }
+
+  // Tóm tắt xác nhận
+  const summary = tasks.map(t => `• ${t.name}  →  ${t.newKip || '(giữ nguyên)'}  (từ ${fmtDate(t.date || date)})`).join('\n');
+  if (!confirm(`Xác nhận điều chuyển ${tasks.length} người?\n\n${summary}`)) return;
+
+  showLocalAlert('transfer-msg', `Đang xử lý ${tasks.length} lệnh điều chuyển...`, 'ai');
+
+  try {
+    // Gọi 1 lần duy nhất — GAS gom Telegram theo nhóm, không spam tin
+    const items = tasks.map(t => ({
+      name: t.name,
+      date: t.date || date,
+      newKip: t.newKip,
+      newPattern: t.newPattern || '',
+      newViTriMoc: t.newViTriMoc || '0'
+    }));
+    const res = await api({
+      action: "addTransferBatch",
+      data: JSON.stringify({ items, approvedBy }),
+      verifyPin: pin
+    });
+
+    if (res.error) {
+      showLocalAlert('transfer-msg', res.error, 'ae');
+    } else {
+      await loadTransfers();
       renderTransferLog();
-      renderScheduleTable(); 
-      showLocalAlert('transfer-msg','Điều chuyển thành công!','as')
+      renderScheduleTable();
+      showLocalAlert('transfer-msg', `✅ Điều chuyển thành công ${res.count || tasks.length} người!`, 'as');
       document.getElementById('tc-date').value = '';
       document.getElementById('tc-pin').value = '';
+      if (document.getElementById('tc-multi-kip-mode')) {
+        document.getElementById('tc-multi-kip-mode').checked = false;
+        document.getElementById('tc-common-kip-wrap').style.display = '';
+      }
+      filterTCUsers();
     }
-  } catch(e) { showLocalAlert('transfer-msg','Lỗi kết nối!','ae'); }
+  } catch(e) { showLocalAlert('transfer-msg', 'Lỗi kết nối!', 'ae'); }
 }
 
 async function loadTransfers() {
