@@ -326,7 +326,7 @@ textarea{resize:none;height:80px}
           <label>1. Lọc theo chức danh</label>
           <select id="tc-role" onchange="filterTCUsers()"><option value="">-- Tất cả --</option></select>
         </div>
-        <div>
+        <div id="tc-date-wrap">
           <label>2. Ngày bắt đầu áp dụng</label>
           <input type="date" id="tc-date" onchange="filterTCUsers()" style="border-color:#f97316;">
         </div>
@@ -4374,6 +4374,7 @@ function initTransferForm() {
 function onMultiKipModeChange() {
   const isMulti = document.getElementById('tc-multi-kip-mode').checked;
   document.getElementById('tc-common-kip-wrap').style.display = isMulti ? 'none' : '';
+  document.getElementById('tc-date-wrap').style.display = isMulti ? 'none' : '';
   filterTCUsers(); // re-render danh sách để hiện/ẩn dropdown kíp riêng từng người
 }
 
@@ -4490,7 +4491,8 @@ async function submitTransfer() {
   const pin = document.getElementById('tc-pin').value;
   const isMulti = document.getElementById('tc-multi-kip-mode') && document.getElementById('tc-multi-kip-mode').checked;
 
-  if (!date) { showLocalAlert('transfer-msg', 'Vui lòng chọn ngày áp dụng!', 'ae'); return; }
+  // Chế độ nhiều kíp: ngày riêng từng người → không bắt buộc ô ngày chung
+  if (!date && !isMulti) { showLocalAlert('transfer-msg', 'Vui lòng chọn ngày áp dụng!', 'ae'); return; }
   if (!pin)  { showLocalAlert('transfer-msg', 'Vui lòng nhập mã PIN xác nhận!', 'ae'); return; }
 
   const approvedBy = CU ? CU.name : "";
@@ -4568,6 +4570,7 @@ async function submitTransfer() {
       if (document.getElementById('tc-multi-kip-mode')) {
         document.getElementById('tc-multi-kip-mode').checked = false;
         document.getElementById('tc-common-kip-wrap').style.display = '';
+        document.getElementById('tc-date-wrap').style.display = '';
       }
       filterTCUsers();
     }
