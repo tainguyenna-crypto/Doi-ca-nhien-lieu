@@ -3049,7 +3049,8 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
          style = isLe ? "background:#fecaca;" : "";
       }
       
-      row += `<td style="text-align:center; ${style}">${(ca === 'OFF' || ca === 'NONE') ? '-' : ca}</td>`;
+      const caDisplay = ca === 'HC' ? 'X' : ca === 'HC/2' ? 'X/2' : ca;
+      row += `<td style="text-align:center; ${style}">${(ca === 'OFF' || ca === 'NONE') ? '-' : caDisplay}</td>`;
     }
 
     const totalCong = (totalHours / 8).toFixed(2);
