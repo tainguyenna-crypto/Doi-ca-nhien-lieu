@@ -332,6 +332,9 @@ textarea{resize:none;height:80px}
         </div>
       </div>
 
+      <div id="tc-no-perm-msg" style="display:none; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:12px 16px; color:#991b1b; font-weight:600; margin-bottom:12px;">
+        🚫 Bạn không có quyền ban hành lệnh điều chuyển. Liên hệ quản trị viên để được cấp quyền.
+      </div>
       <!-- TOGGLE CHẾ ĐỘ -->
       <div style="background:#fff7ed; border:1px solid #fdba74; border-radius:8px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700; color:#ea580c; font-size:14px; margin:0;">
@@ -1274,7 +1277,9 @@ async function doLogin(){
       document.getElementById('f-leave-hist-cd-wrap').style.display = 'contents';
       document.getElementById('f-leave-hist-cd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
     }
-   document.getElementById('btn-admin').style.display = CU.admin?'':'none'; document.getElementById('tab-btn-admin-hc').style.display = (CU.admin || CU.role === 'ld')?'':'none';      document.getElementById('f-name').value = CU.name; 
+   document.getElementById('btn-admin').style.display = CU.admin?'':'none'; const myInfoDisp = NV_LIST.find(u => u.name === CU.name);
+    const hasDispatchPerm = CU.admin || CU.role === 'ld' || (myInfoDisp && myInfoDisp.quyenDieuDong && myInfoDisp.quyenDieuDong.trim());
+    document.getElementById('tab-btn-admin-hc').style.display = hasDispatchPerm ? '' : 'none';      document.getElementById('f-name').value = CU.name; 
     if(myInfo) {
   // Lấy kíp thực tế sau điều động
   let displayKip = myInfo.kip;
@@ -1287,6 +1292,19 @@ async function doLogin(){
   }
   document.getElementById('f-kip').value = displayKip;
 }
+    // Kiểm tra quyền điều động/điều chuyển và ẩn form nếu không có
+    {
+      const myInfoPerm = NV_LIST.find(u => u.name === CU.name);
+      const qdd = myInfoPerm ? (myInfoPerm.quyenDieuDong || '').trim() : '';
+      const canDispatch = CU.admin || CU.role === 'ld' || !!qdd;
+      // Form điều chuyển
+      const tcNoPermMsg = document.getElementById('tc-no-perm-msg');
+      const tcFormBody = document.querySelectorAll('#tab-admin-hc .card:last-of-type > *:not(#tc-no-perm-msg)');
+      if (!canDispatch) {
+        if (tcNoPermMsg) tcNoPermMsg.style.display = '';
+        tcFormBody.forEach(el => el.style.display = 'none');
+      }
+    }
     let isLd = (CU.role === 'ld' || CU.admin) ? 'inline-flex' : 'none'; 
     document.getElementById('btn-export-excel').style.display = isLd; 
     document.getElementById('btn-export-history').style.display = isLd; 
@@ -3170,7 +3188,11 @@ let hcIdCounter = 0;
 function addRowHC() {
   hcIdCounter++;
   const id = hcIdCounter;
-  const roles = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
+  const myInfoHC = NV_LIST.find(u => u.name === CU.name);
+  const qddRaw = (CU.admin || CU.role === 'ld') ? '*' : (myInfoHC && myInfoHC.quyenDieuDong ? myInfoHC.quyenDieuDong.trim() : '');
+  const allRolesHC = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
+  const roles = (!qddRaw || qddRaw === '*') ? allRolesHC
+    : allRolesHC.filter(r => qddRaw.split(',').map(s => s.trim().toLowerCase()).includes(r.toLowerCase()));
   const kips = [...new Set(NV_LIST.map(u => u.kip))].filter(Boolean);
 
   const tr = document.createElement('tr');
@@ -4352,7 +4374,11 @@ async function submitBatchHC() {
 
 // Khởi tạo Form Điều chuyển
 function initTransferForm() {
-  const roles = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
+  const myInfoTC = NV_LIST.find(u => u.name === CU.name);
+  const qddRawTC = (CU.admin || CU.role === 'ld') ? '*' : (myInfoTC && myInfoTC.quyenDieuDong ? myInfoTC.quyenDieuDong.trim() : '');
+  const allRolesTC = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
+  const roles = (!qddRawTC || qddRawTC === '*') ? allRolesTC
+    : allRolesTC.filter(r => qddRawTC.split(',').map(s => s.trim().toLowerCase()).includes(r.toLowerCase()));
   const kips = APP_CONFIG.kipList?.length > 0 
   ? APP_CONFIG.kipList 
   : [...new Set(NV_LIST.map(u => u.kip))].filter(Boolean);
