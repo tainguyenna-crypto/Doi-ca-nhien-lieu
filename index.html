@@ -1278,7 +1278,7 @@ async function doLogin(){
       document.getElementById('f-leave-hist-cd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
     }
    document.getElementById('btn-admin').style.display = CU.admin?'':'none'; const myInfoDisp = NV_LIST.find(u => u.name === CU.name);
-    const hasDispatchPerm = CU.admin || CU.role === 'ld' || (myInfoDisp && myInfoDisp.quyenDieuDong && myInfoDisp.quyenDieuDong.trim());
+    const hasDispatchPerm = CU.admin || (myInfoDisp && myInfoDisp.quyenDieuDong && myInfoDisp.quyenDieuDong.trim());
     document.getElementById('tab-btn-admin-hc').style.display = hasDispatchPerm ? '' : 'none';      document.getElementById('f-name').value = CU.name; 
     if(myInfo) {
   // Lấy kíp thực tế sau điều động
@@ -1296,7 +1296,7 @@ async function doLogin(){
     {
       const myInfoPerm = NV_LIST.find(u => u.name === CU.name);
       const qdd = myInfoPerm ? (myInfoPerm.quyenDieuDong || '').trim() : '';
-      const canDispatch = CU.admin || CU.role === 'ld' || !!qdd;
+      const canDispatch = CU.admin || !!qdd;
       // Form điều chuyển
       const tcNoPermMsg = document.getElementById('tc-no-perm-msg');
       const tcFormBody = document.querySelectorAll('#tab-admin-hc .card:last-of-type > *:not(#tc-no-perm-msg)');
@@ -3189,7 +3189,7 @@ function addRowHC() {
   hcIdCounter++;
   const id = hcIdCounter;
   const myInfoHC = NV_LIST.find(u => u.name === CU.name);
-  const qddRaw = (CU.admin || CU.role === 'ld') ? '*' : (myInfoHC && myInfoHC.quyenDieuDong ? myInfoHC.quyenDieuDong.trim() : '');
+  const qddRaw = CU.admin ? '*' : (myInfoHC && myInfoHC.quyenDieuDong ? myInfoHC.quyenDieuDong.trim() : '');
   const allRolesHC = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
   const roles = (!qddRaw || qddRaw === '*') ? allRolesHC
     : allRolesHC.filter(r => qddRaw.split(',').map(s => s.trim().toLowerCase()).includes(r.toLowerCase()));
@@ -4375,7 +4375,7 @@ async function submitBatchHC() {
 // Khởi tạo Form Điều chuyển
 function initTransferForm() {
   const myInfoTC = NV_LIST.find(u => u.name === CU.name);
-  const qddRawTC = (CU.admin || CU.role === 'ld') ? '*' : (myInfoTC && myInfoTC.quyenDieuDong ? myInfoTC.quyenDieuDong.trim() : '');
+  const qddRawTC = CU.admin ? '*' : (myInfoTC && myInfoTC.quyenDieuDong ? myInfoTC.quyenDieuDong.trim() : '');
   const allRolesTC = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
   const roles = (!qddRawTC || qddRawTC === '*') ? allRolesTC
     : allRolesTC.filter(r => qddRawTC.split(',').map(s => s.trim().toLowerCase()).includes(r.toLowerCase()));
@@ -4428,7 +4428,14 @@ function filterTCUsers() {
   const isMulti = document.getElementById('tc-multi-kip-mode') && document.getElementById('tc-multi-kip-mode').checked;
   const kips = _getTCKips();
 
-  let list = r ? NV_LIST.filter(u => u.chucDanh === r) : NV_LIST;
+  // Lọc danh sách theo quyenDieuDong
+  const myInfoTC2 = NV_LIST.find(u => u.name === CU.name);
+  const qddTC = CU.admin ? '*' : (myInfoTC2 && myInfoTC2.quyenDieuDong ? myInfoTC2.quyenDieuDong.trim() : '');
+  const allowedCds = (!qddTC || qddTC === '*') ? null
+    : qddTC.split(',').map(s => s.trim().toLowerCase()).filter(s => s);
+  let baseList = allowedCds ? NV_LIST.filter(u => allowedCds.includes((u.chucDanh || '').toLowerCase())) : NV_LIST;
+
+  let list = r ? baseList.filter(u => u.chucDanh === r) : baseList;
   if (searchText) list = list.filter(u => u.name.toLowerCase().includes(searchText));
 
   // Header "Chọn tất cả" — chế độ multi không có "chọn tất cả" để tránh nhầm kíp
