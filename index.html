@@ -3199,8 +3199,15 @@ function addRowHC() {
   const myInfoHC = NV_LIST.find(u => u.name === CU.name);
   const qddRaw = CU.admin ? '*' : (myInfoHC && myInfoHC.quyenDieuDong ? myInfoHC.quyenDieuDong.trim() : '');
   const allRolesHC = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
-  const roles = (!qddRaw || qddRaw === '*') ? allRolesHC
-    : allRolesHC.filter(r => qddRaw.split(',').map(s => s.trim().toLowerCase()).includes(r.toLowerCase()));
+  const _pOrderHC = (APP_CONFIG.priorityOrder && APP_CONFIG.priorityOrder.length > 0) ? APP_CONFIG.priorityOrder : [];
+  const allRolesHCSorted = allRolesHC.sort((a, b) => {
+    const iA = _pOrderHC.indexOf(a); const iB = _pOrderHC.indexOf(b);
+    const vA = iA === -1 ? 999 : iA; const vB = iB === -1 ? 999 : iB;
+    if (vA !== vB) return vA - vB;
+    return a.localeCompare(b, 'vi');
+  });
+  const roles = (!qddRaw || qddRaw === '*') ? allRolesHCSorted
+    : allRolesHCSorted.filter(r => qddRaw.split(',').map(s => s.trim().toLowerCase()).includes(r.toLowerCase()));
   const kips = [...new Set(NV_LIST.map(u => u.kip))].filter(Boolean);
 
   const tr = document.createElement('tr');
