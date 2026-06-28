@@ -1272,7 +1272,15 @@ async function doLogin(){
     document.getElementById('tab-btn-duyet-np').style.display = CU.role==='ld'?'':'none';
     if (CU.role === 'ld') {
       document.getElementById('fcd-wrap').style.display = 'contents';
-      const cdList = [...new Set(NV_LIST.map(u => u.chucDanh).filter(Boolean))].sort();
+      // Sắp xếp theo thứ tự ưu tiên trong Settings, giống Bảng đi ca
+      const _cdAll = [...new Set(NV_LIST.map(u => u.chucDanh).filter(Boolean))];
+      const _pOrder = (APP_CONFIG.priorityOrder && APP_CONFIG.priorityOrder.length > 0) ? APP_CONFIG.priorityOrder : [];
+      const cdList = _cdAll.sort((a, b) => {
+        const iA = _pOrder.indexOf(a); const iB = _pOrder.indexOf(b);
+        const vA = iA === -1 ? 999 : iA; const vB = iB === -1 ? 999 : iB;
+        if (vA !== vB) return vA - vB;
+        return a.localeCompare(b, 'vi');
+      });
       document.getElementById('f-fcd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
       document.getElementById('f-leave-hist-cd-wrap').style.display = 'contents';
       document.getElementById('f-leave-hist-cd').innerHTML = '<option value="">Tất cả chức danh</option>' + cdList.map(cd => `<option>${cd}</option>`).join('');
@@ -4377,8 +4385,15 @@ function initTransferForm() {
   const myInfoTC = NV_LIST.find(u => u.name === CU.name);
   const qddRawTC = CU.admin ? '*' : (myInfoTC && myInfoTC.quyenDieuDong ? myInfoTC.quyenDieuDong.trim() : '');
   const allRolesTC = [...new Set(NV_LIST.map(u => u.chucDanh))].filter(Boolean);
-  const roles = (!qddRawTC || qddRawTC === '*') ? allRolesTC
-    : allRolesTC.filter(r => qddRawTC.split(',').map(s => s.trim().toLowerCase()).includes(r.toLowerCase()));
+  const _pOrderTC = (APP_CONFIG.priorityOrder && APP_CONFIG.priorityOrder.length > 0) ? APP_CONFIG.priorityOrder : [];
+  const allRolesTCSorted = allRolesTC.sort((a, b) => {
+    const iA = _pOrderTC.indexOf(a); const iB = _pOrderTC.indexOf(b);
+    const vA = iA === -1 ? 999 : iA; const vB = iB === -1 ? 999 : iB;
+    if (vA !== vB) return vA - vB;
+    return a.localeCompare(b, 'vi');
+  });
+  const roles = (!qddRawTC || qddRawTC === '*') ? allRolesTCSorted
+    : allRolesTCSorted.filter(r => qddRawTC.split(',').map(s => s.trim().toLowerCase()).includes(r.toLowerCase()));
   const kips = APP_CONFIG.kipList?.length > 0 
   ? APP_CONFIG.kipList 
   : [...new Set(NV_LIST.map(u => u.kip))].filter(Boolean);
