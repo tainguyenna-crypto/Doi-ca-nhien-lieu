@@ -241,7 +241,7 @@ textarea{resize:none;height:80px}
           </div>
           <div><label>Kíp</label><select id="f-partner-kip" disabled style="background:#f1f5f9; color:#475569; font-weight:600; appearance:none;"><option value="">-- Kíp --</option></select></div>
         </div>
-        <div class="form-row full"><label>Chức danh người đi thay</label><select id="f-partner-role"><option value="">-- Chọn --</option></select></div>
+        <div class="form-row full"><label>Chức danh người đi thay</label><select id="f-partner-role" disabled><option value="">-- Chọn --</option></select></div>
         <div class="form-row full"><label>Lý do</label><textarea id="f-reason" placeholder="Lý do đổi ca..."></textarea></div>
         <button class="btn btn-primary" id="btn-submit" style="width:100%; padding:12px;" onclick="submitRequest()">Gửi yêu cầu</button>
         <div id="submit-msg" class="alert" style="margin-top:10px; display:none"></div>
@@ -1165,6 +1165,7 @@ function refreshPartnerList() {
   document.querySelector('#ss-partner .ss-btn').classList.add('ph');
   document.getElementById('f-partner-kip').value = '';
   document.getElementById('f-partner-role').value = '';
+  document.getElementById('f-partner-role').disabled = false;
   
   // Nạp lại danh sách mới toanh theo điều kiện mới
   buildSS('ss-partner', '');
@@ -1195,7 +1196,10 @@ document.addEventListener('click',e=>{
           if (sorted.length > 0) partnerKipThucTe = sorted[0].newKip;
         }
         if(partnerKipThucTe) document.getElementById('f-partner-kip').value = partnerKipThucTe;
-        if(pInfo.chucDanh) document.getElementById('f-partner-role').value = pInfo.chucDanh;
+        if(pInfo.chucDanh) {
+          document.getElementById('f-partner-role').value = pInfo.chucDanh;
+          document.getElementById('f-partner-role').disabled = true;
+        }
       }
     } return; 
   }
@@ -2329,6 +2333,7 @@ if (document.getElementById('f-no-return').checked) {
     await api({ action: "add", data: JSON.stringify({name, kip, caDoi, ngayDoi, caTra, ngayTra, partner, partnerKip, partnerRole, reason}) }); 
     await loadAll(); showLocalAlert('submit-msg','Đã gửi đơn thành công!','as'); 
     ['f-ca-doi','f-ca-tra','f-partner-kip','f-partner-role','f-ngay-doi','f-ngay-tra','f-reason','f-partner'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-partner-role').disabled = false;
     document.getElementById('f-no-return').checked = false; toggleNoReturn();
     document.getElementById('ss-partner-lbl').textContent='-- Chọn --'; document.querySelector('#ss-partner .ss-btn').classList.add('ph'); switchTab('lich-su'); 
   } catch(e){ showLocalAlert('submit-msg','Lỗi kết nối. Vui lòng thử lại.','ae'); } btn.disabled = false; btn.textContent = 'Gửi yêu cầu';
