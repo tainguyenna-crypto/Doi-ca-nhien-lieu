@@ -3110,7 +3110,7 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
       }
       
       const caDisplay = ca === 'HC' ? 'X' : ca === 'HC/2' ? 'X/2' : ca;
-      row += `<td style="text-align:center; ${style}">${(ca === 'OFF' || ca === 'NONE') ? '-' : caDisplay}</td>`;
+      row += `<td style="text-align:center; ${style}">${(ca === 'OFF' || ca === 'NONE') ? '' : caDisplay}</td>`;
     }
 
     const totalCong = (totalHours / 8).toFixed(2);
@@ -3118,12 +3118,12 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
     grandTotalP += countP; grandTotalVR += countVR; grandTotalO += countO; grandTotalTS += countTS;
     grandTotalV += countV;
 
-    row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK}</td>`;
-    row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0284c7;">${countP > 0 ? countP : '-'}</td>`;
-    row += `<td style="text-align:center; font-weight:700; background:#fdf4ff; color:#7e22ce;">${countVR > 0 ? countVR : '-'}</td>`;
-    row += `<td style="text-align:center; font-weight:700; background:#fff7ed; color:#c2410c;">${countO > 0 ? countO : '-'}</td>`;
-    row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#065f46;">${countTS > 0 ? countTS : '-'}</td>`;
-    row += `<td style="text-align:center; font-weight:700; background:#fff1f2; color:#be123c;">${countV > 0 ? countV : '-'}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#15803d;">${countK > 0 ? countK : ''}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0284c7;">${countP > 0 ? countP : ''}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#fdf4ff; color:#7e22ce;">${countVR > 0 ? countVR : ''}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#fff7ed; color:#c2410c;">${countO > 0 ? countO : ''}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#f0fdf4; color:#065f46;">${countTS > 0 ? countTS : ''}</td>`;
+    row += `<td style="text-align:center; font-weight:700; background:#fff1f2; color:#be123c;">${countV > 0 ? countV : ''}</td>`;
     row += `<td style="text-align:center; font-weight:700; background:#f0f9ff; color:#0369a1;">${totalCong}</td></tr>`;
     return row;
   }).join('');
@@ -3134,12 +3134,12 @@ headHtml += `<th style="text-align:center; width:60px; background:#ebf3ff; color
       <tr style="background:#f1f5f9; font-weight:700; border-top:2px solid #cbd5e1;">
         <td colspan="${CU.role === 'ld' ? 3 : 2}" style="text-align:right; color:#1a56a0; position:sticky; left:0; background:#f1f5f9; z-index:5;">TỔNG CỘNG TOÀN PX:</td>
         <td colspan="${daysInMonth}"></td>
-        <td style="text-align:center; color:#15803d; font-size:14px;">${grandTotalK}</td>
-        <td style="text-align:center; color:#0284c7; font-size:14px;">${grandTotalP > 0 ? grandTotalP : '-'}</td>
-        <td style="text-align:center; color:#7e22ce; font-size:14px;">${grandTotalVR > 0 ? grandTotalVR : '-'}</td>
-        <td style="text-align:center; color:#c2410c; font-size:14px;">${grandTotalO > 0 ? grandTotalO : '-'}</td>
-        <td style="text-align:center; color:#065f46; font-size:14px;">${grandTotalTS > 0 ? grandTotalTS : '-'}</td>
-        <td style="text-align:center; color:#be123c; font-size:14px;">${grandTotalV > 0 ? grandTotalV : '-'}</td>
+        <td style="text-align:center; color:#15803d; font-size:14px;">${grandTotalK > 0 ? grandTotalK : ''}</td>
+        <td style="text-align:center; color:#0284c7; font-size:14px;">${grandTotalP > 0 ? grandTotalP : ''}</td>
+        <td style="text-align:center; color:#7e22ce; font-size:14px;">${grandTotalVR > 0 ? grandTotalVR : ''}</td>
+        <td style="text-align:center; color:#c2410c; font-size:14px;">${grandTotalO > 0 ? grandTotalO : ''}</td>
+        <td style="text-align:center; color:#065f46; font-size:14px;">${grandTotalTS > 0 ? grandTotalTS : ''}</td>
+        <td style="text-align:center; color:#be123c; font-size:14px;">${grandTotalV > 0 ? grandTotalV : ''}</td>
         <td style="text-align:center; color:#1a56a0; font-size:14px;">${grandTotalCong.toFixed(2)}</td>
       </tr>
     `;
